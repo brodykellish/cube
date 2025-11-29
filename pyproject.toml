@@ -1,0 +1,23 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "pybind11>=2.10.0",
+    "setuptools_scm[toml]>=6.2",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+
+[tool.ruff]
+lint.extend-select = [
+  "B",   # flake8-bugbear
+  "I",   # isort
+  "PGH", # pygrep-hooks
+  "RUF", # Ruff-specific
+  "UP",  # pyupgrade
+]
+lint.extend-ignore = [
+  "E501",   # Line too long
+  "RUF002",   # Yes I meant to type 'multiplication sign'!
+]
+target-version = "py311"

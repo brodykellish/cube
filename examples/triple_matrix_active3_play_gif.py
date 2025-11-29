@@ -1,0 +1,40 @@
+#!/usr/bin/python3
+"""
+Display an animated gif across 3 matrices using the triple matrix with 3x 64x64 matrices
+
+Run like this:
+
+$ python triple_matrix_active3_play_gif.py
+
+The animated gif is played repeatedly until interrupted with ctrl-c.
+"""
+
+import time
+
+import numpy as np
+import PIL.Image as Image
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+
+width = 64
+height = 64
+gif_file = "nyan.gif"
+
+canvas = Image.new('RGB', (width, height), (0, 0, 0))
+geometry = piomatter.Geometry(width=width, height=height,
+                              n_addr_lines=5, rotation=piomatter.Orientation.Normal)
+framebuffer = np.asarray(canvas) + 0  # Make a mutable copy
+matrix = piomatter.PioMatter(colorspace=piomatter.Colorspace.RGB888Packed,
+                             pinout=piomatter.Pinout.AdafruitMatrixBonnet,
+                             framebuffer=framebuffer,
+                             geometry=geometry)
+
+with Image.open(gif_file) as img:
+    print(f"frames: {img.n_frames}")
+    while True:
+        for i in range(img.n_frames):
+            img.seek(i)
+            canvas.paste(img, (0,0))
+            framebuffer[:] = np.asarray(canvas)
+            matrix.show()
+            time.sleep(0.1)

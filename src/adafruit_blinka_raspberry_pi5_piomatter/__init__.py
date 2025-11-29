@@ -1,0 +1,48 @@
+"""
+HUB75 matrix driver for Raspberry Pi 5 using PIO
+------------------------------------------------
+
+.. currentmodule:: adafruit_blinka_raspberry_pi5_piomatter
+
+.. autosummary::
+    :toctree: _generate
+    :recursive:
+    :class: Orientation Pinout Colorspace Geometry PioMatter
+
+    Orientation
+    Pinout
+    Colorspace
+    Geometry
+    PioMatter
+"""
+
+# Try to import C extension (only available on Raspberry Pi)
+try:
+    from ._piomatter import (
+        Colorspace,
+        Geometry,
+        Orientation,
+        Pinout,
+        PioMatter,
+    )
+    _PIOMATTER_AVAILABLE = True
+except ImportError:
+    # Not on Raspberry Pi, C extension not built
+    _PIOMATTER_AVAILABLE = False
+    Colorspace = None
+    Geometry = None
+    Orientation = None
+    Pinout = None
+    PioMatter = None
+
+# Import shader submodule to make it accessible
+from . import shader
+
+__all__ = [
+    'Colorspace',
+    'Geometry',
+    'Orientation',
+    'Pinout',
+    'PioMatter',
+    'shader',
+]
