@@ -1,0 +1,7 @@
+__pycache__/
+.DS_STORE
+/*.pio.h
+/build
+*.egg-info
+env/
+
