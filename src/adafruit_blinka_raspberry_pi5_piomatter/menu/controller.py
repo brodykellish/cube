@@ -24,18 +24,31 @@ if volumetric_path.exists():
 from volumetric import VolumetricCubeRenderer
 
 
-def _volumetric_preview_window_process(queue, face_size, scale):
+def _volumetric_preview_window_process(queue, face_size, scale, num_panels):
     """Run in separate process to display preview window. Must be top-level function for pickling."""
     import pygame
     import numpy as np
     import os
+    import math
 
-    # Face size is already 50% of original (compressed before sending)
-    compressed_face_size = face_size // 2
+    # Calculate layout dimensions based on num_panels
+    # For 1-6 panels, create a reasonable grid layout
+    if num_panels == 1:
+        grid_width, grid_height = 1, 1
+    elif num_panels == 2:
+        grid_width, grid_height = 2, 1
+    elif num_panels == 3:
+        grid_width, grid_height = 3, 1
+    elif num_panels == 4:
+        grid_width, grid_height = 2, 2
+    elif num_panels == 5:
+        grid_width, grid_height = 3, 2
+    else:  # 6 panels - use cross pattern
+        grid_width, grid_height = 4, 3
 
-    # Calculate preview window size (4 faces wide × 3 faces tall)
-    preview_width = 4 * compressed_face_size * scale
-    preview_height = 3 * compressed_face_size * scale
+    # Calculate preview window size (1:1 scale - no downsampling)
+    preview_width = grid_width * face_size * scale
+    preview_height = grid_height * face_size * scale
 
     # Initialize pygame in this process
     pygame.init()
@@ -44,19 +57,38 @@ def _volumetric_preview_window_process(queue, face_size, scale):
     os.environ['SDL_VIDEO_WINDOW_POS'] = '700,100'
 
     screen = pygame.display.set_mode((preview_width, preview_height))
-    pygame.display.set_caption("Volumetric Cube - All Faces")
+    pygame.display.set_caption(f"Volumetric Cube - {num_panels} Face{'s' if num_panels > 1 else ''}")
 
     clock = pygame.time.Clock()
 
-    # Layout positions
-    layout = {
-        'top': (1, 0),
-        'left': (0, 1),
-        'front': (1, 1),
-        'right': (2, 1),
-        'back': (3, 1),
-        'bottom': (1, 2),
-    }
+    # Dynamic layout based on num_panels
+    all_faces = ['front', 'back', 'left', 'right', 'top', 'bottom']
+    active_faces = all_faces[:num_panels]
+
+    # Create layout positions dynamically
+    if num_panels == 6:
+        # Cross pattern for 6 faces
+        layout = {
+            'top': (1, 0),
+            'left': (0, 1),
+            'front': (1, 1),
+            'right': (2, 1),
+            'back': (3, 1),
+            'bottom': (1, 2),
+        }
+    else:
+        # Simple grid layout for 1-5 faces
+        layout = {}
+        for i, face_name in enumerate(active_faces):
+            if num_panels <= 3:
+                # Horizontal layout
+                layout[face_name] = (i, 0)
+            elif num_panels == 4:
+                # 2x2 grid
+                layout[face_name] = (i % 2, i // 2)
+            else:  # 5 panels
+                # 3x2 grid
+                layout[face_name] = (i % 3, i // 3)
 
     running = True
     while running:
@@ -87,29 +119,26 @@ def _volumetric_preview_window_process(queue, face_size, scale):
 
                 pixels = faces[face_name]
 
-                # Faces are already compressed to 50%, just display them
-                actual_face_size = pixels.shape[0]
-
                 # Convert numpy array to pygame surface
                 surface = pygame.surfarray.make_surface(np.swapaxes(pixels, 0, 1))
 
-                # Apply scale if needed (usually scale=1)
+                # Apply scale if needed (usually scale=1 for 1:1 rendering)
                 if scale > 1:
                     surface = pygame.transform.scale(
                         surface,
-                        (actual_face_size * scale, actual_face_size * scale)
+                        (face_size * scale, face_size * scale)
                     )
 
                 # Blit to screen
-                x = grid_x * actual_face_size * scale
-                y = grid_y * actual_face_size * scale
+                x = grid_x * face_size * scale
+                y = grid_y * face_size * scale
                 screen.blit(surface, (x, y))
 
                 # Draw face label
                 font = pygame.font.Font(None, 20)
                 text = font.render(face_name.upper(), True, (255, 255, 255))
                 text_rect = text.get_rect(center=(
-                    x + (actual_face_size * scale) // 2,
+                    x + (face_size * scale) // 2,
                     y + 8
                 ))
                 screen.blit(text, text_rect)
@@ -124,7 +153,7 @@ def _volumetric_preview_window_process(queue, face_size, scale):
 class CubeController:
     """Main controller for cube menu system with layered display support."""
 
-    def __init__(self, width: int, height: int, fps: int = 30, **kwargs):
+    def __init__(self, width: int, height: int, fps: int = 30, num_panels: int = 6, **kwargs):
         """
         Initialize cube controller.
 
@@ -132,12 +161,14 @@ class CubeController:
             width: Display width in pixels
             height: Display height in pixels
             fps: Target frames per second
+            num_panels: Number of cube panels/faces (1-6)
             **kwargs: Additional arguments passed to display backend
         """
         self.width = width
         self.height = height
         self.target_fps = fps
         self.frame_time = 1.0 / fps
+        self.num_panels = num_panels
 
         # Create display with 3 layers
         # Layer 0: Menu
@@ -182,11 +213,12 @@ class CubeController:
         self.in_volumetric_mode = False
 
         # Volumetric display mode: cycles through individual faces
-        # Modes: 'front', 'back', 'left', 'right', 'top', 'bottom'
-        self.volumetric_display_modes = ['front', 'back', 'left', 'right', 'top', 'bottom']
-        self.volumetric_display_mode_index = 0  # Start with front face
+        # Modes: dynamically set based on num_panels
+        all_face_names = ['front', 'back', 'left', 'right', 'top', 'bottom']
+        self.volumetric_display_modes = all_face_names[:num_panels]
+        self.volumetric_display_mode_index = 0  # Start with first face
 
-        # Volumetric preview window (separate process showing all 6 faces)
+        # Volumetric preview window (separate process showing all active faces)
         self.volumetric_preview_process = None
         self.volumetric_preview_queue = None
         self.volumetric_preview_scale = 1  # Scale factor for preview window (no scaling)
@@ -546,11 +578,20 @@ class CubeController:
         try:
             # Initialize volumetric renderer if needed
             if self.volumetric_renderer is None:
-                # Use smaller face size for performance (can be adjusted)
-                face_size = min(self.width, self.height)
+                # Infer face size from width, height, and num_panels
+                # For example: 128x64 with 2 panels means each panel is 64x64
+                if self.num_panels == 1:
+                    # Single panel uses smaller dimension
+                    face_size = min(self.width, self.height)
+                else:
+                    # Multiple panels: infer from dimensions
+                    # Assume width encompasses multiple panels horizontally
+                    face_size = self.width // self.num_panels if self.width >= self.height else min(self.width, self.height)
+
                 self.volumetric_renderer = VolumetricCubeRenderer(
                     face_size=face_size,
-                    face_distance=5.0
+                    face_distance=5.0,
+                    num_panels=self.num_panels
                 )
 
             # Load shader
@@ -616,7 +657,7 @@ class CubeController:
         debug_renderer.draw_text(mode_text, x=x, y=y, color=(255, 255, 100), scale=1)
 
     def _init_volumetric_preview_window(self, face_size: int):
-        """Initialize the volumetric preview window showing all 6 faces."""
+        """Initialize the volumetric preview window showing all active faces."""
         from multiprocessing import Process, Queue
 
         # Store face size for later use
@@ -625,23 +666,22 @@ class CubeController:
         # Create queue for sending face data to preview process
         self.volumetric_preview_queue = Queue(maxsize=2)
 
-        # Start preview window process
+        # Start preview window process with num_panels
         self.volumetric_preview_process = Process(
             target=_volumetric_preview_window_process,
-            args=(self.volumetric_preview_queue, face_size, self.volumetric_preview_scale)
+            args=(self.volumetric_preview_queue, face_size, self.volumetric_preview_scale, self.num_panels)
         )
         self.volumetric_preview_process.start()
 
-        print(f"Preview window process started (face_size={face_size}, scale={self.volumetric_preview_scale})")
+        print(f"Preview window process started (face_size={face_size}, scale={self.volumetric_preview_scale}, panels={self.num_panels})")
 
     def _update_volumetric_preview_window(self, faces: dict):
         """
-        Update the preview window with all 6 faces in unfolded cube pattern.
+        Update the preview window with all active faces.
 
-        Layout:
-               [top]
-        [left][front][right][back]
-               [bottom]
+        Layout depends on num_panels:
+        - 6 panels: Cross pattern (top, left, front, right, back, bottom)
+        - 1-5 panels: Grid layout
         """
         if self.volumetric_preview_queue is None or self.volumetric_preview_process is None:
             return
@@ -650,19 +690,7 @@ class CubeController:
         if not self.volumetric_preview_process.is_alive():
             return
 
-        # Compress faces to 50% size before sending to reduce queue data
-        from PIL import Image
-        compressed_faces = {}
-        for face_name, pixels in faces.items():
-            # Convert to PIL Image
-            img = Image.fromarray(pixels, 'RGB')
-            # Resize to 50%
-            new_size = (pixels.shape[1] // 2, pixels.shape[0] // 2)
-            img_resized = img.resize(new_size, Image.BILINEAR)
-            # Convert back to numpy
-            compressed_faces[face_name] = np.array(img_resized)
-
-        # Send compressed faces to preview process (non-blocking)
+        # Send faces at full resolution (1:1 scale - no downsampling)
         try:
             # Try to clear old data and put new data
             while not self.volumetric_preview_queue.empty():
@@ -670,7 +698,7 @@ class CubeController:
                     self.volumetric_preview_queue.get_nowait()
                 except:
                     break
-            self.volumetric_preview_queue.put_nowait(compressed_faces)
+            self.volumetric_preview_queue.put_nowait(faces)
         except:
             pass  # Queue full, skip this frame
 

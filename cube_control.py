@@ -67,7 +67,18 @@ def main():
         help="Address lines: 4 for 32-pixel tall, 5 for 64-pixel (default: 4)"
     )
 
+    parser.add_argument(
+        "--num-panels",
+        type=int,
+        default=6,
+        help="Number of cube panels/faces (1-6, default: 6)"
+    )
+
     args = parser.parse_args()
+
+    # Validate num-panels
+    if args.num_panels < 1 or args.num_panels > 6:
+        parser.error("--num-panels must be between 1 and 6")
 
     # Print startup banner
     print("=" * 60)
@@ -87,7 +98,8 @@ def main():
             preview=args.preview,
             pinout=args.pinout,
             num_planes=args.num_planes,
-            num_address_lines=args.num_address_lines
+            num_address_lines=args.num_address_lines,
+            num_panels=args.num_panels
         )
 
         controller.run()

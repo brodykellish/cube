@@ -81,20 +81,27 @@ class VolumetricCubeRenderer:
         },
     }
 
-    def __init__(self, face_size: int = 64, face_distance: float = 5.0):
+    def __init__(self, face_size: int = 64, face_distance: float = 5.0, num_panels: int = 6):
         """
         Initialize volumetric cube renderer.
 
         Args:
             face_size: Width/height of each face in pixels
             face_distance: Distance of camera from origin for each face
+            num_panels: Number of cube panels/faces to render (1-6)
         """
         self.face_size = face_size
         self.face_distance = face_distance
+        self.num_panels = min(max(1, num_panels), 6)  # Clamp to 1-6
 
-        # Create cube faces with scaled positions
+        # Determine which faces to use (in order)
+        face_order = ['front', 'back', 'left', 'right', 'top', 'bottom']
+        self.active_faces = face_order[:self.num_panels]
+
+        # Create cube faces with scaled positions (only for active faces)
         self.faces: Dict[str, CubeFace] = {}
-        for name, config in self.FACE_CONFIGS.items():
+        for name in self.active_faces:
+            config = self.FACE_CONFIGS[name]
             pos = tuple(c * face_distance for c in config['position'])
             self.faces[name] = CubeFace(name, pos, config['look_at'])
 
@@ -102,6 +109,8 @@ class VolumetricCubeRenderer:
         self.renderer = ShaderRenderer(face_size, face_size, windowed=False)
 
         print(f"Volumetric cube renderer initialized: {face_size}×{face_size} per face")
+        print(f"Number of panels: {self.num_panels}")
+        print(f"Active faces: {', '.join(self.active_faces)}")
         print(f"Camera distance from origin: {face_distance}")
 
     def load_shader(self, shader_path: str):
@@ -140,10 +149,10 @@ class VolumetricCubeRenderer:
 
     def render_all_faces(self) -> Dict[str, np.ndarray]:
         """
-        Render all 6 faces of the cube.
+        Render all active faces of the cube.
 
         Returns:
-            Dictionary mapping face name -> pixel array
+            Dictionary mapping face name -> pixel array (only for active faces)
         """
         return {
             name: self.render_face(name)
@@ -151,8 +160,8 @@ class VolumetricCubeRenderer:
         }
 
     def get_face_order(self) -> list:
-        """Get standard face ordering for consistent layout."""
-        return ['front', 'back', 'left', 'right', 'top', 'bottom']
+        """Get active face ordering for consistent layout."""
+        return self.active_faces
 
     def cleanup(self):
         """Clean up resources."""
@@ -163,7 +172,7 @@ class CubePreviewRenderer:
     """
     Preview renderer for volumetric cube in pygame window.
 
-    Arranges the 6 faces in a cross/unfolded cube pattern for visualization.
+    Arranges active faces in a dynamic layout based on num_panels.
     """
 
     def __init__(self, cube_renderer: VolumetricCubeRenderer, scale: int = 4):
@@ -177,33 +186,59 @@ class CubePreviewRenderer:
         self.cube = cube_renderer
         self.scale = scale
         self.face_size = cube_renderer.face_size
+        self.num_panels = cube_renderer.num_panels
 
-        # Layout: cross pattern
-        #       [top]
-        # [left][front][right][back]
-        #       [bottom]
+        # Dynamic layout based on num_panels
+        if self.num_panels == 6:
+            # Cross pattern for 6 faces
+            #       [top]
+            # [left][front][right][back]
+            #       [bottom]
+            self.layout = {
+                'top':    (1, 0),  # (x, y) in grid
+                'left':   (0, 1),
+                'front':  (1, 1),
+                'right':  (2, 1),
+                'back':   (3, 1),
+                'bottom': (1, 2),
+            }
+            grid_width, grid_height = 4, 3
+        else:
+            # Simple grid layout for 1-5 faces
+            self.layout = {}
+            active_faces = cube_renderer.active_faces
 
-        self.layout = {
-            'top':    (1, 0),  # (x, y) in grid
-            'left':   (0, 1),
-            'front':  (1, 1),
-            'right':  (2, 1),
-            'back':   (3, 1),
-            'bottom': (1, 2),
-        }
+            if self.num_panels == 1:
+                grid_width, grid_height = 1, 1
+            elif self.num_panels == 2:
+                grid_width, grid_height = 2, 1
+            elif self.num_panels == 3:
+                grid_width, grid_height = 3, 1
+            elif self.num_panels == 4:
+                grid_width, grid_height = 2, 2
+            else:  # 5 panels
+                grid_width, grid_height = 3, 2
 
-        # Window size: 4 faces wide, 3 faces tall
-        self.window_width = 4 * self.face_size * scale
-        self.window_height = 3 * self.face_size * scale
+            for i, face_name in enumerate(active_faces):
+                if self.num_panels <= 3:
+                    self.layout[face_name] = (i, 0)
+                elif self.num_panels == 4:
+                    self.layout[face_name] = (i % 2, i // 2)
+                else:  # 5 panels
+                    self.layout[face_name] = (i % 3, i // 3)
+
+        # Window size based on grid dimensions
+        self.window_width = grid_width * self.face_size * scale
+        self.window_height = grid_height * self.face_size * scale
 
         # Initialize pygame
         import pygame
         pygame.init()
         self.screen = pygame.display.set_mode((self.window_width, self.window_height))
-        pygame.display.set_caption("Volumetric Cube Preview")
+        pygame.display.set_caption(f"Volumetric Cube Preview - {self.num_panels} Face{'s' if self.num_panels > 1 else ''}")
         self.clock = pygame.time.Clock()
 
-        print(f"Preview window: {self.window_width}×{self.window_height}")
+        print(f"Preview window: {self.window_width}×{self.window_height} ({self.num_panels} faces)")
 
     def render_frame(self):
         """Render one frame of the preview."""
