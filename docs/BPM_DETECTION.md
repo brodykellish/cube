@@ -326,9 +326,9 @@ Potential improvements:
 
 ## Files
 
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/audio_processor.py` - BPM detection logic
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/preview_renderer.py` - Uniform binding
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/renderer.py` - Uniform declarations
+- `src/piomatter/shader/audio_processor.py` - BPM detection logic
+- `src/piomatter/shader/preview_renderer.py` - Uniform binding
+- `src/piomatter/shader/renderer.py` - Uniform declarations
 - `shaders/beat_pulse.glsl` - Example beat-synchronized shader
 - `shaders/audio_spectrum.glsl` - Spectrum with beat highlights
 

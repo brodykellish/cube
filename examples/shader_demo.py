@@ -32,7 +32,7 @@ import time
 import platform
 from pathlib import Path
 import numpy as np
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 
 def main():

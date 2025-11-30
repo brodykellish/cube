@@ -300,7 +300,7 @@ The shader code doesn't change at all!
 - Spherical coordinates: https://en.wikipedia.org/wiki/Spherical_coordinate_system
 - Tangent space: https://en.wikipedia.org/wiki/Tangent_space
 - Example shader: `shaders/navigate.glsl`
-- Implementation: `src/adafruit_blinka_raspberry_pi5_piomatter/shader/preview_renderer.py`
+- Implementation: `src/piomatter/shader/preview_renderer.py`
 
 ---
 

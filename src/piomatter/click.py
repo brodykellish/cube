@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 
 class _PybindEnumChoice(click.Choice):

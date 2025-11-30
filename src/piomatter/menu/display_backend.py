@@ -153,7 +153,7 @@ class PiomatterBackend(DisplayBackend):
     def __init__(self, width: int, height: int, **kwargs):
         super().__init__(width, height)
 
-        import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+        import piomatter as piomatter
 
         # Extract piomatter-specific arguments
         pinout_name = kwargs.get('pinout', 'AdafruitMatrixBonnet')

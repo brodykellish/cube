@@ -126,7 +126,7 @@ PYBIND11_MODULE(_piomatter, m) {
         HUB75 matrix driver for Raspberry Pi 5 using PIO
         ------------------------------------------------
 
-        .. currentmodule:: adafruit_blinka_raspberry_pi5_piomatter._piomatter
+        .. currentmodule:: piomatter._piomatter
     )pbdoc";
 
     py::enum_<piomatter::orientation>(

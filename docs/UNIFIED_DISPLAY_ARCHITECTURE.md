@@ -8,7 +8,7 @@ The unified display architecture provides a single, cohesive system for renderin
 
 ### 1. LayeredDisplayBackend
 
-**File**: `src/adafruit_blinka_raspberry_pi5_piomatter/menu/layered_backend.py`
+**File**: `src/piomatter/menu/layered_backend.py`
 
 Multi-layer framebuffer system with automatic composition. Supports overlaying UI elements (debug info, FPS counters, etc.) on top of base content (menus or shaders).
 
@@ -20,7 +20,7 @@ Multi-layer framebuffer system with automatic composition. Supports overlaying U
 
 **API**:
 ```python
-from src.adafruit_blinka_raspberry_pi5_piomatter.menu import LayeredDisplayBackend
+from src.piomatter.menu import LayeredDisplayBackend
 
 # Create display with 2 layers
 display = LayeredDisplayBackend(width=64, height=64, num_layers=2)
@@ -44,7 +44,7 @@ display.show()
 
 ### 2. ShaderMode
 
-**File**: `src/adafruit_blinka_raspberry_pi5_piomatter/menu/shader_integration.py`
+**File**: `src/piomatter/menu/shader_integration.py`
 
 Manages in-process shader rendering within the cube control system. Wraps the shader renderer and provides integration with the layered display.
 
@@ -56,7 +56,7 @@ Manages in-process shader rendering within the cube control system. Wraps the sh
 
 **API**:
 ```python
-from src.adafruit_blinka_raspberry_pi5_piomatter.menu import ShaderMode
+from src.piomatter.menu import ShaderMode
 
 # Initialize shader mode
 shader_mode = ShaderMode(width=64, height=64, preview=True)
@@ -80,7 +80,7 @@ shader_mode.cleanup()
 
 ### 3. CubeController
 
-**File**: `src/adafruit_blinka_raspberry_pi5_piomatter/menu/controller.py`
+**File**: `src/piomatter/menu/controller.py`
 
 Main controller orchestrating the menu system, shader visualization, and display management.
 
@@ -117,7 +117,7 @@ CubeController
 ### Basic Menu System
 
 ```python
-from src.adafruit_blinka_raspberry_pi5_piomatter.menu import CubeController
+from src.piomatter.menu import CubeController
 
 # Initialize controller
 controller = CubeController(width=64, height=64, fps=30, preview=True)

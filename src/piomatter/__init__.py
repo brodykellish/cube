@@ -2,7 +2,7 @@
 HUB75 matrix driver for Raspberry Pi 5 using PIO
 ------------------------------------------------
 
-.. currentmodule:: adafruit_blinka_raspberry_pi5_piomatter
+.. currentmodule:: piomatter
 
 .. autosummary::
     :toctree: _generate

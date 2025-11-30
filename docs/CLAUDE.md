@@ -137,7 +137,7 @@ sudo usermod -aG gpio $USER
   - `pio_rp1.c`: RP1-specific PIO implementation for Pi 5
   - `piolib.c`: Generic PIO interface
 
-**Python Frontend** (`src/adafruit_blinka_raspberry_pi5_piomatter/`):
+**Python Frontend** (`src/piomatter/`):
 - `__init__.py`: Main module exposing PioMatter, Geometry, Pinout, etc.
 - `click.py`: Command-line argument helpers (`@piomatter_click.standard_options`)
 - `pixelmappers.py`: Custom pixel mapping functions
@@ -266,7 +266,7 @@ piomatter.Colorspace.RGB888Packed  # 24-bit: 8 red, 8 green, 8 blue
 
 ```python
 import numpy as np
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 # 1. Define geometry
 geometry = piomatter.Geometry(
@@ -299,7 +299,7 @@ while True:
 For non-standard panel arrangements (e.g., multiple panels in custom layout):
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.pixelmappers import simple_multilane_mapper
+from piomatter.pixelmappers import simple_multilane_mapper
 
 # Create custom mapping
 pixelmap = simple_multilane_mapper(
@@ -328,7 +328,7 @@ The `click.py` module provides decorators for consistent CLI:
 
 ```python
 import click
-import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
+import piomatter.click as piomatter_click
 
 @click.command
 @piomatter_click.standard_options  # Adds all standard flags
@@ -361,7 +361,7 @@ python my_program.py --width 128 --height 64 --pinout AdafruitMatrixHatRGB \
 
 ```python
 import numpy as np
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 geometry = piomatter.Geometry(width=64, height=32, n_planes=10, n_addr_lines=4)
 framebuffer = np.zeros((geometry.height, geometry.width, 3), dtype=np.uint8)

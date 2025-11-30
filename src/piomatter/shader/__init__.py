@@ -11,7 +11,7 @@ Components:
 - AudioProcessor: Audio analysis and beat detection
 
 Example usage:
-    >>> from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+    >>> from piomatter.shader import (
     ...     ShaderRenderer, AudioFileInput, SphericalCamera
     ... )
     >>> renderer = ShaderRenderer(64, 64, windowed=True)

@@ -68,7 +68,7 @@ The display system provides a clean, self-contained module for rendering framebu
 ## Module Structure
 
 ```
-src/adafruit_blinka_raspberry_pi5_piomatter/
+src/piomatter/
 ├── display/
 │   ├── __init__.py           # Public API exports
 │   ├── display.py            # Display class (layering, compositing)
@@ -86,7 +86,7 @@ src/adafruit_blinka_raspberry_pi5_piomatter/
 ### Core Class: `Display`
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.display import Display
+from piomatter.display import Display
 
 # Initialize display with 3 layers
 display = Display(
@@ -293,7 +293,7 @@ display.disable_opengl()
 ## Example: Complete Workflow
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.display import Display
+from piomatter.display import Display
 from menu.menu_renderer import MenuRenderer
 from shader.unified_shader_renderer import UnifiedShaderRenderer
 

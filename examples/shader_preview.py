@@ -14,7 +14,7 @@ Usage:
 
 import sys
 from pathlib import Path
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter
 
 
 def main():

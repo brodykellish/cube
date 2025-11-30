@@ -128,7 +128,7 @@ def _render_menu_debug_overlay(self):
 
 ## Files Modified
 
-### `src/adafruit_blinka_raspberry_pi5_piomatter/menu/controller.py`
+### `src/piomatter/menu/controller.py`
 
 **Lines 67-71**: Added menu FPS tracking variables
 ```python

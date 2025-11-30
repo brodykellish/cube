@@ -20,7 +20,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     ShaderRenderer, StaticCamera
 )
 

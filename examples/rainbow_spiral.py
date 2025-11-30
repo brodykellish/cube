@@ -14,7 +14,7 @@ import numpy as np
 import rainbowio
 from PIL import Image, ImageDraw
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 width = 128
 height = 64

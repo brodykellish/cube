@@ -101,7 +101,7 @@ Provides raw directional input as `iInput` uniform.
 **Example:**
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import KeyboardInput
+from piomatter.shader import KeyboardInput
 
 keyboard = KeyboardInput()
 
@@ -133,7 +133,7 @@ Provides beat-synchronized audio uniforms from an audio file.
 **Example:**
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import AudioFileInput
+from piomatter.shader import AudioFileInput
 
 # With auto-detection
 audio = AudioFileInput("music.mp3")
@@ -165,7 +165,7 @@ Provides real-time audio analysis from system microphone.
 **Example:**
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import MicrophoneInput
+from piomatter.shader import MicrophoneInput
 
 # Use default microphone
 mic = MicrophoneInput()
@@ -192,7 +192,7 @@ Future implementation for camera/video feed input.
 ### Basic Usage with UnifiedRenderer
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     UnifiedRenderer, AudioFileInput
 )
 
@@ -218,7 +218,7 @@ renderer.cleanup()
 ### Multiple Input Sources
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     UnifiedRenderer, AudioFileInput, MicrophoneInput
 )
 
@@ -239,7 +239,7 @@ while running:
 ### Manual InputManager Usage
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     InputManager, KeyboardInput, AudioFileInput
 )
 
@@ -268,7 +268,7 @@ manager.cleanup()
 ### Offscreen Rendering with Audio
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     UnifiedRenderer, AudioFileInput
 )
 
@@ -296,7 +296,7 @@ renderer.cleanup()
 To create a custom input source, inherit from `InputSource` and implement the required methods:
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import InputSource
+from piomatter.shader import InputSource
 import time
 
 class GamepadInput(InputSource):
@@ -511,5 +511,5 @@ float scale = 1.0 + iBeatPulse * 0.3;
 
 - `docs/CAMERA_MODES.md` - Camera navigation documentation
 - `docs/SHADER_INPUT.md` - Shader input system overview
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/input_sources.py` - Implementation
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/unified_renderer.py` - Renderer integration
+- `src/piomatter/shader/input_sources.py` - Implementation
+- `src/piomatter/shader/unified_renderer.py` - Renderer integration

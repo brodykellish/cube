@@ -45,7 +45,7 @@ Render a 3D scene that can be viewed from 6 different perspectives simultaneousl
 #### 1. ShaderRenderer (from shader module)
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import ShaderRenderer
+from piomatter.shader import ShaderRenderer
 
 renderer = ShaderRenderer(64, 64, windowed=False)
 ```
@@ -56,7 +56,7 @@ renderer = ShaderRenderer(64, 64, windowed=False)
 #### 2. StaticCamera (from shader module)
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import StaticCamera
+from piomatter.shader import StaticCamera
 
 camera = StaticCamera(
     position=(0, 0, 5),   # Camera location
@@ -149,7 +149,7 @@ pixels = self.renderer.read_pixels()
 Can add audio reactivity or other inputs:
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import AudioFileInput
+from piomatter.shader import AudioFileInput
 
 cube = VolumetricCubeRenderer(face_size=64)
 audio = AudioFileInput("music.mp3")

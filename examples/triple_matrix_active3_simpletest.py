@@ -15,7 +15,7 @@ $ python triple_matrix_active3_simpletest.py
 import numpy as np
 from PIL import Image, ImageDraw
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 width = 64
 height = 64

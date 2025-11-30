@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 # Import the menu system
-from src.adafruit_blinka_raspberry_pi5_piomatter.menu import CubeController
+from src.piomatter.menu import CubeController
 
 
 def main():

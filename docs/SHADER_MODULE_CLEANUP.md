@@ -157,7 +157,7 @@ All imports verified:
 
 ```python
 # Import all core classes
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     UnifiedRenderer,
     InputManager,
     KeyboardInput,
@@ -202,7 +202,7 @@ shader/
 ### Windowed Preview
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     UnifiedRenderer, SphericalCamera
 )
 
@@ -221,7 +221,7 @@ renderer.cleanup()
 ### Offscreen for LED Matrix
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     UnifiedRenderer, AudioFileInput
 )
 

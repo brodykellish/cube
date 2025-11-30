@@ -16,7 +16,7 @@ import pathlib
 import numpy as np
 import PIL.Image as Image
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 geometry = piomatter.Geometry(width=64, height=64, n_addr_lines=5, rotation=piomatter.Orientation.Normal, n_planes=8)
 framebuffer = np.asarray(Image.open(pathlib.Path(__file__).parent / "blinka64x64.png"))

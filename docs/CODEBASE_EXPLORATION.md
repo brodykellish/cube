@@ -27,7 +27,7 @@ Adafruit_Blinka_Raspberry_Pi5_Piomatter/
 │   │   ├── piolib.c                  # Generic PIO interface
 │   │   └── include/                  # Header files
 │   ├── include/                      # C++ headers
-│   └── adafruit_blinka_raspberry_pi5_piomatter/
+│   └── piomatter/
 │       ├── __init__.py               # Main module (imports C++ bindings)
 │       ├── click.py                  # Click CLI decorator helpers
 │       └── pixelmappers.py           # Custom pixel mapping utilities
@@ -79,7 +79,7 @@ Adafruit_Blinka_Raspberry_Pi5_Piomatter/
 
 ### Core Python Modules
 
-#### 1. `/src/adafruit_blinka_raspberry_pi5_piomatter/__init__.py`
+#### 1. `/src/piomatter/__init__.py`
 - **Purpose:** Main module entry point
 - **Exports:** C++ bindings via pybind11
   - `Colorspace` enum (RGB565, RGB888Packed)
@@ -88,7 +88,7 @@ Adafruit_Blinka_Raspberry_Pi5_Piomatter/
   - `Pinout` enum (hardware configurations)
   - `PioMatter` class (main display driver)
 
-#### 2. `/src/adafruit_blinka_raspberry_pi5_piomatter/click.py`
+#### 2. `/src/piomatter/click.py`
 - **Purpose:** CLI helper decorators for consistent command-line interfaces
 - **Key Feature:** `@standard_options` decorator adds matrix configuration flags to Click commands
 - **Flags Added:**
@@ -100,7 +100,7 @@ Adafruit_Blinka_Raspberry_Pi5_Piomatter/
   - `--orientation` (rotation)
   - `--num-lanes` (connector lanes)
 
-#### 3. `/src/adafruit_blinka_raspberry_pi5_piomatter/pixelmappers.py`
+#### 3. `/src/piomatter/pixelmappers.py`
 - **Purpose:** Custom pixel mapping for non-standard panel arrangements
 - **Use Case:** Multiple panels in custom layouts, non-serpentine chaining
 
@@ -306,7 +306,7 @@ Adafruit_Blinka_Raspberry_Pi5_Piomatter/
 ### Setup Configuration (`setup.py`)
 ```
 - Uses pybind11 for C++/Python bindings
-- C++ Extension: "adafruit_blinka_raspberry_pi5_piomatter._piomatter"
+- C++ Extension: "piomatter._piomatter"
 - Source files:
   * src/pymain.cpp (main bindings)
   * src/piolib/piolib.c (PIO abstraction)

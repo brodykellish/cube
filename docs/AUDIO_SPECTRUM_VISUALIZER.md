@@ -314,7 +314,7 @@ To run on Raspberry Pi with LED matrix:
 
 ```python
 import numpy as np
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 # Create geometry
 geometry = piomatter.Geometry(width=64, height=64, n_planes=10, n_addr_lines=5)
@@ -355,9 +355,9 @@ while True:
 
 ## Files
 
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/audio_processor.py` - FFT analysis
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/preview_renderer.py` - Texture binding
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/cli.py` - `--audio` flag
+- `src/piomatter/shader/audio_processor.py` - FFT analysis
+- `src/piomatter/shader/preview_renderer.py` - Texture binding
+- `src/piomatter/shader/cli.py` - `--audio` flag
 - `shaders/audio_spectrum.glsl` - Radial visualization shader
 - `examples/shader_preview.py` - Preview tool
 

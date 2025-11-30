@@ -22,9 +22,9 @@ import click
 import numpy as np
 from PIL import Image, ImageEnhance, ImageGrab
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
-import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
-from adafruit_blinka_raspberry_pi5_piomatter.pixelmappers import simple_multilane_mapper
+import piomatter as piomatter
+import piomatter.click as piomatter_click
+from piomatter.pixelmappers import simple_multilane_mapper
 
 RESAMPLE_MAP = {
     "nearest": Image.NEAREST,

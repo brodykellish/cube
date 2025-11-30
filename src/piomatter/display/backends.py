@@ -125,7 +125,7 @@ class PiomatterBackend:
             height: Display height in pixels
             **kwargs: Piomatter-specific arguments (pinout, num_planes, etc.)
         """
-        import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+        import piomatter as piomatter
 
         self.width = width
         self.height = height

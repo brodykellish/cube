@@ -124,7 +124,7 @@ The shader renderer can now be used in any context:
 
 ```python
 # Standalone windowed application
-from adafruit_blinka_raspberry_pi5_piomatter.shader import UnifiedRenderer
+from piomatter.shader import UnifiedRenderer
 
 renderer = UnifiedRenderer(64, 64, windowed=True)
 renderer.load_shader("my_shader.glsl")
@@ -150,10 +150,10 @@ All imports and basic functionality verified:
 
 ```bash
 # Controller imports successfully
-python3 -c "from src.adafruit_blinka_raspberry_pi5_piomatter.menu.controller import CubeController; print('✓')"
+python3 -c "from src.piomatter.menu.controller import CubeController; print('✓')"
 
 # Shader module exports work
-python3 -c "from src.adafruit_blinka_raspberry_pi5_piomatter.shader import UnifiedRenderer, SphericalCamera; print('✓')"
+python3 -c "from src.piomatter.shader import UnifiedRenderer, SphericalCamera; print('✓')"
 ```
 
 ## Usage Examples
@@ -173,7 +173,7 @@ No changes needed for end users!
 You can now create standalone shader applications:
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import (
+from piomatter.shader import (
     UnifiedRenderer, AudioFileInput, SphericalCamera
 )
 
@@ -197,7 +197,7 @@ renderer.cleanup()
 For LED matrix output:
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import UnifiedRenderer
+from piomatter.shader import UnifiedRenderer
 
 # Offscreen rendering
 renderer = UnifiedRenderer(64, 64, windowed=False)
@@ -220,11 +220,11 @@ If you need to restore the old menu-integrated renderer:
 
 ```bash
 # Restore backed up files
-cp src/adafruit_blinka_raspberry_pi5_piomatter/menu/backup/unified_shader_renderer.py.old \
-   src/adafruit_blinka_raspberry_pi5_piomatter/menu/unified_shader_renderer.py
+cp src/piomatter/menu/backup/unified_shader_renderer.py.old \
+   src/piomatter/menu/unified_shader_renderer.py
 
-cp src/adafruit_blinka_raspberry_pi5_piomatter/menu/backup/camera_modes.py.old \
-   src/adafruit_blinka_raspberry_pi5_piomatter/menu/camera_modes.py
+cp src/piomatter/menu/backup/camera_modes.py.old \
+   src/piomatter/menu/camera_modes.py
 ```
 
 Then revert `menu/controller.py` imports:

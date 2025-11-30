@@ -41,9 +41,9 @@ import click
 import numpy as np
 import PIL.Image as Image
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
-import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
-from adafruit_blinka_raspberry_pi5_piomatter.pixelmappers import simple_multilane_mapper
+import piomatter as piomatter
+import piomatter.click as piomatter_click
+from piomatter.pixelmappers import simple_multilane_mapper
 
 with open("/sys/class/graphics/fb0/virtual_size") as f:
     screenx, screeny = [int(word) for word in f.read().split(",")]

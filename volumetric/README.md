@@ -356,7 +356,7 @@ faces['bottom'] = rotate_face(faces['bottom'], -90)
 #### Add New Input Sources
 
 ```python
-from adafruit_blinka_raspberry_pi5_piomatter.shader import AudioFileInput
+from piomatter.shader import AudioFileInput
 
 cube = VolumetricCubeRenderer(face_size=64)
 
@@ -450,7 +450,7 @@ Possible extensions to the system:
 
 ### See Also
 
-- `src/adafruit_blinka_raspberry_pi5_piomatter/shader/` - Shader module
+- `src/piomatter/shader/` - Shader module
 - `docs/INPUT_ABSTRACTION.md` - Input system documentation
 - `docs/CAMERA_MODES.md` - Camera mode documentation
 - Shadertoy.com - Inspiration for volumetric shaders

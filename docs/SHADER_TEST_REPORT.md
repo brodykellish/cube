@@ -209,7 +209,7 @@ Machine-readable test results including:
 ## Technical Notes
 
 ### GLSL 1.20 Compatibility Header
-The project already includes compatibility polyfills in `src/adafruit_blinka_raspberry_pi5_piomatter/shader/renderer.py`:
+The project already includes compatibility polyfills in `src/piomatter/shader/renderer.py`:
 
 ```glsl
 // Already provided:

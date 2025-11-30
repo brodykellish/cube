@@ -18,7 +18,7 @@ import numpy as np
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 
 # 64x64 for a single 64x64 matrix
 total_width = 64

@@ -33,7 +33,7 @@ extensions = [
 ]
 
 autoapi_keep_files = True
-autoapi_dirs = ["../src/adafruit_blinka_raspberry_pi5_piomatter"]
+autoapi_dirs = ["../src/piomatter"]
 autoapi_add_toctree_entry = True
 autoapi_options = [
     "members",

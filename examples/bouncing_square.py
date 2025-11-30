@@ -1,4 +1,4 @@
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
 import numpy as np

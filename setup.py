@@ -16,7 +16,7 @@ __version__ = get_version()
 ext_modules = []
 if platform.system() == 'Linux':
     ext_modules = [
-        Pybind11Extension("adafruit_blinka_raspberry_pi5_piomatter._piomatter",
+        Pybind11Extension("piomatter._piomatter",
             ["src/pymain.cpp", "src/piolib/piolib.c", "src/piolib/pio_rp1.c"],
             define_macros = [('VERSION_INFO', __version__)],
             include_dirs = ['./src/include', './src/piolib/include'],
@@ -27,9 +27,9 @@ if platform.system() == 'Linux':
     ]
 
 setup(
-    name="Adafruit-Blinka-Raspberry-Pi5-Piomatter",
+    name="piomatter",
     version=__version__,
-    url="https://github.com/adafruit/Adafruit_Blinka_Raspberry_Pi5_Piomatter",
+    url="https://github.com/brody/cube",
     description="HUB75 matrix driver for Raspberry Pi 5 using PIO",
     long_description="A pio-based driver",
     ext_modules=ext_modules,

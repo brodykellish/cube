@@ -115,7 +115,7 @@ from pathlib import Path
 # Add library path
 sys.path.insert(0, str(Path.home() / "Adafruit_Blinka_Raspberry_Pi5_Piomatter"))
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 from shader_renderer import ShaderRenderer
 
 # Setup matrix

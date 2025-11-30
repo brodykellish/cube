@@ -140,7 +140,7 @@ You can integrate the shader renderer into your own Python scripts:
 
 ```python
 import numpy as np
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import piomatter as piomatter
 from shader_renderer import ShaderRenderer
 
 # Create geometry
