@@ -2,9 +2,9 @@
 Piomatter display backend for actual LED cube hardware.
 """
 
+import numpy as np
 from .display_backend import DisplayBackend
 from ..input.ssh_keyboard import SSHKeyboard
-
 
 class PiomatterBackend(DisplayBackend):
     """Piomatter backend for actual LED cube."""
