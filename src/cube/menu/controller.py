@@ -271,8 +271,8 @@ class CubeController:
                             mode = self.volumetric_display_modes[self.volumetric_display_mode_index]
                             print(f"Display mode: {mode.upper()}")
 
-                    # Clear menu layer
-                    self.menu_layer[:, :] = 0
+                    # Clear menu layer (all RGB channels)
+                    self.menu_layer[:, :, :] = 0
 
                     # Get current display mode
                     current_mode = self.volumetric_display_modes[self.volumetric_display_mode_index]
@@ -291,8 +291,8 @@ class CubeController:
                     x_offset = (self.width - face_size) // 2
                     y_offset = (self.height - face_size) // 2
 
-                    # Clear shader layer and draw face
-                    self.shader_layer[:, :] = 0
+                    # Clear shader layer and draw face (all RGB channels)
+                    self.shader_layer[:, :, :] = 0
                     if x_offset >= 0 and y_offset >= 0:
                         self.shader_layer[y_offset:y_offset+face_size, x_offset:x_offset+face_size] = face_pixels
                     else:
@@ -303,8 +303,8 @@ class CubeController:
                         display_h = min(face_size - crop_y, self.height)
                         self.shader_layer[:display_h, :display_w] = face_pixels[crop_y:crop_y+display_h, crop_x:crop_x+display_w]
 
-                    # Clear debug layer first
-                    self.debug_layer[:, :] = 0
+                    # Clear debug layer first (all RGB channels)
+                    self.debug_layer[:, :, :] = 0
 
                     # Always show current face mode indicator
                     self._render_volumetric_mode_indicator(current_mode)
@@ -352,16 +352,16 @@ class CubeController:
                     keyboard.set_key_state('forward', keys[pygame.K_e])
                     keyboard.set_key_state('backward', keys[pygame.K_c])
 
-                    # Clear menu layer (not used in shader mode)
-                    self.menu_layer[:, :] = 0
+                    # Clear menu layer (not used in shader mode, all RGB channels)
+                    self.menu_layer[:, :, :] = 0
 
                     # Render shader to its layer
                     self.shader_renderer.render()
                     pixels = self.shader_renderer.read_pixels()
                     self.shader_layer[:, :] = pixels
 
-                    # Clear debug layer
-                    self.debug_layer[:, :] = 0
+                    # Clear debug layer (all RGB channels)
+                    self.debug_layer[:, :, :] = 0
 
                     # Render debug overlay if enabled
                     if self.settings.get('debug_ui', False):
@@ -383,16 +383,18 @@ class CubeController:
                             running = self._handle_state_transition(next_state)
                             print(f"[DEBUG] Running after transition: {running}")
 
-                    # Clear shader layer (not used in menu mode)
-                    self.shader_layer[:, :] = 0
+                    # Clear shader layer (not used in menu mode, all RGB channels)
+                    self.shader_layer[:, :, :] = 0
 
                     # Render current menu state to menu layer
                     self.current_state.render(self.renderer)
 
-                    # Clear debug layer
-                    self.debug_layer[:, :] = 0
+                    # Clear debug layer (all RGB channels)
+                    self.debug_layer[:, :, :] = 0
 
-                    # Don't render debug overlay in menu mode
+                    # Render debug overlay if enabled
+                    if self.settings.get('debug_ui', False):
+                        self._render_debug_overlay()
 
                     self.display.show()
 

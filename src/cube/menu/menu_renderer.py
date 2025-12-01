@@ -146,8 +146,9 @@ class MenuRenderer:
             Total width of drawn text
         """
         if center:
-            # Calculate total width first
-            total_width = sum(self.draw_char(c, 0, 0, color, scale) for c in text)
+            # Calculate total width without drawing (each char is 5 pixels + 1 spacing)
+            char_width = 6 * scale
+            total_width = len(text) * char_width
             x = x - total_width // 2
 
         cursor_x = x

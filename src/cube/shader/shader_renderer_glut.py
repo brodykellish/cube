@@ -68,7 +68,19 @@ class GLUTShaderRenderer(ShaderRendererBase):
     def _swap_buffers(self):
         """Swap buffers (no-op for offscreen rendering)."""
         pass
-    
+
+    def _get_glsl_version(self) -> str:
+        """Use desktop OpenGL GLSL version 120 for macOS."""
+        return "120"
+
+    def _get_attribute_keyword(self) -> str:
+        """Use 'attribute' keyword for GLSL 120."""
+        return "attribute"
+
+    def _get_precision_statement(self) -> str:
+        """Desktop GLSL doesn't require precision qualifiers."""
+        return ""
+
     def cleanup(self):
         """Clean up GLUT resources."""
         self.input_manager.cleanup()

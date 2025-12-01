@@ -231,7 +231,7 @@ class CameraModeSelect(MenuState):
         renderer.draw_text_centered(shader_name, y=shader_y, color=(150, 150, 150), scale=scale)
 
         # Menu options
-        item_height = 12 * scale
+        item_height = 10 * scale
         y_start = 25 * scale
 
         for i, (label, mode, description) in enumerate(self.options):
@@ -257,11 +257,6 @@ class CameraModeSelect(MenuState):
                 color = (100, 100, 100)
 
             renderer.draw_text(label, 15 * scale, y, color=color, scale=scale)
-
-            # Draw description (smaller)
-            if description and is_selected:
-                desc_y = y + 7 * scale
-                renderer.draw_text_centered(description, y=desc_y, color=(120, 120, 120), scale=scale)
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle camera mode selection input."""
@@ -308,7 +303,7 @@ class VisualizationModeSelect(MenuState):
         renderer.draw_text_centered("VISUALIZATION MODE", y=title_y, color=(100, 200, 255), scale=scale)
 
         # Menu options
-        item_height = 14 * scale
+        item_height = 10 * scale
         y_start = 25 * scale
 
         for i, (label, mode, description) in enumerate(self.options):
@@ -330,11 +325,6 @@ class VisualizationModeSelect(MenuState):
             # Draw option label
             color = (255, 255, 100) if is_selected else (200, 200, 200)
             renderer.draw_text(label, 15 * scale, y, color=color, scale=scale)
-
-            # Draw description (smaller)
-            if description and is_selected:
-                desc_y = y + 7 * scale
-                renderer.draw_text_centered(description, y=desc_y, color=(120, 120, 120), scale=scale)
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle visualization mode selection input."""

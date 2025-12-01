@@ -96,7 +96,32 @@ class ShaderRendererBase(ABC):
     def cleanup(self):
         """Clean up platform-specific resources."""
         pass
-    
+
+    def _get_glsl_version(self) -> str:
+        """
+        Get the GLSL version string for this platform.
+
+        Override in subclasses to specify platform-specific GLSL version.
+        Default is OpenGL ES 1.0 (#version 100).
+        """
+        return "100"
+
+    def _get_attribute_keyword(self) -> str:
+        """
+        Get the attribute keyword for this GLSL version.
+
+        Returns 'attribute' for GLSL ES 100, 'in' for modern GLSL.
+        """
+        return "attribute"
+
+    def _get_precision_statement(self) -> str:
+        """
+        Get the precision statement for fragment shaders.
+
+        Returns precision statement for GLSL ES, empty for desktop GLSL.
+        """
+        return "precision mediump float;"
+
     def handle_events(self) -> bool:
         """
         Handle platform-specific events (optional, for window lifecycle).
@@ -175,19 +200,23 @@ class ShaderRendererBase(ABC):
         path = Path(shader_path)
         if not path.exists():
             raise FileNotFoundError(f"Shader file not found: {path}")
-        
+
         with open(path, 'r') as f:
             fragment_source = f.read()
-        
-        vertex_source = """#version 100
-attribute vec2 position;
-void main() {
+
+        glsl_version = self._get_glsl_version()
+        attribute_keyword = self._get_attribute_keyword()
+        precision_statement = self._get_precision_statement()
+
+        vertex_source = f"""#version {glsl_version}
+{attribute_keyword} vec2 position;
+void main() {{
     gl_Position = vec4(position, 0.0, 1.0);
-}
+}}
 """
 
-        fragment_wrapped = f"""#version 100
-precision mediump float;
+        fragment_wrapped = f"""#version {glsl_version}
+{precision_statement}
 uniform vec3 iResolution;
 uniform float iTime;
 uniform float iTimeDelta;

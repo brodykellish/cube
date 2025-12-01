@@ -89,10 +89,5 @@ void mainImage(out vec4 fragColor, vec2 fragCoord) {
         col = vec3(0.1, 0.1, 0.15);
     }
 
-    // Display input state as overlay (for debugging)
-    if (length(fragCoord - iResolution.xy * vec2(0.1, 0.9)) < 20.0) {
-        col = mix(col, vec3(1.0, 0.0, 0.0), 0.5); // Red dot = input active
-    }
-
     fragColor = vec4(col, 1.0);
 }
