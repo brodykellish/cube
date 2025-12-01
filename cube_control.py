@@ -46,12 +46,6 @@ def main():
         help="Target frames per second for menu rendering (default: 30)"
     )
 
-    parser.add_argument(
-        "--preview",
-        action="store_true",
-        help="Force preview mode (pygame) even on Raspberry Pi"
-    )
-
     # Hardware-specific options (only used when not in preview mode)
     parser.add_argument(
         "--pinout",
@@ -102,7 +96,6 @@ def main():
             width=args.width,
             height=args.height,
             fps=args.fps,
-            preview=args.preview,
             pinout=args.pinout,
             num_planes=args.num_planes,
             num_address_lines=args.num_address_lines,

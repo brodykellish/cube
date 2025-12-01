@@ -9,7 +9,7 @@ import numpy as np
 import platform
 from typing import List
 
-from .backends import create_backend
+from .display_backend import create_display_backend
 
 
 class Display:
@@ -53,7 +53,7 @@ class Display:
             backend = self._detect_backend(**kwargs)
 
         self.backend_type = backend
-        self.backend = create_backend(backend, width, height, **kwargs)
+        self.backend = self._create_backend(backend, width, height, **kwargs)
 
         print(f"Display initialized: {width}×{height} ({backend} backend, {num_layers} layers)")
 
@@ -77,6 +77,28 @@ class Display:
                 return 'pygame'
 
         return 'piomatter'
+
+    def _create_backend(self, backend: str, width: int, height: int, **kwargs):
+        """
+        Create backend instance.
+
+        Args:
+            backend: Backend type ('pygame' or 'piomatter')
+            width: Display width
+            height: Display height
+            **kwargs: Backend-specific arguments
+
+        Returns:
+            Backend instance
+        """
+        if backend == 'pygame':
+            from .pygame_backend import PygameBackend
+            return PygameBackend(width, height, **kwargs)
+        elif backend == 'piomatter':
+            from .piomatter_backend import PiomatterBackend
+            return PiomatterBackend(width, height, **kwargs)
+        else:
+            raise ValueError(f"Unknown backend type: {backend}")
 
     def get_layer(self, index: int) -> np.ndarray:
         """
@@ -152,8 +174,11 @@ class Display:
         # Composite all layers
         framebuffer = self.compose_layers()
 
+        # Copy to backend's framebuffer
+        self.backend.framebuffer[:, :] = framebuffer
+
         # Display via backend
-        self.backend.show(framebuffer)
+        self.backend.show()
 
     def handle_events(self) -> dict:
         """

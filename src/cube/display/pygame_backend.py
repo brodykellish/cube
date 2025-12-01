@@ -9,7 +9,17 @@ from .display_backend import DisplayBackend
 class PygameBackend(DisplayBackend):
     """Pygame backend for development on macOS/Linux/Windows."""
 
-    def __init__(self, width: int, height: int, scale: int = 1, opengl: bool = False):
+    def __init__(self, width: int, height: int, scale: int = 1, opengl: bool = False, **kwargs):
+        """
+        Initialize pygame backend.
+
+        Args:
+            width: Display width in pixels
+            height: Display height in pixels
+            scale: Window scale factor (default 1)
+            opengl: Enable OpenGL support (default False)
+            **kwargs: Additional arguments (ignored, for cross-backend compatibility)
+        """
         super().__init__(width, height)
 
         import pygame
