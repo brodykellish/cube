@@ -32,6 +32,9 @@ class SSHKeyboard(Keyboard):
         # We'll use a simplified model: keys are "held" for one frame after press
         self._held_keys = set()
 
+        # Track shift state separately (detected via shift+arrow or 'z' key)
+        self._shift_held = False
+
     def _setup_terminal(self):
         """Set up terminal in cbreak mode for non-blocking character input."""
         try:
@@ -79,12 +82,32 @@ class SSHKeyboard(Keyboard):
 
         Returns:
             Standard key name, or None if not recognized
+
+        Note: Also sets self._shift_held as a side effect when shift is detected
         """
+        # Reset shift state (will be set if detected)
+        self._shift_held = False
+
         # Check for Ctrl-C
         if '\x03' in chars:
             return 'quit'
 
-        # Check for escape sequences (arrow keys)
+        # Check for Shift+Arrow escape sequences (terminal sends different codes)
+        # Shift+Up: ESC[1;2A
+        if '\x1b[1;2A' in chars:
+            self._shift_held = True
+            return 'up'
+        elif '\x1b[1;2B' in chars:
+            self._shift_held = True
+            return 'down'
+        elif '\x1b[1;2C' in chars:
+            self._shift_held = True
+            return 'right'
+        elif '\x1b[1;2D' in chars:
+            self._shift_held = True
+            return 'left'
+
+        # Check for regular arrow key escape sequences
         # Full escape sequences
         if '\x1b[A' in chars:
             return 'up'
@@ -116,6 +139,25 @@ class SSHKeyboard(Keyboard):
         elif chars == 'd':
             return 'd'
 
+        # Uppercase WASD (indicates shift is held)
+        elif chars == 'W':
+            self._shift_held = True
+            return 'w'
+        elif chars == 'S':
+            self._shift_held = True
+            return 's'
+        elif chars == 'A':
+            self._shift_held = True
+            return 'a'
+        elif chars == 'D':
+            self._shift_held = True
+            return 'd'
+
+        # Z key - alternate shift modifier for SSH (easier to detect)
+        elif chars == 'z' or chars == 'Z':
+            self._shift_held = True
+            return 'shift'  # Return 'shift' as the key press
+
         # Special keys
         elif chars == '\r' or chars == '\n':
             return 'enter'
@@ -140,6 +182,14 @@ class SSHKeyboard(Keyboard):
         elif chars == 't':
             return 't'
 
+        # Uppercase letter keys (shift held)
+        elif chars == 'E':
+            self._shift_held = True
+            return 'e'
+        elif chars == 'C':
+            self._shift_held = True
+            return 'c'
+
         # Number keys
         elif chars in '0123456789':
             return chars
@@ -159,7 +209,7 @@ class SSHKeyboard(Keyboard):
         chars = self._read_terminal_input()
 
         if chars:
-            # Parse into standard key name
+            # Parse into standard key name (also sets self._shift_held)
             key = self._parse_terminal_input(chars)
 
             if key:
@@ -172,6 +222,10 @@ class SSHKeyboard(Keyboard):
                 # For SSH keyboard, we simulate "held" keys by keeping them
                 # in the held list for this frame
                 self._held_keys.add(key)
+
+                # If shift was detected, add it to held keys
+                if self._shift_held:
+                    self._held_keys.add('shift')
 
         # Copy held keys to state
         state.keys_held = list(self._held_keys)

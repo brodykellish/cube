@@ -71,6 +71,17 @@ Implementation for remote RPi control:
 - Handles SSH terminal input properly
 - Automatically initialized by `PiomatterBackend`
 
+**Shift Key Detection on SSH:**
+Terminal mode doesn't provide direct shift key events. Instead, shift is detected through:
+1. **Shift+Arrow keys** - Terminal sends `ESC[1;2A` (up), `ESC[1;2B` (down), etc.
+2. **Uppercase letters** - Pressing `Shift+W` sends `W`, which is detected as `w` with shift held
+3. **Z key** - Use `z` or `Z` as an alternate shift modifier (easier to use over SSH)
+
+**Usage examples on RPI:**
+- Camera zoom in shader mode: Hold `Z` while moving with arrow keys or WASD
+- Shift+arrow works if your terminal supports it
+- Uppercase WASD (e.g., `W`, `A`, `S`, `D`) also sets shift
+
 ## Usage
 
 ### Using InputHandler (Recommended)
@@ -203,6 +214,8 @@ All keyboard implementations map hardware-specific keys to standard names:
 
 ### Modifiers
 - `'shift'` - Shift key (zoom modifier)
+  - **macOS/pygame:** Use physical Shift key
+  - **RPI/SSH:** Use `Z` key, `Shift+arrows`, or uppercase letters (W/A/S/D)
 - `'ctrl'` - Control key
 - `'alt'` - Alt key
 
