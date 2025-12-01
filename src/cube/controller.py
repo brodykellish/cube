@@ -24,13 +24,7 @@ from cube.menu.menu_states import (
 from cube.shader import ShaderRenderer, SphericalCamera, StaticCamera
 
 # Import volumetric system
-import sys
-from pathlib import Path
-# Add volumetric directory to path
-volumetric_path = Path(__file__).parent.parent.parent.parent / "volumetric"
-if volumetric_path.exists():
-    sys.path.insert(0, str(volumetric_path.parent))
-from volumetric import VolumetricCubeRenderer
+from cube.volumetric import VolumetricCubeRenderer
 
 
 def _volumetric_preview_window_process(queue, face_size, scale, num_panels):

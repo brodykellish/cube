@@ -360,9 +360,13 @@ class VolumetricShaderBrowser(MenuState):
 
     def _load_shaders(self):
         """Scan for available volumetric shaders."""
+        # Find volumetric package shaders directory
+        import cube.volumetric
+        volumetric_module_path = Path(cube.volumetric.__file__).parent
         shader_dirs = [
-            Path("volumetric/shaders"),
-            Path.cwd() / "volumetric" / "shaders",
+            volumetric_module_path / "shaders",
+            Path("volumetric/shaders"),  # Fallback: old location
+            Path.cwd() / "volumetric" / "shaders",  # Fallback: old location
         ]
 
         for shader_dir in shader_dirs:

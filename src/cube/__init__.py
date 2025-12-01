@@ -13,8 +13,9 @@ Submodules:
 - cube.input: Input handling system
 - cube.menu: Menu system components
 - cube.shader: GLSL shader rendering system
+- cube.volumetric: Volumetric 3D cube rendering
 """
 
 from .controller import CubeController
 
-__all__ = ['CubeController', 'display', 'input', 'menu', 'shader']
+__all__ = ['CubeController', 'display', 'input', 'menu', 'shader', 'volumetric']
