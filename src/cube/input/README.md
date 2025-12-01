@@ -26,7 +26,28 @@ The input module provides a unified keyboard input abstraction for different pla
 
 ## Key Components
 
-### `Keyboard` (Abstract Base Class)
+### `InputHandler` (Recommended - High-Level Interface)
+Unified input handler that wraps keyboard state from display backend.
+Provides a clean, decoupled way to handle both discrete key presses (menus)
+and continuous key holds (shaders).
+
+**Methods:**
+- `update(events: dict)` - Update from display backend events
+- `is_quit_requested() -> bool` - Check if quit was requested
+- `is_key_pressed(*keys) -> bool` - Check if any key was pressed this frame
+- `is_exit_requested() -> bool` - Check for escape/quit/back keys
+- `is_key_held(*keys) -> bool` - Check if any key is held down
+- `get_pressed_key() -> Optional[str]` - Get the pressed key
+- `get_held_keys() -> List[str]` - Get all held keys
+- `apply_to_shader_keyboard(keyboard)` - Apply input to shader camera
+
+**Why use InputHandler?**
+- Decouples input logic from controller
+- Same interface for menu and shader input
+- Clean, readable code
+- Easy to test
+
+### `Keyboard` (Abstract Base Class - Low-Level)
 Base class defining the keyboard interface:
 - `poll() -> KeyboardState` - Poll for keyboard input
 - `cleanup()` - Clean up resources
@@ -52,7 +73,50 @@ Implementation for remote RPi control:
 
 ## Usage
 
-### Automatic Usage (Recommended)
+### Using InputHandler (Recommended)
+The InputHandler provides a unified, decoupled interface for all input processing:
+
+```python
+from cube.display import Display
+from cube.input import InputHandler
+
+# Create display and input handler
+display = Display(64, 64, backend='pygame')
+input = InputHandler()
+
+running = True
+while running:
+    # Update input from display events
+    events = display.handle_events()
+    input.update(events)
+
+    # Check for quit
+    if input.is_quit_requested():
+        running = False
+        break
+
+    # Menu mode: check for key presses
+    if input.is_key_pressed('enter'):
+        select_item()
+    elif input.is_key_pressed('up'):
+        move_selection_up()
+    elif input.is_exit_requested():
+        go_back()
+
+    # Shader mode: check for held keys and apply to shader
+    if input.is_key_pressed('reload'):
+        reload_shader()
+
+    # Apply continuous input to shader camera
+    states = input.apply_to_shader_keyboard(shader_renderer.keyboard_input)
+    shader_renderer.shift_pressed = states['shift']
+
+    # Check for custom held keys
+    if input.is_key_held('t'):
+        toggle_mode()
+```
+
+### Backend Integration (Automatic)
 The keyboard is automatically configured based on the display backend:
 
 ```python
@@ -199,6 +263,59 @@ class PiomatterBackend(DisplayBackend):
             'keys': state.keys_held
         }
 ```
+
+## Benefits of InputHandler
+
+### Before (Manual Event Handling):
+```python
+# Controller was tightly coupled to events dict format
+events = display.handle_events()
+
+if events['quit']:
+    running = False
+
+if events['key']:
+    if events['key'] in ('escape', 'quit', 'back'):
+        exit_mode()
+    elif events['key'] == 'reload':
+        reload_shader()
+
+# Shader mode: manual key mapping
+keys_held = events.get('keys', [])
+keyboard.set_key_state('up', 'up' in keys_held or 'w' in keys_held)
+keyboard.set_key_state('down', 'down' in keys_held or 's' in keys_held)
+keyboard.set_key_state('left', 'left' in keys_held or 'a' in keys_held)
+keyboard.set_key_state('right', 'right' in keys_held or 'd' in keys_held)
+keyboard.set_key_state('forward', 'e' in keys_held)
+keyboard.set_key_state('backward', 'c' in keys_held)
+shader.shift_pressed = 'shift' in keys_held
+```
+
+### After (With InputHandler):
+```python
+# Clean, decoupled, testable
+events = display.handle_events()
+input.update(events)
+
+if input.is_quit_requested():
+    running = False
+
+if input.is_exit_requested():
+    exit_mode()
+elif input.is_key_pressed('reload'):
+    reload_shader()
+
+# Shader mode: single call
+states = input.apply_to_shader_keyboard(keyboard)
+shader.shift_pressed = states['shift']
+```
+
+**Benefits:**
+- **80% less code** - from 10+ lines to 2 lines for shader input
+- **Same approach** - both menu and shader use the same methods
+- **Decoupled** - controller doesn't know about events dict format
+- **Testable** - easy to unit test without display backend
+- **Readable** - `input.is_exit_requested()` vs `events['key'] in ('escape', 'quit', 'back')`
 
 ## Adding New Keyboard Types
 
