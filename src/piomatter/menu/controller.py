@@ -341,13 +341,14 @@ class CubeController:
                         keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
                     )
 
-                    # Update input state
-                    self.shader_renderer.handle_input('up', keys[pygame.K_UP] or keys[pygame.K_w])
-                    self.shader_renderer.handle_input('down', keys[pygame.K_DOWN] or keys[pygame.K_s])
-                    self.shader_renderer.handle_input('left', keys[pygame.K_LEFT] or keys[pygame.K_a])
-                    self.shader_renderer.handle_input('right', keys[pygame.K_RIGHT] or keys[pygame.K_d])
-                    self.shader_renderer.handle_input('e', keys[pygame.K_e])
-                    self.shader_renderer.handle_input('c', keys[pygame.K_c])
+                    # Update keyboard input state via InputManager
+                    keyboard = self.shader_renderer.keyboard_input
+                    keyboard.set_key_state('up', keys[pygame.K_UP] or keys[pygame.K_w])
+                    keyboard.set_key_state('down', keys[pygame.K_DOWN] or keys[pygame.K_s])
+                    keyboard.set_key_state('left', keys[pygame.K_LEFT] or keys[pygame.K_a])
+                    keyboard.set_key_state('right', keys[pygame.K_RIGHT] or keys[pygame.K_d])
+                    keyboard.set_key_state('forward', keys[pygame.K_e])
+                    keyboard.set_key_state('backward', keys[pygame.K_c])
 
                     # Clear menu layer (not used in shader mode)
                     self.menu_layer[:, :] = 0
@@ -512,7 +513,7 @@ class CubeController:
         try:
             # Initialize shader renderer if needed
             if self.shader_renderer is None:
-                self.shader_renderer = ShaderRenderer(self.width, self.height, windowed=False)
+                self.shader_renderer = ShaderRenderer(self.width, self.height)
 
             # Set camera mode
             if camera_mode == 'static':

@@ -65,9 +65,8 @@ class Display:
             'pygame' for development platforms, 'piomatter' for RPi with hardware
         """
         is_dev_platform = platform.system() in ('Darwin', 'Windows')
-        preview = kwargs.get('preview', False)
 
-        if preview or is_dev_platform:
+        if is_dev_platform:
             return 'pygame'
 
         # Check for DRM device on Linux (indicates GPU available)

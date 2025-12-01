@@ -106,7 +106,7 @@ class VolumetricCubeRenderer:
             self.faces[name] = CubeFace(name, pos, config['look_at'])
 
         # Create a single shader renderer (will be reused with different cameras)
-        self.renderer = ShaderRenderer(face_size, face_size, windowed=False)
+        self.renderer = ShaderRenderer(face_size, face_size)
 
         print(f"Volumetric cube renderer initialized: {face_size}×{face_size} per face")
         print(f"Number of panels: {self.num_panels}")
