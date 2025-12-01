@@ -78,15 +78,15 @@ def main():
     parser.add_argument(
         "--brightness",
         type=float,
-        default=60.0,
-        help="Default brightness percentage (1-90, default: 60)"
+        default=90.0,
+        help="Default brightness percentage (1-90, default: 90)"
     )
 
     parser.add_argument(
         "--gamma",
         type=float,
-        default=2.2,
-        help="Default gamma correction value (0.5-3.0, default: 2.2)"
+        default=1.5,
+        help="Default gamma correction value (0.5-3.0, default: 1.5)"
     )
 
     parser.add_argument(

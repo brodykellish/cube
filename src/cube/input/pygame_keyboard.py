@@ -56,6 +56,7 @@ class PygameKeyboard(Keyboard):
             self.pygame.K_e: 'e',  # forward (camera)
             self.pygame.K_c: 'c',  # backward (camera)
             self.pygame.K_t: 't',  # toggle
+            self.pygame.K_m: 'm',  # mixer
 
             # Modifiers
             self.pygame.K_LSHIFT: 'shift',

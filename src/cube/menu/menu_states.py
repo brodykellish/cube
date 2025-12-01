@@ -31,11 +31,12 @@ class MenuState(ABC):
 
 
 class MainMenu(MenuState):
-    """Main menu - select between Visualize and Settings."""
+    """Main menu - select between Visualize, Mixer, Settings, and Exit."""
 
     def __init__(self):
         self.options = [
             ("VISUALIZE", "visualization_mode"),
+            ("MIXER", "mixer_setup"),
             ("SETTINGS", "settings"),
             ("EXIT", "quit"),
         ]

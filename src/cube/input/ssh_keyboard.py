@@ -181,6 +181,8 @@ class SSHKeyboard(Keyboard):
             return 'c'
         elif chars == 't':
             return 't'
+        elif chars == 'm':
+            return 'm'
 
         # Uppercase letter keys (shift held)
         elif chars == 'E':
@@ -189,6 +191,9 @@ class SSHKeyboard(Keyboard):
         elif chars == 'C':
             self._shift_held = True
             return 'c'
+        elif chars == 'M':
+            self._shift_held = True
+            return 'm'
 
         # Number keys
         elif chars in '0123456789':
