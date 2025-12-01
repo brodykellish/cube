@@ -16,8 +16,8 @@ from typing import Optional
 
 from cube.display import Display
 from cube.input import InputHandler
-from .menu_renderer import MenuRenderer
-from .menu_states import (
+from cube.menu.menu_renderer import MenuRenderer
+from cube.menu.menu_states import (
     MainMenu, ShaderBrowser, SettingsMenu, CameraModeSelect,
     VisualizationModeSelect, VolumetricShaderBrowser
 )
@@ -27,7 +27,7 @@ from cube.shader import ShaderRenderer, SphericalCamera, StaticCamera
 import sys
 from pathlib import Path
 # Add volumetric directory to path
-volumetric_path = Path(__file__).parent.parent.parent.parent.parent / "volumetric"
+volumetric_path = Path(__file__).parent.parent.parent.parent / "volumetric"
 if volumetric_path.exists():
     sys.path.insert(0, str(volumetric_path.parent))
 from volumetric import VolumetricCubeRenderer

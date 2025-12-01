@@ -16,8 +16,8 @@ import argparse
 import time
 from pathlib import Path
 
-# Import the menu system
-from cube.menu import CubeController
+# Import the controller
+from cube import CubeController
 
 
 def main():

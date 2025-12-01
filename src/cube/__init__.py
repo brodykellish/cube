@@ -5,10 +5,16 @@ Cube - LED Cube Control System
 High-level control system for LED cube displays with menu system,
 shader rendering, and display backends.
 
+Main Classes:
+- CubeController: Main controller for the LED cube system
+
 Submodules:
 - cube.display: Display backend system (pygame/piomatter)
-- cube.menu: Menu system and controller
+- cube.input: Input handling system
+- cube.menu: Menu system components
 - cube.shader: GLSL shader rendering system
 """
 
-__all__ = ['display', 'menu', 'shader']
+from .controller import CubeController
+
+__all__ = ['CubeController', 'display', 'input', 'menu', 'shader']
