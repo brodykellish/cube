@@ -44,8 +44,8 @@ class CubeController:
             default_gamma: Default gamma correction value (0.5-3.0)
             **kwargs: Additional arguments passed to display backend
         """
-        self.width = width
-        self.height = height
+        self.window_width = width
+        self.window_height = height
         self.target_fps = fps
         self.frame_time = 1.0 / fps
         self.num_panels = num_panels
@@ -57,6 +57,10 @@ class CubeController:
         # Layer 1: Shader
         # Layer 2: Debug overlay (always on top)
         self.display = Display(width, height, num_layers=3, **kwargs)
+
+        # Use display's actual render resolution (may be scaled down)
+        self.width = self.display.width
+        self.height = self.display.height
 
         # Get layer references
         self.menu_layer = self.display.get_layer(0)      # Menu rendering
@@ -81,8 +85,8 @@ class CubeController:
         self.states = {
             'main': MainMenu(),
             'visualization_mode': VisualizationModeSelect(),
-            'surface_browser': ShaderBrowser(width, height),
-            'volumetric_browser': VolumetricShaderBrowser(width, height),
+            'surface_browser': ShaderBrowser(self.width, self.height),
+            'volumetric_browser': VolumetricShaderBrowser(self.width, self.height),
             'settings': SettingsMenu(self.settings),
         }
 

@@ -89,6 +89,14 @@ def main():
         help="Default gamma correction value (0.5-3.0, default: 2.2)"
     )
 
+    parser.add_argument(
+        "--scale",
+        type=int,
+        default=1,
+        help="Content scale factor - scales up internal content within fixed window size. "
+             "scale=2 renders at half resolution and scales up for chunky pixels (default: 1)"
+    )
+
     args = parser.parse_args()
 
     # Validate arguments
@@ -98,12 +106,18 @@ def main():
         parser.error("--brightness must be between 1 and 90")
     if args.gamma < 0.5 or args.gamma > 3.0:
         parser.error("--gamma must be between 0.5 and 3.0")
+    if args.scale < 1 or args.scale > 20:
+        parser.error("--scale must be between 1 and 20")
 
     # Print startup banner
     print("=" * 60)
     print("LED CUBE CONTROL")
     print("=" * 60)
-    print(f"Resolution: {args.width}×{args.height}")
+    print(f"Window Size: {args.width}×{args.height}")
+    if args.scale > 1:
+        render_width = args.width // args.scale
+        render_height = args.height // args.scale
+        print(f"Render Resolution: {render_width}×{render_height} (scale {args.scale}x)")
     print(f"Target FPS: {args.fps}")
     print(f"Default Brightness: {args.brightness}%")
     print(f"Default Gamma: {args.gamma}")
@@ -121,7 +135,8 @@ def main():
             num_address_lines=args.num_address_lines,
             num_panels=args.num_panels,
             default_brightness=args.brightness,
-            default_gamma=args.gamma
+            default_gamma=args.gamma,
+            scale=args.scale
         )
 
         controller.run()

@@ -38,15 +38,9 @@ class Display:
             backend: Backend type ('auto', 'pygame', 'piomatter')
             **kwargs: Additional backend-specific arguments
         """
-        self.width = width
-        self.height = height
+        self.window_width = width
+        self.window_height = height
         self.num_layers = num_layers
-
-        # Create framebuffer layers
-        self.layers: List[np.ndarray] = []
-        for i in range(num_layers):
-            layer = np.zeros((height, width, 3), dtype=np.uint8)
-            self.layers.append(layer)
 
         # Select and initialize backend
         if backend == 'auto':
@@ -55,7 +49,17 @@ class Display:
         self.backend_type = backend
         self.backend = self._create_backend(backend, width, height, **kwargs)
 
-        print(f"Display initialized: {width}×{height} ({backend} backend, {num_layers} layers)")
+        # Use backend's actual framebuffer dimensions (may be scaled)
+        self.width = self.backend.width
+        self.height = self.backend.height
+
+        # Create framebuffer layers at backend's internal resolution
+        self.layers: List[np.ndarray] = []
+        for i in range(num_layers):
+            layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+            self.layers.append(layer)
+
+        print(f"Display initialized: {self.width}×{self.height} render, {width}×{height} window ({backend} backend, {num_layers} layers)")
 
     def _detect_backend(self, **kwargs) -> str:
         """

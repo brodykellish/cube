@@ -15,21 +15,25 @@ class PygameBackend(DisplayBackend):
         Initialize pygame backend.
 
         Args:
-            width: Display width in pixels
-            height: Display height in pixels
-            scale: Window scale factor (default 1)
+            width: Window width in pixels (fixed)
+            height: Window height in pixels (fixed)
+            scale: Content scale factor - determines internal rendering resolution (default 1)
+                   scale=2 means render at width/2 × height/2 and scale up to fit window
             opengl: Enable OpenGL support (default False)
             **kwargs: Additional arguments (ignored, for cross-backend compatibility)
         """
-        super().__init__(width, height)
+        # Internal rendering resolution (scaled down)
+        internal_width = width // scale
+        internal_height = height // scale
+        super().__init__(internal_width, internal_height)
 
         import pygame
         self.pygame = pygame
 
         pygame.init()
         self.scale = scale
-        self.window_width = width * scale
-        self.window_height = height * scale
+        self.window_width = width
+        self.window_height = height
         self.opengl = opengl
 
         # Create window with optional OpenGL support
@@ -39,10 +43,10 @@ class PygameBackend(DisplayBackend):
                 (self.window_width, self.window_height),
                 DOUBLEBUF | OPENGL
             )
-            print(f"Pygame OpenGL backend initialized: {self.window_width}×{self.window_height} (scale {scale}x)")
+            print(f"Pygame OpenGL backend initialized: {self.window_width}×{self.window_height} window, {internal_width}×{internal_height} render (scale {scale}x)")
         else:
             self.screen = pygame.display.set_mode((self.window_width, self.window_height))
-            print(f"Pygame backend initialized: {self.window_width}×{self.window_height} (scale {scale}x)")
+            print(f"Pygame backend initialized: {self.window_width}×{self.window_height} window, {internal_width}×{internal_height} render (scale {scale}x)")
 
         pygame.display.set_caption("Cube Control")
 
@@ -53,24 +57,13 @@ class PygameBackend(DisplayBackend):
         """
         Display a complete framebuffer via pygame.
 
-        Handles dynamic window resizing if framebuffer size differs from current window.
+        Scales framebuffer content to fill the fixed window size.
+        Uses nearest-neighbor scaling to preserve sharp pixel edges.
 
         Args:
             framebuffer: Complete framebuffer to display (any size)
         """
         fb_height, fb_width = framebuffer.shape[:2]
-
-        # Resize window if needed (only in non-OpenGL mode)
-        if not self.opengl:
-            desired_window_width = fb_width * self.scale
-            desired_window_height = fb_height * self.scale
-
-            # Only resize if different from current size
-            if (self.window_width, self.window_height) != (desired_window_width, desired_window_height):
-                self.window_width = desired_window_width
-                self.window_height = desired_window_height
-                self.screen = self.pygame.display.set_mode((self.window_width, self.window_height))
-                print(f"Pygame window resized: {self.window_width}×{self.window_height}")
 
         if self.opengl:
             # Render framebuffer using OpenGL
@@ -85,8 +78,10 @@ class PygameBackend(DisplayBackend):
             # Set raster position (bottom-left in OpenGL coords)
             glRasterPos2i(-1, -1)
 
-            # Set pixel zoom for scaling
-            glPixelZoom(self.scale, self.scale)
+            # Calculate scale to fill window
+            scale_x = self.window_width / fb_width
+            scale_y = self.window_height / fb_height
+            glPixelZoom(scale_x, scale_y)
 
             # Flip framebuffer vertically for OpenGL coordinate system
             framebuffer_flipped = np.flip(framebuffer, axis=0)
@@ -107,12 +102,12 @@ class PygameBackend(DisplayBackend):
                 np.transpose(framebuffer, (1, 0, 2))
             )
 
-            # Scale up if needed
-            if self.scale > 1:
-                surface = self.pygame.transform.scale(
-                    surface,
-                    (fb_width * self.scale, fb_height * self.scale)
-                )
+            # Scale content to fill window using nearest-neighbor (no smoothing)
+            # This preserves sharp pixel edges for that "chunky pixel" look
+            surface = self.pygame.transform.scale(
+                surface,
+                (self.window_width, self.window_height)
+            )
 
             self.screen.blit(surface, (0, 0))
             self.pygame.display.flip()
