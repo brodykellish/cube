@@ -125,7 +125,13 @@ class PiomatterBackend:
             height: Display height in pixels
             **kwargs: Piomatter-specific arguments (pinout, num_planes, etc.)
         """
-        import piomatter as piomatter
+        import piomatter
+
+        if not piomatter._PIOMATTER_AVAILABLE:
+            raise RuntimeError(
+                "piomatter C extension is not available. "
+                "Make sure you're running on a Raspberry Pi 5 and the extension is built correctly."
+            )
 
         self.width = width
         self.height = height

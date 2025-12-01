@@ -6,13 +6,13 @@ import time
 import numpy as np
 from typing import Optional
 
-from ..display import Display
+from cube.display import Display
 from .menu_renderer import MenuRenderer
 from .menu_states import (
     MainMenu, ShaderBrowser, SettingsMenu, CameraModeSelect,
     VisualizationModeSelect, VolumetricShaderBrowser
 )
-from ..shader import ShaderRenderer, SphericalCamera, StaticCamera
+from cube.shader import ShaderRenderer, SphericalCamera, StaticCamera
 
 # Import volumetric system
 import sys

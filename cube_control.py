@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 # Import the menu system
-from src.piomatter.menu import CubeController
+from cube.menu import CubeController
 
 
 def main():

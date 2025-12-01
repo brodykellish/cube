@@ -26,7 +26,7 @@ try:
         PioMatter,
     )
     _PIOMATTER_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     # Not on Raspberry Pi, C extension not built
     _PIOMATTER_AVAILABLE = False
     Colorspace = None
@@ -34,9 +34,7 @@ except ImportError:
     Orientation = None
     Pinout = None
     PioMatter = None
-
-# Import shader submodule to make it accessible
-from . import shader
+    print(f"WARNING: piomatter C extension not available: {e}")
 
 __all__ = [
     'Colorspace',
@@ -44,5 +42,5 @@ __all__ = [
     'Orientation',
     'Pinout',
     'PioMatter',
-    'shader',
+    '_PIOMATTER_AVAILABLE',
 ]

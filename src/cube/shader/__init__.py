@@ -13,7 +13,7 @@ Components:
 - AudioProcessor: Audio analysis and beat detection
 
 Example usage:
-    >>> from piomatter.shader import (
+    >>> from cube.shader import (
     ...     ShaderRenderer, AudioFileInput, SphericalCamera
     ... )
     >>> # Create offscreen renderer (use with cube_control.py or similar)
