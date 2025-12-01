@@ -61,15 +61,14 @@ class MainMenu(MenuState):
             y = y_start + i * item_height
             color = (255, 255, 100) if i == self.selected else (200, 200, 200)
 
-            # Draw selector arrow (just to left of centered text)
-            if i == self.selected:
-                # Calculate text width and position arrow to its left
-                text_width = len(label) * 6 * scale  # Approximate: 6 pixels per character
-                arrow_x = max(0, (renderer.width // 2) - (text_width // 2) - 7 * scale)
-                renderer.draw_text(">", arrow_x, y, color=(255, 255, 100), scale=scale)
+            # Draw option text (left-aligned)
+            text_x = 10 * scale
+            renderer.draw_text(label, text_x, y, color=color, scale=scale)
 
-            # Draw option text (centered)
-            renderer.draw_text_centered(label, y, color=color, scale=scale)
+            # Draw selector arrow to the left of text
+            if i == self.selected:
+                arrow_x = 2 * scale
+                renderer.draw_text(">", arrow_x, y, color=(255, 255, 100), scale=scale)
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle main menu input."""

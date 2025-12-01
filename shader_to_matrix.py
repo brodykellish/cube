@@ -8,13 +8,15 @@ Usage:
 """
 
 import os
-# Configure PyOpenGL for EGL before any OpenGL imports
-os.environ['PYOPENGL_PLATFORM'] = 'egl'
+import platform
+
+# Configure PyOpenGL for EGL on Linux only (macOS uses native OpenGL)
+if platform.system() == 'Linux':
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
 import sys
 import time
 import argparse
-import platform
 import numpy as np
 import termios
 import tty

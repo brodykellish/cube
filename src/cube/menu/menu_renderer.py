@@ -6,7 +6,68 @@ Provides simple text and shape rendering suitable for LED matrix displays.
 import numpy as np
 
 
-# Simple 5x7 bitmap font for LED displays
+# Compact 3x5 bitmap font for LED displays
+# Each character is 3 pixels wide, 5 pixels tall
+# Stored as a dictionary of character -> list of 5 integers (each int represents a row)
+FONT_3X5 = {
+    ' ': [0b000, 0b000, 0b000, 0b000, 0b000],
+    'A': [0b010, 0b101, 0b111, 0b101, 0b101],
+    'B': [0b110, 0b101, 0b110, 0b101, 0b110],
+    'C': [0b011, 0b100, 0b100, 0b100, 0b011],
+    'D': [0b110, 0b101, 0b101, 0b101, 0b110],
+    'E': [0b111, 0b100, 0b110, 0b100, 0b111],
+    'F': [0b111, 0b100, 0b110, 0b100, 0b100],
+    'G': [0b011, 0b100, 0b101, 0b101, 0b011],
+    'H': [0b101, 0b101, 0b111, 0b101, 0b101],
+    'I': [0b111, 0b010, 0b010, 0b010, 0b111],
+    'J': [0b111, 0b001, 0b001, 0b101, 0b010],
+    'K': [0b101, 0b110, 0b100, 0b110, 0b101],
+    'L': [0b100, 0b100, 0b100, 0b100, 0b111],
+    'M': [0b101, 0b111, 0b111, 0b101, 0b101],
+    'N': [0b101, 0b111, 0b111, 0b111, 0b101],
+    'O': [0b010, 0b101, 0b101, 0b101, 0b010],
+    'P': [0b110, 0b101, 0b110, 0b100, 0b100],
+    'Q': [0b010, 0b101, 0b101, 0b111, 0b011],
+    'R': [0b110, 0b101, 0b110, 0b110, 0b101],
+    'S': [0b011, 0b100, 0b010, 0b001, 0b110],
+    'T': [0b111, 0b010, 0b010, 0b010, 0b010],
+    'U': [0b101, 0b101, 0b101, 0b101, 0b010],
+    'V': [0b101, 0b101, 0b101, 0b101, 0b010],
+    'W': [0b101, 0b101, 0b111, 0b111, 0b101],
+    'X': [0b101, 0b101, 0b010, 0b101, 0b101],
+    'Y': [0b101, 0b101, 0b010, 0b010, 0b010],
+    'Z': [0b111, 0b001, 0b010, 0b100, 0b111],
+    '0': [0b010, 0b101, 0b101, 0b101, 0b010],
+    '1': [0b010, 0b110, 0b010, 0b010, 0b111],
+    '2': [0b110, 0b001, 0b010, 0b100, 0b111],
+    '3': [0b110, 0b001, 0b010, 0b001, 0b110],
+    '4': [0b101, 0b101, 0b111, 0b001, 0b001],
+    '5': [0b111, 0b100, 0b110, 0b001, 0b110],
+    '6': [0b010, 0b100, 0b110, 0b101, 0b010],
+    '7': [0b111, 0b001, 0b010, 0b010, 0b010],
+    '8': [0b010, 0b101, 0b010, 0b101, 0b010],
+    '9': [0b010, 0b101, 0b011, 0b001, 0b010],
+    '-': [0b000, 0b000, 0b111, 0b000, 0b000],
+    ':': [0b000, 0b010, 0b000, 0b010, 0b000],
+    '/': [0b001, 0b001, 0b010, 0b100, 0b100],
+    '>': [0b100, 0b010, 0b001, 0b010, 0b100],
+    '<': [0b001, 0b010, 0b100, 0b010, 0b001],
+    '.': [0b000, 0b000, 0b000, 0b000, 0b010],
+    ',': [0b000, 0b000, 0b000, 0b010, 0b100],
+    '!': [0b010, 0b010, 0b010, 0b000, 0b010],
+    '?': [0b010, 0b101, 0b001, 0b010, 0b010],
+    '#': [0b101, 0b111, 0b101, 0b111, 0b101],
+    '(': [0b010, 0b100, 0b100, 0b100, 0b010],
+    ')': [0b010, 0b001, 0b001, 0b001, 0b010],
+    '[': [0b110, 0b100, 0b100, 0b100, 0b110],
+    ']': [0b011, 0b001, 0b001, 0b001, 0b011],
+    '+': [0b000, 0b010, 0b111, 0b010, 0b000],
+    '=': [0b000, 0b111, 0b000, 0b111, 0b000],
+    '_': [0b000, 0b000, 0b000, 0b000, 0b111],
+    '%': [0b101, 0b001, 0b010, 0b100, 0b101],
+}
+
+# Legacy 5x7 bitmap font for reference
 # Each character is 5 pixels wide, 7 pixels tall
 # Stored as a dictionary of character -> list of 7 integers (each int represents a row)
 FONT_5X7 = {
@@ -101,26 +162,26 @@ class MenuRenderer:
 
     def draw_char(self, char, x, y, color=(255, 255, 255), scale=1):
         """
-        Draw a single character using bitmap font.
+        Draw a single character using 3x5 bitmap font.
 
         Args:
             char: Character to draw
             x, y: Top-left position
             color: RGB tuple (0-255)
-            scale: Scaling factor (1 = 5x7 pixels)
+            scale: Scaling factor (1 = 3x5 pixels)
 
         Returns:
-            Width of the drawn character
+            Width of the drawn character (including spacing)
         """
         char = char.upper()
-        if char not in FONT_5X7:
+        if char not in FONT_3X5:
             char = ' '
 
-        bitmap = FONT_5X7[char]
+        bitmap = FONT_3X5[char]
 
         for row_idx, row_data in enumerate(bitmap):
-            for col_idx in range(5):
-                if row_data & (1 << (4 - col_idx)):  # Check if pixel is set
+            for col_idx in range(3):
+                if row_data & (1 << (2 - col_idx)):  # Check if pixel is set
                     # Draw pixel (or scaled block)
                     for dy in range(scale):
                         for dx in range(scale):
@@ -129,27 +190,24 @@ class MenuRenderer:
                             if 0 <= px < self.width and 0 <= py < self.height:
                                 self.framebuffer[py, px] = color
 
-        return 5 * scale + scale  # Character width + spacing
+        return 3 * scale + scale  # Character width + spacing
 
     def draw_text(self, text, x, y, color=(255, 255, 255), scale=1, center=False):
         """
-        Draw text string.
+        Draw text string (left-aligned).
 
         Args:
             text: String to draw
-            x, y: Position (top-left or center depending on center flag)
+            x, y: Top-left position
             color: RGB tuple (0-255)
             scale: Scaling factor
-            center: If True, center text horizontally around x
+            center: Deprecated, ignored (always left-aligned)
 
         Returns:
             Total width of drawn text
         """
-        if center:
-            # Calculate total width without drawing (each char is 5 pixels + 1 spacing)
-            char_width = 6 * scale
-            total_width = len(text) * char_width
-            x = x - total_width // 2
+        # Ensure x is non-negative
+        x = max(0, x)
 
         cursor_x = x
         for char in text:
@@ -158,9 +216,8 @@ class MenuRenderer:
         return cursor_x - x
 
     def draw_text_centered(self, text, y, color=(255, 255, 255), scale=1):
-        """Draw text centered horizontally."""
-        x = self.width // 2
-        return self.draw_text(text, x, y, color, scale, center=True)
+        """Draw text left-aligned at x=0 (centering removed to avoid negative x)."""
+        return self.draw_text(text, 0, y, color, scale, center=False)
 
     def draw_line(self, x1, y1, x2, y2, color=(255, 255, 255)):
         """
