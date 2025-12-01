@@ -27,129 +27,6 @@ from cube.shader import ShaderRenderer, SphericalCamera, StaticCamera
 from cube.volumetric import VolumetricCubeRenderer
 
 
-def _volumetric_preview_window_process(queue, face_size, scale, num_panels):
-    """Run in separate process to display preview window. Must be top-level function for pickling."""
-    import pygame
-    import numpy as np
-    import os
-    import math
-
-    # Calculate layout dimensions based on num_panels
-    # For 1-6 panels, create a reasonable grid layout
-    if num_panels == 1:
-        grid_width, grid_height = 1, 1
-    elif num_panels == 2:
-        grid_width, grid_height = 2, 1
-    elif num_panels == 3:
-        grid_width, grid_height = 3, 1
-    elif num_panels == 4:
-        grid_width, grid_height = 2, 2
-    elif num_panels == 5:
-        grid_width, grid_height = 3, 2
-    else:  # 6 panels - use cross pattern
-        grid_width, grid_height = 4, 3
-
-    # Calculate preview window size (1:1 scale - no downsampling)
-    preview_width = grid_width * face_size * scale
-    preview_height = grid_height * face_size * scale
-
-    # Initialize pygame in this process
-    pygame.init()
-
-    # Position window
-    os.environ['SDL_VIDEO_WINDOW_POS'] = '700,100'
-
-    screen = pygame.display.set_mode((preview_width, preview_height))
-    pygame.display.set_caption(f"Volumetric Cube - {num_panels} Face{'s' if num_panels > 1 else ''}")
-
-    clock = pygame.time.Clock()
-
-    # Dynamic layout based on num_panels
-    all_faces = ['front', 'back', 'left', 'right', 'top', 'bottom']
-    active_faces = all_faces[:num_panels]
-
-    # Create layout positions dynamically
-    if num_panels == 6:
-        # Cross pattern for 6 faces
-        layout = {
-            'top': (1, 0),
-            'left': (0, 1),
-            'front': (1, 1),
-            'right': (2, 1),
-            'back': (3, 1),
-            'bottom': (1, 2),
-        }
-    else:
-        # Simple grid layout for 1-5 faces
-        layout = {}
-        for i, face_name in enumerate(active_faces):
-            if num_panels <= 3:
-                # Horizontal layout
-                layout[face_name] = (i, 0)
-            elif num_panels == 4:
-                # 2x2 grid
-                layout[face_name] = (i % 2, i // 2)
-            else:  # 5 panels
-                # 3x2 grid
-                layout[face_name] = (i % 3, i // 3)
-
-    running = True
-    while running:
-        # Handle events
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
-                    running = False
-
-        # Check for new face data from main process
-        faces = None
-        while not queue.empty():
-            try:
-                faces = queue.get_nowait()
-            except:
-                break
-
-        if faces is not None:
-            # Clear screen
-            screen.fill((0, 0, 0))
-
-            # Draw each face
-            for face_name, (grid_x, grid_y) in layout.items():
-                if face_name not in faces:
-                    continue
-
-                pixels = faces[face_name]
-
-                # Convert numpy array to pygame surface
-                surface = pygame.surfarray.make_surface(np.swapaxes(pixels, 0, 1))
-
-                # Apply scale if needed (usually scale=1 for 1:1 rendering)
-                if scale > 1:
-                    surface = pygame.transform.scale(
-                        surface,
-                        (face_size * scale, face_size * scale)
-                    )
-
-                # Blit to screen
-                x = grid_x * face_size * scale
-                y = grid_y * face_size * scale
-                screen.blit(surface, (x, y))
-
-                # Draw face label at top-left
-                font = pygame.font.Font(None, 20)
-                text = font.render(face_name.upper(), True, (255, 255, 255))
-                text_rect = text.get_rect(topleft=(x + 2, y + 2))
-                screen.blit(text, text_rect)
-
-            pygame.display.flip()
-
-        clock.tick(30)  # Limit to 30 FPS
-
-    pygame.quit()
-
-
 class CubeController:
     """Main controller for cube menu system with layered display support."""
 
@@ -215,17 +92,6 @@ class CubeController:
         self.volumetric_renderer: Optional[VolumetricCubeRenderer] = None
         self.in_volumetric_mode = False
 
-        # Volumetric display mode: cycles through individual faces
-        # Modes: dynamically set based on num_panels
-        all_face_names = ['front', 'back', 'left', 'right', 'top', 'bottom']
-        self.volumetric_display_modes = all_face_names[:num_panels]
-        self.volumetric_display_mode_index = 0  # Start with first face
-
-        # Volumetric preview window (separate process showing all active faces)
-        self.volumetric_preview_process = None
-        self.volumetric_preview_queue = None
-        self.volumetric_preview_scale = 1  # Scale factor for preview window (no scaling)
-
         # FPS tracking (unified for both menu and shader modes)
         self.frame_count = 0
         self.current_fps = 0.0
@@ -269,44 +135,31 @@ class CubeController:
                         print("\nReturning to main menu...")
                         self._exit_volumetric_mode()
                         continue
-                    elif self.input.is_key_pressed('t'):
-                        # Cycle through display modes
-                        self.volumetric_display_mode_index = (self.volumetric_display_mode_index + 1) % len(self.volumetric_display_modes)
-                        mode = self.volumetric_display_modes[self.volumetric_display_mode_index]
-                        print(f"Display mode: {mode.upper()}")
 
                     # Clear menu layer (all RGB channels)
                     self.menu_layer[:, :, :] = 0
 
-                    # Get current display mode
-                    current_mode = self.volumetric_display_modes[self.volumetric_display_mode_index]
-
-                    # Render volumetric scene
+                    # Render volumetric scene (all faces)
                     faces = self.volumetric_renderer.render_all_faces()
 
-                    # Update preview window with all faces
-                    self._update_volumetric_preview_window(faces)
+                    # Layout all faces into combined framebuffer
+                    combined_fb = self._layout_volumetric_faces(faces)
 
-                    # Display single face in main window
-                    face_pixels = faces[current_mode]
-
-                    # Draw face at top-left (no centering)
-                    face_size = face_pixels.shape[0]
-
-                    # Clear shader layer and draw face (all RGB channels)
+                    # Clear shader layer and draw combined layout (all RGB channels)
                     self.shader_layer[:, :, :] = 0
 
-                    # Crop or pad as needed
-                    display_h = min(face_size, self.height)
-                    display_w = min(face_size, self.width)
-                    self.shader_layer[:display_h, :display_w] = face_pixels[:display_h, :display_w]
+                    # Fit the combined framebuffer into the display
+                    combined_h, combined_w = combined_fb.shape[:2]
+                    display_h = min(combined_h, self.height)
+                    display_w = min(combined_w, self.width)
+                    self.shader_layer[:display_h, :display_w] = combined_fb[:display_h, :display_w]
 
                     # Clear debug layer first (all RGB channels)
                     self.debug_layer[:, :, :] = 0
 
-                    # Always show current face mode indicator (and FPS if debug_ui enabled)
-                    show_fps = self.settings.get('debug_ui', False)
-                    self._render_volumetric_mode_indicator(current_mode, show_fps=show_fps)
+                    # Show FPS if debug_ui enabled (no mode indicator needed)
+                    if self.settings.get('debug_ui', False):
+                        self._render_debug_overlay()
 
                     # Display (layered backend handles compositing and rendering)
                     self.display.show()
@@ -401,9 +254,6 @@ class CubeController:
             running = False
 
         finally:
-            # Clean up preview window
-            self._cleanup_volumetric_preview_window()
-
             # Clean up renderers
             if self.shader_renderer is not None:
                 try:
@@ -594,16 +444,10 @@ class CubeController:
             # Load shader
             self.volumetric_renderer.load_shader(shader_path)
 
-            # Reset display mode to front face
-            self.volumetric_display_mode_index = 0
-
-            # Initialize preview window
-            self._init_volumetric_preview_window(self.volumetric_renderer.face_size)
-
             # Enter volumetric mode (main loop will handle rendering)
             self.in_volumetric_mode = True
 
-            print(f"Volumetric shader loaded. Rendering 6 faces at {self.volumetric_renderer.face_size}×{self.volumetric_renderer.face_size}")
+            print(f"Volumetric shader loaded. Rendering {self.num_panels} faces at {self.volumetric_renderer.face_size}×{self.volumetric_renderer.face_size}")
             print("Press ESC to return to menu.")
 
         except Exception as e:
@@ -615,9 +459,6 @@ class CubeController:
 
     def _exit_volumetric_mode(self):
         """Exit volumetric mode and return to menu."""
-        # Clean up preview window
-        self._cleanup_volumetric_preview_window()
-
         # Clean up volumetric renderer
         if self.volumetric_renderer is not None:
             try:
@@ -632,6 +473,82 @@ class CubeController:
         self.current_state = self.states['main']
 
         print("Returned to menu mode")
+
+    def _layout_volumetric_faces(self, faces: dict) -> np.ndarray:
+        """
+        Layout all volumetric faces into a single framebuffer for display.
+
+        Args:
+            faces: Dictionary mapping face names to pixel arrays
+
+        Returns:
+            Combined framebuffer with all faces laid out in a grid pattern
+        """
+        # Determine face size from first face
+        first_face = next(iter(faces.values()))
+        face_size = first_face.shape[0]
+
+        # Calculate layout dimensions based on num_panels
+        if self.num_panels == 1:
+            grid_width, grid_height = 1, 1
+        elif self.num_panels == 2:
+            grid_width, grid_height = 2, 1
+        elif self.num_panels == 3:
+            grid_width, grid_height = 3, 1
+        elif self.num_panels == 4:
+            grid_width, grid_height = 2, 2
+        elif self.num_panels == 5:
+            grid_width, grid_height = 3, 2
+        else:  # 6 panels - use cross pattern
+            grid_width, grid_height = 4, 3
+
+        # Create layout positions
+        all_faces = ['front', 'back', 'left', 'right', 'top', 'bottom']
+        active_faces = all_faces[:self.num_panels]
+
+        if self.num_panels == 6:
+            # Cross pattern for 6 faces
+            layout = {
+                'top': (1, 0),
+                'left': (0, 1),
+                'front': (1, 1),
+                'right': (2, 1),
+                'back': (3, 1),
+                'bottom': (1, 2),
+            }
+        else:
+            # Simple grid layout for 1-5 faces
+            layout = {}
+            for i, face_name in enumerate(active_faces):
+                if self.num_panels <= 3:
+                    # Horizontal layout
+                    layout[face_name] = (i, 0)
+                elif self.num_panels == 4:
+                    # 2x2 grid
+                    layout[face_name] = (i % 2, i // 2)
+                else:  # 5 panels
+                    # 3x2 grid
+                    layout[face_name] = (i % 3, i // 3)
+
+        # Create combined framebuffer
+        combined_height = grid_height * face_size
+        combined_width = grid_width * face_size
+        combined_fb = np.zeros((combined_height, combined_width, 3), dtype=np.uint8)
+
+        # Place each face in the layout
+        for face_name, (grid_x, grid_y) in layout.items():
+            if face_name not in faces:
+                continue
+
+            pixels = faces[face_name]
+            y_start = grid_y * face_size
+            x_start = grid_x * face_size
+            y_end = y_start + face_size
+            x_end = x_start + face_size
+
+            combined_fb[y_start:y_end, x_start:x_end] = pixels
+
+        return combined_fb
 
     def _render_debug_overlay(self, mode_indicator: str = None, show_fps: bool = True):
         """
@@ -703,71 +620,3 @@ class CubeController:
                 scale=1
             )
 
-    def _render_volumetric_mode_indicator(self, mode: str, show_fps: bool = False):
-        """
-        Render current volumetric display mode indicator.
-
-        Note: This now delegates to _render_debug_overlay to keep all debug UI consolidated.
-
-        Args:
-            mode: Display mode name (e.g., "POINTS", "VOXELS")
-            show_fps: Whether to also show FPS (controlled by debug_ui setting)
-        """
-        # Pass mode to debug overlay for consolidated rendering
-        self._render_debug_overlay(mode_indicator=mode, show_fps=show_fps)
-
-    def _init_volumetric_preview_window(self, face_size: int):
-        """Initialize the volumetric preview window showing all active faces."""
-        from multiprocessing import Process, Queue
-
-        # Store face size for later use
-        self.preview_face_size = face_size
-
-        # Create queue for sending face data to preview process
-        self.volumetric_preview_queue = Queue(maxsize=2)
-
-        # Start preview window process with num_panels
-        self.volumetric_preview_process = Process(
-            target=_volumetric_preview_window_process,
-            args=(self.volumetric_preview_queue, face_size, self.volumetric_preview_scale, self.num_panels)
-        )
-        self.volumetric_preview_process.start()
-
-        print(f"Preview window process started (face_size={face_size}, scale={self.volumetric_preview_scale}, panels={self.num_panels})")
-
-    def _update_volumetric_preview_window(self, faces: dict):
-        """
-        Update the preview window with all active faces.
-
-        Layout depends on num_panels:
-        - 6 panels: Cross pattern (top, left, front, right, back, bottom)
-        - 1-5 panels: Grid layout
-        """
-        if self.volumetric_preview_queue is None or self.volumetric_preview_process is None:
-            return
-
-        # Check if process is still alive
-        if not self.volumetric_preview_process.is_alive():
-            return
-
-        # Send faces at full resolution (1:1 scale - no downsampling)
-        try:
-            # Try to clear old data and put new data
-            while not self.volumetric_preview_queue.empty():
-                try:
-                    self.volumetric_preview_queue.get_nowait()
-                except:
-                    break
-            self.volumetric_preview_queue.put_nowait(faces)
-        except:
-            pass  # Queue full, skip this frame
-
-    def _cleanup_volumetric_preview_window(self):
-        """Clean up the volumetric preview window."""
-        if self.volumetric_preview_process is not None:
-            if self.volumetric_preview_process.is_alive():
-                self.volumetric_preview_process.terminate()
-                self.volumetric_preview_process.join(timeout=1)
-            self.volumetric_preview_process = None
-            self.volumetric_preview_queue = None
-            print("Preview window closed")
