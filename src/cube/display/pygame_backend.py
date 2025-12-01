@@ -4,6 +4,7 @@ Pygame display backend for development on macOS/Linux/Windows.
 
 import numpy as np
 from .display_backend import DisplayBackend
+from ..input.pygame_keyboard import PygameKeyboard
 
 
 class PygameBackend(DisplayBackend):
@@ -44,6 +45,9 @@ class PygameBackend(DisplayBackend):
             print(f"Pygame backend initialized: {self.window_width}×{self.window_height} (scale {scale}x)")
 
         pygame.display.set_caption("Cube Control")
+
+        # Initialize keyboard input handler
+        self.keyboard = PygameKeyboard(pygame)
 
     def show(self):
         """Display framebuffer via pygame."""
@@ -93,65 +97,20 @@ class PygameBackend(DisplayBackend):
             self.pygame.display.flip()
 
     def handle_events(self) -> dict:
-        """Handle pygame events."""
-        result = {'quit': False, 'key': None, 'keys': []}
+        """Handle pygame events using keyboard abstraction."""
+        # Poll keyboard for input
+        keyboard_state = self.keyboard.poll()
 
-        # Process events (quit, etc.)
-        for event in self.pygame.event.get():
-            if event.type == self.pygame.QUIT:
-                result['quit'] = True
-            elif event.type == self.pygame.KEYDOWN:
-                # Map pygame keys to simple key names
-                key_map = {
-                    self.pygame.K_UP: 'up',
-                    self.pygame.K_DOWN: 'down',
-                    self.pygame.K_LEFT: 'left',
-                    self.pygame.K_RIGHT: 'right',
-                    self.pygame.K_RETURN: 'enter',
-                    self.pygame.K_SPACE: 'enter',
-                    self.pygame.K_ESCAPE: 'escape',
-                    self.pygame.K_q: 'quit',
-                    self.pygame.K_b: 'back',
-                    self.pygame.K_w: 'up',
-                    self.pygame.K_s: 'down',
-                    self.pygame.K_a: 'left',
-                    self.pygame.K_d: 'right',
-                    self.pygame.K_r: 'reload',
-                    self.pygame.K_e: 'e',
-                    self.pygame.K_c: 'c',
-                    self.pygame.K_t: 't',
-                }
-                mapped_key = key_map.get(event.key)
-                if mapped_key:
-                    result['key'] = mapped_key  # For backward compatibility
-
-        # Check currently held keys for continuous input
-        pressed = self.pygame.key.get_pressed()
-        key_map = {
-            self.pygame.K_UP: 'up',
-            self.pygame.K_DOWN: 'down',
-            self.pygame.K_LEFT: 'left',
-            self.pygame.K_RIGHT: 'right',
-            self.pygame.K_w: 'w',
-            self.pygame.K_s: 's',
-            self.pygame.K_a: 'a',
-            self.pygame.K_d: 'd',
-            self.pygame.K_e: 'e',
-            self.pygame.K_c: 'c',
-            self.pygame.K_LSHIFT: 'shift',
-            self.pygame.K_RSHIFT: 'shift',
+        # Convert KeyboardState to old dict format for backward compatibility
+        result = {
+            'quit': keyboard_state.quit,
+            'key': keyboard_state.key_press,
+            'keys': keyboard_state.keys_held
         }
-
-        keys_held = []
-        for pygame_key, key_name in key_map.items():
-            if pressed[pygame_key]:
-                if key_name not in keys_held:
-                    keys_held.append(key_name)
-
-        result['keys'] = keys_held
 
         return result
 
     def cleanup(self):
-        """Clean up pygame."""
+        """Clean up pygame and keyboard."""
+        self.keyboard.cleanup()
         self.pygame.quit()

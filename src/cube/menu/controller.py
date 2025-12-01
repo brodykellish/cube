@@ -142,13 +142,10 @@ def _volumetric_preview_window_process(queue, face_size, scale, num_panels):
                 y = grid_y * face_size * scale
                 screen.blit(surface, (x, y))
 
-                # Draw face label
+                # Draw face label at top-left
                 font = pygame.font.Font(None, 20)
                 text = font.render(face_name.upper(), True, (255, 255, 255))
-                text_rect = text.get_rect(center=(
-                    x + (face_size * scale) // 2,
-                    y + 8
-                ))
+                text_rect = text.get_rect(topleft=(x + 2, y + 2))
                 screen.blit(text, text_rect)
 
             pygame.display.flip()
@@ -294,32 +291,23 @@ class CubeController:
                     # Display single face in main window
                     face_pixels = faces[current_mode]
 
-                    # Center the face on the display
+                    # Draw face at top-left (no centering)
                     face_size = face_pixels.shape[0]
-                    x_offset = (self.width - face_size) // 2
-                    y_offset = (self.height - face_size) // 2
 
                     # Clear shader layer and draw face (all RGB channels)
                     self.shader_layer[:, :, :] = 0
-                    if x_offset >= 0 and y_offset >= 0:
-                        self.shader_layer[y_offset:y_offset+face_size, x_offset:x_offset+face_size] = face_pixels
-                    else:
-                        # Face is larger than display, crop it
-                        crop_x = max(0, -x_offset)
-                        crop_y = max(0, -y_offset)
-                        display_w = min(face_size - crop_x, self.width)
-                        display_h = min(face_size - crop_y, self.height)
-                        self.shader_layer[:display_h, :display_w] = face_pixels[crop_y:crop_y+display_h, crop_x:crop_x+display_w]
+
+                    # Crop or pad as needed
+                    display_h = min(face_size, self.height)
+                    display_w = min(face_size, self.width)
+                    self.shader_layer[:display_h, :display_w] = face_pixels[:display_h, :display_w]
 
                     # Clear debug layer first (all RGB channels)
                     self.debug_layer[:, :, :] = 0
 
-                    # Always show current face mode indicator
-                    self._render_volumetric_mode_indicator(current_mode)
-
-                    # Render debug overlay if enabled
-                    if self.settings.get('debug_ui', False):
-                        self._render_debug_overlay()
+                    # Always show current face mode indicator (and FPS if debug_ui enabled)
+                    show_fps = self.settings.get('debug_ui', False)
+                    self._render_volumetric_mode_indicator(current_mode, show_fps=show_fps)
 
                     # Display (layered backend handles compositing and rendering)
                     self.display.show()
@@ -657,25 +645,88 @@ class CubeController:
 
         print("Returned to menu mode")
 
-    def _render_debug_overlay(self):
-        """Render debug UI overlay (FPS, stats, etc.) to debug layer."""
-        # Render FPS counter in top-left corner on debug layer
-        fps_text = f"FPS {self.current_fps:.1f}"
+    def _render_debug_overlay(self, mode_indicator: str = None, show_fps: bool = True):
+        """
+        Render debug UI overlay (FPS, stats, etc.) to debug layer.
+
+        Displays all debug info in a compact, semi-transparent box in the bottom-right corner.
+
+        Args:
+            mode_indicator: Optional mode text to display (e.g., "POINTS", "VOXELS")
+            show_fps: Whether to show FPS counter (default True)
+        """
         debug_renderer = MenuRenderer(self.debug_layer)
-        debug_renderer.draw_text(fps_text, x=2, y=2, color=(0, 255, 0), scale=1)
 
-    def _render_volumetric_mode_indicator(self, mode: str):
-        """Render current volumetric display mode indicator."""
-        # Show mode in bottom-right corner
-        mode_text = f"[{mode.upper()}]"
-        debug_renderer = MenuRenderer(self.debug_layer)
+        # Collect debug info to display
+        debug_lines = []
 
-        # Calculate position (bottom-right)
-        text_width = len(mode_text) * 6  # Approximate character width
-        x = self.width - text_width - 2
-        y = self.height - 10
+        # Add FPS if requested
+        if show_fps:
+            debug_lines.append(f"FPS {self.current_fps:.1f}")
 
-        debug_renderer.draw_text(mode_text, x=x, y=y, color=(255, 255, 100), scale=1)
+        # Add mode indicator if provided
+        if mode_indicator:
+            debug_lines.append(f"[{mode_indicator.upper()}]")
+
+        # Don't render anything if there's nothing to show
+        if not debug_lines:
+            return
+
+        # Calculate box dimensions
+        char_width = 6  # Width of one character in scale=1
+        char_height = 8  # Height of one line in scale=1
+        padding = 2
+
+        # Find longest line to determine box width
+        max_line_length = max(len(line) for line in debug_lines)
+        box_width = max_line_length * char_width + padding * 2
+        box_height = len(debug_lines) * char_height + padding * 2
+
+        # Position in bottom-right corner
+        box_x = self.width - box_width
+        box_y = self.height - box_height
+
+        # Draw semi-transparent background box
+        # Use a dark gray with 50% opacity by drawing at half intensity
+        debug_renderer.draw_rect(
+            box_x, box_y, box_width, box_height,
+            color=(40, 40, 40),  # Dark gray background
+            filled=True
+        )
+
+        # Render debug text lines
+        text_x = box_x + padding
+        text_y = box_y + padding
+
+        for i, line in enumerate(debug_lines):
+            # Color coding: FPS in green, mode indicators in yellow
+            if line.startswith("FPS"):
+                color = (0, 255, 0)  # Green
+            elif line.startswith("["):
+                color = (255, 255, 100)  # Yellow
+            else:
+                color = (200, 200, 200)  # Light gray
+
+            debug_renderer.draw_text(
+                line,
+                x=text_x,
+                y=text_y + (i * char_height),
+                color=color,
+                scale=1
+            )
+
+    def _render_volumetric_mode_indicator(self, mode: str, show_fps: bool = False):
+        """
+        Render current volumetric display mode indicator.
+
+        Note: This now delegates to _render_debug_overlay to keep all debug UI consolidated.
+
+        Args:
+            mode: Display mode name (e.g., "POINTS", "VOXELS")
+            show_fps: Whether to also show FPS (controlled by debug_ui setting)
+        """
+        # Pass mode to debug overlay for consolidated rendering
+        self._render_debug_overlay(mode_indicator=mode, show_fps=show_fps)
 
     def _init_volumetric_preview_window(self, face_size: int):
         """Initialize the volumetric preview window showing all active faces."""

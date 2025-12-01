@@ -3,6 +3,7 @@ Piomatter display backend for actual LED cube hardware.
 """
 
 from .display_backend import DisplayBackend
+from ..input.ssh_keyboard import SSHKeyboard
 
 
 class PiomatterBackend(DisplayBackend):
@@ -38,20 +39,28 @@ class PiomatterBackend(DisplayBackend):
 
         print(f"Piomatter backend initialized: {width}×{height}")
 
+        # Initialize SSH keyboard for remote control
+        self.keyboard = SSHKeyboard()
+
     def show(self):
         """Display framebuffer via piomatter."""
         self.matrix.show()
 
     def handle_events(self) -> dict:
-        """
-        Handle input events via GPIO buttons (if available).
-        For now, returns no events - keyboard input would need GPIO button setup.
-        """
-        # TODO: Implement GPIO button handling for physical cube
-        # This would read button states and map them to key events
-        return {'quit': False, 'key': None, 'keys': []}
+        """Handle input events via SSH keyboard."""
+        # Poll keyboard for input
+        keyboard_state = self.keyboard.poll()
+
+        # Convert KeyboardState to old dict format for backward compatibility
+        result = {
+            'quit': keyboard_state.quit,
+            'key': keyboard_state.key_press,
+            'keys': keyboard_state.keys_held
+        }
+
+        return result
 
     def cleanup(self):
-        """Clean up piomatter resources."""
+        """Clean up piomatter and keyboard resources."""
+        self.keyboard.cleanup()
         # Piomatter handles cleanup automatically
-        pass
