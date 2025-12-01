@@ -2,6 +2,18 @@
 
 The input module provides a unified keyboard input abstraction for different platforms and input methods.
 
+## Quick Reference: Shift Modifier on RPI/SSH
+
+On Raspberry Pi over SSH, shift detection works differently than on macOS. Use any of these methods:
+
+| Method | How to Use | Example |
+|--------|------------|---------|
+| **Z Key** (Easiest) | Press and hold `Z` | Hold `Z` + `W` for zoomed forward movement |
+| **Uppercase Letters** | Hold Shift + letter | `Shift+W` sends `W`, detected as shift |
+| **Shift+Arrows** | Use Shift + arrow keys | Works if your terminal supports it |
+
+**Recommended:** Use the `Z` key as your zoom modifier on RPI - it's the most reliable method.
+
 ## Architecture
 
 ```
