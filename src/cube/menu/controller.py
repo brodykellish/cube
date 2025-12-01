@@ -15,6 +15,7 @@ import numpy as np
 from typing import Optional
 
 from cube.display import Display
+from cube.input import InputHandler
 from .menu_renderer import MenuRenderer
 from .menu_states import (
     MainMenu, ShaderBrowser, SettingsMenu, CameraModeSelect,
@@ -189,6 +190,9 @@ class CubeController:
         # Create menu renderer (renders to menu layer)
         self.renderer = MenuRenderer(self.menu_layer)
 
+        # Initialize input handler (decoupled input processing)
+        self.input = InputHandler()
+
         # Initialize settings (shared state)
         self.settings = {
             'debug_ui': False,  # Show FPS and debug info in shaders
@@ -252,10 +256,12 @@ class CubeController:
             while running:
                 frame_start = time.time()
 
-                # Handle input
+                # Handle input - update input handler with events from display
                 events = self.display.handle_events()
+                self.input.update(events)
 
-                if events['quit']:
+                # Check for quit
+                if self.input.is_quit_requested():
                     print("[DEBUG] Quit event received")
                     running = False
                     break
@@ -264,17 +270,16 @@ class CubeController:
                 if self.in_volumetric_mode:
                     print("[DEBUG] In volumetric mode")
                     # Volumetric mode input handling
-                    if events['key']:
-                        if events['key'] in ('escape', 'quit', 'back'):
-                            # Exit volumetric mode, return to menu
-                            print("\nReturning to main menu...")
-                            self._exit_volumetric_mode()
-                            continue
-                        elif events['key'] == 't':
-                            # Cycle through display modes
-                            self.volumetric_display_mode_index = (self.volumetric_display_mode_index + 1) % len(self.volumetric_display_modes)
-                            mode = self.volumetric_display_modes[self.volumetric_display_mode_index]
-                            print(f"Display mode: {mode.upper()}")
+                    if self.input.is_exit_requested():
+                        # Exit volumetric mode, return to menu
+                        print("\nReturning to main menu...")
+                        self._exit_volumetric_mode()
+                        continue
+                    elif self.input.is_key_pressed('t'):
+                        # Cycle through display modes
+                        self.volumetric_display_mode_index = (self.volumetric_display_mode_index + 1) % len(self.volumetric_display_modes)
+                        mode = self.volumetric_display_modes[self.volumetric_display_mode_index]
+                        print(f"Display mode: {mode.upper()}")
 
                     # Clear menu layer (all RGB channels)
                     self.menu_layer[:, :, :] = 0
@@ -314,36 +319,24 @@ class CubeController:
 
                 elif self.in_shader_mode:
                     # Shader mode input handling
-                    if events['key']:
-                        if events['key'] in ('escape', 'quit', 'back'):
-                            # Exit shader mode, return to menu
-                            print("\nReturning to main menu...")
-                            self._exit_shader_mode()
-                            # Continue to next frame (don't try to render shader after exiting)
-                            continue
-                        elif events['key'] == 'reload':
-                            # Reload current shader (R key)
-                            if hasattr(self, '_current_shader_path') and self._current_shader_path:
-                                try:
-                                    self.shader_renderer.load_shader(self._current_shader_path)
-                                    print(f"Shader reloaded: {self._current_shader_path}")
-                                except Exception as e:
-                                    print(f"Error reloading shader: {e}")
+                    if self.input.is_exit_requested():
+                        # Exit shader mode, return to menu
+                        print("\nReturning to main menu...")
+                        self._exit_shader_mode()
+                        # Continue to next frame (don't try to render shader after exiting)
+                        continue
+                    elif self.input.is_key_pressed('reload'):
+                        # Reload current shader (R key)
+                        if hasattr(self, '_current_shader_path') and self._current_shader_path:
+                            try:
+                                self.shader_renderer.load_shader(self._current_shader_path)
+                                print(f"Shader reloaded: {self._current_shader_path}")
+                            except Exception as e:
+                                print(f"Error reloading shader: {e}")
 
-                    # Handle camera controls for shader using pygame key states
-                    keyboard = self.shader_renderer.keyboard_input
-                    keys_held = events.get('keys', [])
-
-                    # Map pygame keys to shader keyboard input
-                    keyboard.set_key_state('up', 'up' in keys_held or 'w' in keys_held)
-                    keyboard.set_key_state('down', 'down' in keys_held or 's' in keys_held)
-                    keyboard.set_key_state('left', 'left' in keys_held or 'a' in keys_held)
-                    keyboard.set_key_state('right', 'right' in keys_held or 'd' in keys_held)
-                    keyboard.set_key_state('forward', 'e' in keys_held)
-                    keyboard.set_key_state('backward', 'c' in keys_held)
-
-                    # Update shift state for zoom modifier
-                    self.shader_renderer.shift_pressed = 'shift' in keys_held
+                    # Apply input to shader camera controls
+                    states = self.input.apply_to_shader_keyboard(self.shader_renderer.keyboard_input)
+                    self.shader_renderer.shift_pressed = states['shift']
 
                     # Clear menu layer (not used in shader mode, all RGB channels)
                     self.menu_layer[:, :, :] = 0
@@ -365,9 +358,10 @@ class CubeController:
 
                 else:
                     # Menu mode input handling
-                    if events['key']:
-                        print(f"[DEBUG] Processing key in menu: {events['key']}")
-                        next_state = self.current_state.handle_input(events['key'])
+                    key = self.input.get_pressed_key()
+                    if key:
+                        print(f"[DEBUG] Processing key in menu: {key}")
+                        next_state = self.current_state.handle_input(key)
                         print(f"[DEBUG] Next state: {next_state}")
 
                         if next_state:

@@ -5,9 +5,23 @@ The input module provides a unified keyboard input abstraction for different pla
 ## Architecture
 
 ```
-Keyboard (Abstract Base Class)
-├── PygameKeyboard - Uses pygame events (macOS local development)
-└── SSHKeyboard - Terminal input via termios (RPi remote control)
+┌─────────────────────────────────────────┐
+│          InputHandler                   │  ← High-level unified interface
+│  (Decoupled input processing)           │
+└─────────────────────────────────────────┘
+                  ↓
+┌─────────────────────────────────────────┐
+│     Display Backend Events              │
+│     {'quit': bool, 'key': str,          │
+│      'keys': list}                      │
+└─────────────────────────────────────────┘
+                  ↓
+┌─────────────────────────────────────────┐
+│    Keyboard (Abstract Base Class)       │
+├─────────────────────────────────────────┤
+│  PygameKeyboard - pygame events         │
+│  SSHKeyboard - Terminal input           │
+└─────────────────────────────────────────┘
 ```
 
 ## Key Components
