@@ -137,48 +137,27 @@ class Display:
 
         self.layers[index][:, :] = framebuffer
 
-    def compose_layers(self) -> np.ndarray:
-        """
-        Composite all layers into a single framebuffer.
-
-        Layers are composited bottom-to-top, with black pixels (0,0,0)
-        in upper layers treated as transparent.
-
-        Returns:
-            Composited framebuffer of shape (height, width, 3)
-        """
-        if self.num_layers == 1:
-            return self.layers[0].copy()
-
-        # Start with bottom layer
-        result = self.layers[0].copy()
-
-        # Overlay each subsequent layer
-        for i in range(1, self.num_layers):
-            layer = self.layers[i]
-
-            # Create mask: True where layer is non-black (has content)
-            mask = np.any(layer != 0, axis=2, keepdims=True)
-
-            # Apply layer pixels where mask is True
-            result = np.where(mask, layer, result)
-
-        return result
-
     def show(self):
         """
         Composite layers and display to screen.
 
         This is the main display method that should be called each frame.
+        Backend handles all compositing and display-specific logic.
         """
-        # Composite all layers
-        framebuffer = self.compose_layers()
+        # Backend composites layers and displays
+        framebuffer = self.backend.compose_layers(self.layers)
+        self.backend.show_framebuffer(framebuffer)
 
-        # Copy to backend's framebuffer
-        self.backend.framebuffer[:, :] = framebuffer
+    def show_framebuffer(self, framebuffer: np.ndarray):
+        """
+        Display a complete framebuffer directly (bypassing layer system).
 
-        # Display via backend
-        self.backend.show()
+        Useful for volumetric rendering or other special display modes.
+
+        Args:
+            framebuffer: Complete framebuffer to display (any size)
+        """
+        self.backend.show_framebuffer(framebuffer)
 
     def handle_events(self) -> dict:
         """

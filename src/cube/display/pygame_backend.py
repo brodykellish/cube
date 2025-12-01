@@ -49,12 +49,29 @@ class PygameBackend(DisplayBackend):
         # Initialize keyboard input handler
         self.keyboard = PygameKeyboard(pygame)
 
-        # Track volumetric mode state
-        self.volumetric_mode = False
-        self.original_window_size = (self.window_width, self.window_height)
+    def show_framebuffer(self, framebuffer: np.ndarray):
+        """
+        Display a complete framebuffer via pygame.
 
-    def show(self):
-        """Display framebuffer via pygame."""
+        Handles dynamic window resizing if framebuffer size differs from current window.
+
+        Args:
+            framebuffer: Complete framebuffer to display (any size)
+        """
+        fb_height, fb_width = framebuffer.shape[:2]
+
+        # Resize window if needed (only in non-OpenGL mode)
+        if not self.opengl:
+            desired_window_width = fb_width * self.scale
+            desired_window_height = fb_height * self.scale
+
+            # Only resize if different from current size
+            if (self.window_width, self.window_height) != (desired_window_width, desired_window_height):
+                self.window_width = desired_window_width
+                self.window_height = desired_window_height
+                self.screen = self.pygame.display.set_mode((self.window_width, self.window_height))
+                print(f"Pygame window resized: {self.window_width}×{self.window_height}")
+
         if self.opengl:
             # Render framebuffer using OpenGL
             from OpenGL.GL import (
@@ -72,12 +89,12 @@ class PygameBackend(DisplayBackend):
             glPixelZoom(self.scale, self.scale)
 
             # Flip framebuffer vertically for OpenGL coordinate system
-            framebuffer_flipped = np.flip(self.framebuffer, axis=0)
+            framebuffer_flipped = np.flip(framebuffer, axis=0)
 
             # Draw pixels
             glDrawPixels(
-                self.framebuffer.shape[1],  # width
-                self.framebuffer.shape[0],  # height
+                fb_width,
+                fb_height,
                 GL_RGB,
                 GL_UNSIGNED_BYTE,
                 framebuffer_flipped
@@ -87,14 +104,14 @@ class PygameBackend(DisplayBackend):
         else:
             # Convert numpy array to pygame surface
             surface = self.pygame.surfarray.make_surface(
-                np.transpose(self.framebuffer, (1, 0, 2))
+                np.transpose(framebuffer, (1, 0, 2))
             )
 
             # Scale up if needed
             if self.scale > 1:
                 surface = self.pygame.transform.scale(
                     surface,
-                    (self.window_width, self.window_height)
+                    (fb_width * self.scale, fb_height * self.scale)
                 )
 
             self.screen.blit(surface, (0, 0))
@@ -113,51 +130,6 @@ class PygameBackend(DisplayBackend):
         }
 
         return result
-
-    def show_volumetric(self, framebuffer: np.ndarray):
-        """
-        Display a volumetric framebuffer (resizes window to fit all panels).
-
-        Args:
-            framebuffer: Volumetric framebuffer (may be larger than normal display)
-        """
-        vol_height, vol_width = framebuffer.shape[:2]
-
-        # Resize window if needed (only in non-OpenGL mode)
-        if not self.opengl:
-            desired_window_width = vol_width * self.scale
-            desired_window_height = vol_height * self.scale
-
-            # Only resize if different from current size
-            if not self.volumetric_mode or (self.window_width, self.window_height) != (desired_window_width, desired_window_height):
-                self.window_width = desired_window_width
-                self.window_height = desired_window_height
-                self.screen = self.pygame.display.set_mode((self.window_width, self.window_height))
-                self.volumetric_mode = True
-                print(f"Pygame window resized for volumetric mode: {self.window_width}×{self.window_height}")
-
-        # Convert numpy array to pygame surface
-        surface = self.pygame.surfarray.make_surface(
-            np.transpose(framebuffer, (1, 0, 2))
-        )
-
-        # Scale up if needed
-        if self.scale > 1:
-            surface = self.pygame.transform.scale(
-                surface,
-                (vol_width * self.scale, vol_height * self.scale)
-            )
-
-        self.screen.blit(surface, (0, 0))
-        self.pygame.display.flip()
-
-    def exit_volumetric_mode(self):
-        """Restore original window size after volumetric mode."""
-        if self.volumetric_mode and not self.opengl:
-            self.window_width, self.window_height = self.original_window_size
-            self.screen = self.pygame.display.set_mode((self.window_width, self.window_height))
-            self.volumetric_mode = False
-            print(f"Pygame window restored: {self.window_width}×{self.window_height}")
 
     def cleanup(self):
         """Clean up pygame and keyboard."""

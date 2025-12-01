@@ -6,6 +6,7 @@ Supports both pygame (development) and piomatter (LED cube).
 import numpy as np
 import platform
 from abc import ABC, abstractmethod
+from typing import List
 
 
 class DisplayBackend(ABC):
@@ -16,9 +17,51 @@ class DisplayBackend(ABC):
         self.height = height
         self.framebuffer = np.zeros((height, width, 3), dtype=np.uint8)
 
+    def compose_layers(self, layers: List[np.ndarray]) -> np.ndarray:
+        """
+        Composite multiple layers into a single framebuffer.
+
+        Layers are composited bottom-to-top, with black pixels (0,0,0)
+        in upper layers treated as transparent.
+
+        Args:
+            layers: List of framebuffers to composite (bottom to top)
+
+        Returns:
+            Composited framebuffer
+        """
+        if len(layers) == 0:
+            return np.zeros((self.height, self.width, 3), dtype=np.uint8)
+
+        if len(layers) == 1:
+            return layers[0].copy()
+
+        # Start with bottom layer
+        result = layers[0].copy()
+
+        # Overlay each subsequent layer
+        for layer in layers[1:]:
+            # Create mask: True where layer is non-black (has content)
+            mask = np.any(layer != 0, axis=2, keepdims=True)
+
+            # Apply layer pixels where mask is True
+            result = np.where(mask, layer, result)
+
+        return result
+
     @abstractmethod
-    def show(self):
-        """Display the current framebuffer."""
+    def show_framebuffer(self, framebuffer: np.ndarray):
+        """
+        Display a complete framebuffer.
+
+        This method should handle all backend-specific display logic including:
+        - Slicing for panel orientation
+        - Re-indexing for cube layout
+        - Window resizing (if applicable)
+
+        Args:
+            framebuffer: Complete framebuffer to display (any size)
+        """
         pass
 
     @abstractmethod
@@ -35,22 +78,6 @@ class DisplayBackend(ABC):
     def cleanup(self):
         """Clean up resources."""
         pass
-
-    def show_volumetric(self, framebuffer: np.ndarray):
-        """
-        Display a volumetric framebuffer (may be larger than normal display size).
-
-        This is an optional method for backends that support dynamic window resizing.
-        Default implementation crops to fit the normal framebuffer.
-
-        Args:
-            framebuffer: Volumetric framebuffer to display (may be any size)
-        """
-        # Default: crop to fit normal framebuffer
-        h = min(framebuffer.shape[0], self.height)
-        w = min(framebuffer.shape[1], self.width)
-        self.framebuffer[:h, :w] = framebuffer[:h, :w]
-        self.show()
 
 
 def create_display_backend(width: int, height: int, preview: bool = False, **kwargs) -> DisplayBackend:

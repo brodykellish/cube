@@ -60,6 +60,7 @@ class CubeController:
 
         # Create menu renderer (renders to menu layer)
         self.renderer = MenuRenderer(self.menu_layer)
+        self.debug_renderer = MenuRenderer(self.debug_layer)
 
         # Initialize input handler (decoupled input processing)
         self.input = InputHandler()
@@ -141,9 +142,9 @@ class CubeController:
                     # Layout all faces into combined framebuffer
                     combined_fb = self._layout_volumetric_faces(faces)
 
-                    # Display volumetric framebuffer directly (bypasses normal layered rendering)
-                    # Backend will automatically resize window if needed (pygame) or crop to fit (piomatter)
-                    self.display.backend.show_volumetric(combined_fb)
+                    # Display volumetric framebuffer directly (bypasses layer system)
+                    # Backend handles window resizing (pygame) or slicing (piomatter)
+                    self.display.show_framebuffer(combined_fb)
 
                 elif self.in_shader_mode:
                     # Shader mode input handling
@@ -440,10 +441,6 @@ class CubeController:
 
     def _exit_volumetric_mode(self):
         """Exit volumetric mode and return to menu."""
-        # Restore window size if backend supports it
-        if hasattr(self.display.backend, 'exit_volumetric_mode'):
-            self.display.backend.exit_volumetric_mode()
-
         # Clean up volumetric renderer
         if self.volumetric_renderer is not None:
             try:
@@ -562,7 +559,6 @@ class CubeController:
             mode_indicator: Optional mode text to display (e.g., "POINTS", "VOXELS")
             show_fps: Whether to show FPS counter (default True)
         """
-        debug_renderer = MenuRenderer(self.debug_layer)
 
         # Collect debug info to display
         debug_lines = []
@@ -595,7 +591,7 @@ class CubeController:
 
         # Draw semi-transparent background box
         # Use a dark gray with 50% opacity by drawing at half intensity
-        debug_renderer.draw_rect(
+        self.debug_renderer.draw_rect(
             box_x, box_y, box_width, box_height,
             color=(40, 40, 40),  # Dark gray background
             filled=True
@@ -614,7 +610,7 @@ class CubeController:
             else:
                 color = (200, 200, 200)  # Light gray
 
-            debug_renderer.draw_text(
+            self.debug_renderer.draw_text(
                 line,
                 x=text_x,
                 y=text_y + (i * char_height),

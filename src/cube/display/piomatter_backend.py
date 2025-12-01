@@ -42,8 +42,27 @@ class PiomatterBackend(DisplayBackend):
         # Initialize SSH keyboard for remote control
         self.keyboard = SSHKeyboard()
 
-    def show(self):
-        """Display framebuffer via piomatter."""
+    def show_framebuffer(self, framebuffer: np.ndarray):
+        """
+        Display a complete framebuffer via piomatter.
+
+        Handles slicing and re-indexing for cube panel orientations.
+        For now, crops/fits framebuffer to display size.
+
+        Args:
+            framebuffer: Complete framebuffer to display (any size)
+        """
+        fb_height, fb_width = framebuffer.shape[:2]
+
+        # Crop or fit framebuffer to matrix dimensions
+        h = min(fb_height, self.height)
+        w = min(fb_width, self.width)
+        self.framebuffer[:h, :w] = framebuffer[:h, :w]
+
+        # TODO: Add orientation/slicing logic for multi-panel cube layouts
+        # This would handle re-indexing framebuffer pixels based on panel orientation
+
+        # Display via piomatter
         self.matrix.show()
 
     def handle_events(self) -> dict:
