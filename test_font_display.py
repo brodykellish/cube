@@ -15,11 +15,11 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from cube.display import Display
 from cube.menu.menu_renderer import MenuRenderer, FONT_5X7
 
-def test_font_display(width=64, height=64):
+def test_font_display(width=64, height=64, num_address_lines=4):
     """Display all available characters on the matrix."""
 
     # Create display
-    display = Display(width, height, num_layers=1)
+    display = Display(width, height, num_layers=1, num_address_lines=num_address_lines)
 
     # Get framebuffer
     framebuffer = display.get_layer(0)
@@ -88,4 +88,4 @@ if __name__ == "__main__":
     print("=" * 60)
     print()
 
-    test_font_display(args.width, args.height)
+    test_font_display(args.width, args.height, args.num_address_lines)

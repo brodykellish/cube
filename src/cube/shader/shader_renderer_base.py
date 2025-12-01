@@ -179,14 +179,15 @@ class ShaderRendererBase(ABC):
         with open(path, 'r') as f:
             fragment_source = f.read()
         
-        vertex_source = """#version 120
+        vertex_source = """#version 100
 attribute vec2 position;
 void main() {
     gl_Position = vec4(position, 0.0, 1.0);
 }
 """
-        
-        fragment_wrapped = f"""#version 120
+
+        fragment_wrapped = f"""#version 100
+precision mediump float;
 uniform vec3 iResolution;
 uniform float iTime;
 uniform float iTimeDelta;

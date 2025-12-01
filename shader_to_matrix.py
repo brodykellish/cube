@@ -7,6 +7,10 @@ Usage:
     python shader_to_matrix.py shaders/flame.glsl --width 64 --height 64 --fps 30
 """
 
+import os
+# Configure PyOpenGL for EGL before any OpenGL imports
+os.environ['PYOPENGL_PLATFORM'] = 'egl'
+
 import sys
 import time
 import argparse

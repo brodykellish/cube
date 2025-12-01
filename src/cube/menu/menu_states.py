@@ -61,9 +61,11 @@ class MainMenu(MenuState):
             y = y_start + i * item_height
             color = (255, 255, 100) if i == self.selected else (200, 200, 200)
 
-            # Draw selector arrow
+            # Draw selector arrow (just to left of centered text)
             if i == self.selected:
-                arrow_x = (renderer.width // 2) - 40 * scale
+                # Calculate text width and position arrow to its left
+                text_width = len(label) * 6 * scale  # Approximate: 6 pixels per character
+                arrow_x = max(0, (renderer.width // 2) - (text_width // 2) - 7 * scale)
                 renderer.draw_text(">", arrow_x, y, color=(255, 255, 100), scale=scale)
 
             # Draw option text (centered)
