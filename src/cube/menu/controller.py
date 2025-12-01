@@ -2,6 +2,10 @@
 Cube Controller - main control loop for LED cube menu system.
 """
 
+import os
+# Configure PyOpenGL for EGL before any OpenGL imports
+os.environ['PYOPENGL_PLATFORM'] = 'egl'
+
 import time
 import numpy as np
 from typing import Optional
@@ -13,6 +17,7 @@ from .menu_states import (
     VisualizationModeSelect, VolumetricShaderBrowser
 )
 from cube.shader import ShaderRenderer, SphericalCamera, StaticCamera
+from cube.input import EvdevKeyboardInput
 
 # Import volumetric system
 import sys
@@ -232,6 +237,37 @@ class CubeController:
         # Store backend kwargs
         self.backend_kwargs = kwargs
 
+        # Key state tracking for shader camera controls (stdin-based)
+        # Maps key names to frames remaining (0 = not pressed)
+        self.key_states = {
+            'up': 0,
+            'down': 0,
+            'left': 0,
+            'right': 0,
+            'e': 0,
+            'c': 0,
+            'shift': 0,
+        }
+        # Hold keys for 12 frames (~0.4s at 30fps) to simulate held keys over SSH
+        # Longer duration compensates for SSH latency and key repeat rate
+        self.key_hold_frames = 12
+
+        # Initialize pygame in headless mode for keyboard input
+        # This is needed for EGL mode where we don't have a display
+        try:
+            import pygame
+            os.environ['SDL_VIDEODRIVER'] = 'dummy'
+            pygame.init()
+            # Create a minimal dummy surface to satisfy pygame
+            pygame.display.set_mode((1, 1))
+            print("Pygame initialized in headless mode for keyboard input")
+        except Exception as e:
+            print(f"Warning: Could not initialize pygame for keyboard input: {e}")
+
+        # Evdev keyboard disabled (doesn't work over SSH)
+        # Using stdin-based keyboard with state tracking instead
+        self.evdev_keyboard = None
+
         print(f"Controller initialized: {width}×{height} @ {fps} FPS")
 
     def run(self):
@@ -335,22 +371,65 @@ class CubeController:
                                     print(f"Error reloading shader: {e}")
 
                     # Handle camera controls for shader
-                    import pygame
-                    keys = pygame.key.get_pressed()
-
-                    # Update shift key state (modifier for camera controls)
-                    self.shader_renderer.shift_pressed = (
-                        keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
-                    )
-
-                    # Update keyboard input state via InputManager
                     keyboard = self.shader_renderer.keyboard_input
-                    keyboard.set_key_state('up', keys[pygame.K_UP] or keys[pygame.K_w])
-                    keyboard.set_key_state('down', keys[pygame.K_DOWN] or keys[pygame.K_s])
-                    keyboard.set_key_state('left', keys[pygame.K_LEFT] or keys[pygame.K_a])
-                    keyboard.set_key_state('right', keys[pygame.K_RIGHT] or keys[pygame.K_d])
-                    keyboard.set_key_state('forward', keys[pygame.K_e])
-                    keyboard.set_key_state('backward', keys[pygame.K_c])
+
+                    if self.evdev_keyboard:
+                        # Use evdev for true simultaneous key detection
+                        self.evdev_keyboard.update()
+
+                        # Apply evdev key states directly to shader keyboard input
+                        keyboard.set_key_state('up', self.evdev_keyboard.is_pressed('up'))
+                        keyboard.set_key_state('down', self.evdev_keyboard.is_pressed('down'))
+                        keyboard.set_key_state('left', self.evdev_keyboard.is_pressed('left'))
+                        keyboard.set_key_state('right', self.evdev_keyboard.is_pressed('right'))
+                        keyboard.set_key_state('forward', self.evdev_keyboard.is_pressed('forward'))
+                        keyboard.set_key_state('backward', self.evdev_keyboard.is_pressed('backward'))
+
+                        # Update shift state for zoom modifier
+                        self.shader_renderer.shift_pressed = self.evdev_keyboard.is_pressed('shift')
+
+                    else:
+                        # Fallback to stdin-based key handling
+                        # Process ALL keys pressed in this frame
+                        keys_pressed = events.get('keys', [])
+                        if not keys_pressed and events.get('key'):
+                            # Backward compatibility
+                            keys_pressed = [events['key']]
+
+                        # Update key states based on ALL new key presses
+                        for key in keys_pressed:
+                            # Handle uppercase WASD as shift+direction
+                            if key == 'W':
+                                self.key_states['up'] = self.key_hold_frames
+                                self.key_states['shift'] = self.key_hold_frames
+                            elif key == 'S':
+                                self.key_states['down'] = self.key_hold_frames
+                                self.key_states['shift'] = self.key_hold_frames
+                            elif key == 'A':
+                                self.key_states['left'] = self.key_hold_frames
+                                self.key_states['shift'] = self.key_hold_frames
+                            elif key == 'D':
+                                self.key_states['right'] = self.key_hold_frames
+                                self.key_states['shift'] = self.key_hold_frames
+                            elif key in self.key_states:
+                                # Regular key press
+                                self.key_states[key] = self.key_hold_frames
+
+                        # Decay all key states (reduce frame count)
+                        for k in self.key_states:
+                            if self.key_states[k] > 0:
+                                self.key_states[k] -= 1
+
+                        # Apply key states to shader keyboard input
+                        keyboard.set_key_state('up', self.key_states['up'] > 0)
+                        keyboard.set_key_state('down', self.key_states['down'] > 0)
+                        keyboard.set_key_state('left', self.key_states['left'] > 0)
+                        keyboard.set_key_state('right', self.key_states['right'] > 0)
+                        keyboard.set_key_state('forward', self.key_states['e'] > 0)
+                        keyboard.set_key_state('backward', self.key_states['c'] > 0)
+
+                        # Update shift state for zoom modifier
+                        self.shader_renderer.shift_pressed = self.key_states['shift'] > 0
 
                     # Clear menu layer (not used in shader mode, all RGB channels)
                     self.menu_layer[:, :, :] = 0
@@ -437,6 +516,13 @@ class CubeController:
                 except Exception as e:
                     print(f"Warning: Error cleaning up volumetric renderer: {e}")
 
+            # Clean up evdev keyboard
+            if self.evdev_keyboard is not None:
+                try:
+                    self.evdev_keyboard.cleanup()
+                except Exception as e:
+                    print(f"Warning: Error cleaning up evdev keyboard: {e}")
+
             self.display.cleanup()
             print("\nShutdown complete")
 
@@ -512,10 +598,13 @@ class CubeController:
             print("  ESC: Exit to menu")
         elif camera_mode == 'spherical':
             print("Controls:")
-            print("  Arrow keys/WASD: Rotate camera (or Shift+Up/Down to zoom)")
+            print("  Arrow keys/WASD: Rotate camera")
+            print("  Shift+WASD: Rotate with zoom modifier")
             print("  E/C: Zoom in/out")
             print("  R: Reload shader")
             print("  ESC: Exit to menu")
+            print()
+            print("  Tip: Hold or rapidly press keys for continuous movement")
         else:  # fps or future modes
             print("Controls:")
             print("  (See camera mode documentation)")

@@ -70,23 +70,44 @@ void mainImage(out vec4 fragColor, vec2 fragCoord) {
     if (t < 50.0) {
         vec3 p = cameraPos + rd * t;
         vec3 normal = calcNormal(p);
+        vec3 viewDir = -rd;
 
-        // Lighting
-        vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
-        float diff = max(dot(normal, lightDir), 0.0);
-        float ambient = 0.3;
+        // Base color - lighter, more pastel tones
+        vec3 baseColor = 0.6 + 0.3 * sin(p * 1.5 + iTime * 0.5);
+        baseColor = mix(vec3(0.85), baseColor, 0.5);
 
-        // Color based on position
-        vec3 baseColor = 0.5 + 0.5 * sin(p * 2.0 + iTime);
+        // Two main lights for testing
+        vec3 light1Dir = normalize(vec3(1.0, 0.8, 0.6));
+        vec3 light1Color = vec3(1.0, 0.5, 0.3);  // Warm orange
 
-        col = baseColor * (ambient + diff);
+        vec3 light2Dir = normalize(vec3(-0.6, 1.0, 0.3));
+        vec3 light2Color = vec3(0.3, 0.6, 1.0);  // Cool blue
 
-        // Fog
+        // Simple diffuse lighting
+        float diff1 = max(dot(normal, light1Dir), 0.0);
+        float diff2 = max(dot(normal, light2Dir), 0.0);
+
+        // Add specular highlights carefully
+        vec3 halfDir1 = normalize(light1Dir + viewDir);
+        vec3 halfDir2 = normalize(light2Dir + viewDir);
+        float specDot1 = max(dot(normal, halfDir1), 0.0);
+        float specDot2 = max(dot(normal, halfDir2), 0.0);
+
+        // Use smaller exponent to avoid numerical issues
+        float spec1 = specDot1 * specDot1 * specDot1 * specDot1;  // ^4 instead of pow()
+        float spec2 = specDot2 * specDot2 * specDot2 * specDot2;
+
+        vec3 lighting = light1Color * (diff1 * baseColor + spec1 * 0.3) +
+                        light2Color * (diff2 * baseColor + spec2 * 0.3);
+
+        col = vec3(0.05) * baseColor + lighting;
+
+        // Fog - fade to black
         float fog = 1.0 - exp(-t * 0.05);
-        col = mix(col, vec3(0.1, 0.1, 0.15), fog);
+        col = mix(col, vec3(0.0), fog);
     } else {
-        // Background
-        col = vec3(0.1, 0.1, 0.15);
+        // Background - fully black
+        col = vec3(0.0);
     }
 
     fragColor = vec4(col, 1.0);

@@ -16,12 +16,95 @@ import time
 import argparse
 import platform
 import numpy as np
+import termios
+import tty
+import select
 from pathlib import Path
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from cube.shader import ShaderRenderer
+
+
+def setup_nonblocking_stdin():
+    """Set stdin to non-blocking mode for keyboard input."""
+    # Save terminal settings
+    old_settings = termios.tcgetattr(sys.stdin)
+
+    # Set terminal to raw mode
+    tty.setcbreak(sys.stdin.fileno())
+
+    return old_settings
+
+
+def restore_stdin(old_settings):
+    """Restore terminal to original settings."""
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
+
+def read_keyboard_events():
+    """Read all available keyboard input (non-blocking)."""
+    keys = []
+
+    # Check if input is available
+    while select.select([sys.stdin], [], [], 0)[0]:
+        char = sys.stdin.read(1)
+        if not char:
+            break
+
+        # Map characters to key names
+        if char == '\x1b':  # Escape sequence
+            # Try to read the rest of the escape sequence (with longer timeout)
+            if select.select([sys.stdin], [], [], 0.05)[0]:
+                char2 = sys.stdin.read(1)
+                if char2 == '[':
+                    # Wait for third character
+                    if select.select([sys.stdin], [], [], 0.05)[0]:
+                        char3 = sys.stdin.read(1)
+                        if char3 == 'A':
+                            keys.append('up')
+                        elif char3 == 'B':
+                            keys.append('down')
+                        elif char3 == 'C':
+                            keys.append('right')
+                        elif char3 == 'D':
+                            keys.append('left')
+                        # Ignore unrecognized escape sequences
+                elif char2 == 'O':
+                    # Alternative arrow key format (ESC O A/B/C/D)
+                    if select.select([sys.stdin], [], [], 0.05)[0]:
+                        char3 = sys.stdin.read(1)
+                        if char3 == 'A':
+                            keys.append('up')
+                        elif char3 == 'B':
+                            keys.append('down')
+                        elif char3 == 'C':
+                            keys.append('right')
+                        elif char3 == 'D':
+                            keys.append('left')
+                # Ignore incomplete/unknown escape sequences
+            else:
+                # Just ESC key (no follow-up within timeout)
+                keys.append('escape')
+        elif char in ('w', 'W'):
+            keys.append('W' if char.isupper() else 'up')
+        elif char in ('s', 'S'):
+            keys.append('S' if char.isupper() else 'down')
+        elif char in ('a', 'A'):
+            keys.append('A' if char.isupper() else 'left')
+        elif char in ('d', 'D'):
+            keys.append('D' if char.isupper() else 'right')
+        elif char in ('e', 'E'):
+            keys.append('e')
+        elif char in ('c', 'C'):
+            keys.append('c')
+        elif char in ('r', 'R'):
+            keys.append('reload')
+        elif char in ('q', 'Q', '\x03'):  # q, Q, or Ctrl-C
+            keys.append('quit')
+
+    return keys
 
 
 def main():
@@ -73,6 +156,12 @@ def main():
         default=5,
         help="Number of address lines (4 or 5, default: 5)"
     )
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=2.2,
+        help="Gamma correction value (1.0=linear, 2.2=default, higher=darker blacks, default: 2.2)"
+    )
 
     args = parser.parse_args()
 
@@ -85,6 +174,7 @@ def main():
     print(f"Shader: {shader_path}")
     print(f"Resolution: {args.width}x{args.height}")
     print(f"Target FPS: {args.fps}")
+    print(f"Gamma: {args.gamma}")
     print()
 
     # Create shader renderer (platform-aware)
@@ -150,8 +240,31 @@ def main():
             print("Running in preview mode")
             is_preview = True
 
+    # Set up keyboard input
+    print("\nControls:")
+    print("  Arrow keys/WASD: Rotate camera")
+    print("  Shift+WASD: Rotate with zoom modifier")
+    print("  E/C: Zoom in/out")
+    print("  R: Reload shader")
+    print("  Q or ESC: Quit")
+    print()
+
+    old_terminal_settings = setup_nonblocking_stdin()
+
+    # Key state tracking (same as cube_control)
+    key_states = {
+        'up': 0,
+        'down': 0,
+        'left': 0,
+        'right': 0,
+        'e': 0,
+        'c': 0,
+        'shift': 0,
+    }
+    key_hold_frames = 12
+
     # Main render loop
-    print("\nStarting render loop... (Press Ctrl+C to exit)")
+    print("\nStarting render loop... (Press Ctrl+C or Q to exit)")
     print("-" * 60)
 
     frame_count = 0
@@ -164,11 +277,65 @@ def main():
         while True:
             frame_start = time.time()
 
+            # Read keyboard input
+            keys_pressed = read_keyboard_events()
+
+            # Check for quit or reload
+            if 'quit' in keys_pressed or 'escape' in keys_pressed:
+                print("\nQuitting...")
+                break
+
+            if 'reload' in keys_pressed:
+                print("\nReloading shader...")
+                try:
+                    renderer.load_shader(str(shader_path))
+                    print("Shader reloaded!")
+                except Exception as e:
+                    print(f"Error reloading shader: {e}")
+
+            # Update key states
+            for key in keys_pressed:
+                if key == 'W':
+                    key_states['up'] = key_hold_frames
+                    key_states['shift'] = key_hold_frames
+                elif key == 'S':
+                    key_states['down'] = key_hold_frames
+                    key_states['shift'] = key_hold_frames
+                elif key == 'A':
+                    key_states['left'] = key_hold_frames
+                    key_states['shift'] = key_hold_frames
+                elif key == 'D':
+                    key_states['right'] = key_hold_frames
+                    key_states['shift'] = key_hold_frames
+                elif key in key_states:
+                    key_states[key] = key_hold_frames
+
+            # Decay key states
+            for k in key_states:
+                if key_states[k] > 0:
+                    key_states[k] -= 1
+
+            # Apply key states to shader
+            keyboard = renderer.keyboard_input
+            keyboard.set_key_state('up', key_states['up'] > 0)
+            keyboard.set_key_state('down', key_states['down'] > 0)
+            keyboard.set_key_state('left', key_states['left'] > 0)
+            keyboard.set_key_state('right', key_states['right'] > 0)
+            keyboard.set_key_state('forward', key_states['e'] > 0)
+            keyboard.set_key_state('backward', key_states['c'] > 0)
+            renderer.shift_pressed = key_states['shift'] > 0
+
             # Render shader on GPU
             renderer.render()
 
             # Read pixels from GPU
             pixels = renderer.read_pixels()
+
+            # Apply gamma correction if not 1.0
+            if args.gamma != 1.0:
+                # Normalize to 0-1, apply gamma, scale back to 0-255
+                pixels = np.power(pixels / 255.0, args.gamma) * 255.0
+                pixels = pixels.astype(np.uint8)
 
             # Display on LED matrix or preview
             if matrix is not None and framebuffer is not None:
@@ -201,6 +368,9 @@ def main():
         print("Interrupted by user")
 
     finally:
+        # Restore terminal settings
+        restore_stdin(old_terminal_settings)
+
         # Display statistics
         total_time = time.time() - start_time
         avg_fps = frame_count / total_time if total_time > 0 else 0

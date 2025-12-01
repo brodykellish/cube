@@ -317,24 +317,85 @@ class EGLShaderRenderer(ShaderRendererBase):
         """Clean up EGL resources."""
         self.input_manager.cleanup()
 
+        # Make context current before cleaning up OpenGL resources
+        if self.egl_display is not None and self.egl_context is not None:
+            try:
+                EGL.eglMakeCurrent(
+                    self.egl_display,
+                    self.egl_surface,
+                    self.egl_surface,
+                    self.egl_context
+                )
+            except:
+                pass
+
+        # Finish all OpenGL commands before cleanup
+        try:
+            glFinish()
+        except:
+            pass
+
+        # Clean up shader program
+        if self.program is not None:
+            try:
+                glDeleteProgram(self.program)
+                self.program = None
+            except:
+                pass
+
+        # Clean up VBO
+        if self.vbo is not None:
+            try:
+                glDeleteBuffers(1, [self.vbo])
+                self.vbo = None
+            except:
+                pass
+
+        # Clean up textures
         for tex_id in self.textures.values():
             if tex_id is not None:
-                glDeleteTextures([tex_id])
+                try:
+                    glDeleteTextures([tex_id])
+                except:
+                    pass
         self.textures.clear()
 
         # Clean up FBO and texture
         if self.fbo is not None:
-            glDeleteFramebuffers(1, [self.fbo])
+            try:
+                glBindFramebuffer(GL_FRAMEBUFFER, 0)
+                glDeleteFramebuffers(1, [self.fbo])
+                self.fbo = None
+            except:
+                pass
         if self.fbo_texture is not None:
-            glDeleteTextures([self.fbo_texture])
+            try:
+                glDeleteTextures([self.fbo_texture])
+                self.fbo_texture = None
+            except:
+                pass
 
         if self.egl_display is not None:
             try:
+                # Release the current context before destroying
+                try:
+                    EGL.eglMakeCurrent(
+                        self.egl_display,
+                        EGL.EGL_NO_SURFACE,
+                        EGL.EGL_NO_SURFACE,
+                        EGL.EGL_NO_CONTEXT
+                    )
+                except:
+                    pass
+
                 if self.egl_context is not None:
                     EGL.eglDestroyContext(self.egl_display, self.egl_context)
+                    self.egl_context = None
                 if self.egl_surface is not None and self.egl_surface != EGL.EGL_NO_SURFACE:
                     EGL.eglDestroySurface(self.egl_display, self.egl_surface)
+                    self.egl_surface = None
                 EGL.eglTerminate(self.egl_display)
+                self.egl_display = None
 
                 print("EGL context cleaned up")
             except Exception as e:
@@ -346,12 +407,14 @@ class EGLShaderRenderer(ShaderRendererBase):
                 gbm = CDLL('libgbm.so.1')
                 gbm.gbm_device_destroy.argtypes = [c_void_p]
                 gbm.gbm_device_destroy(c_void_p(self.gbm_device))
+                self.gbm_device = None
             except Exception as e:
                 print(f"Warning: Error cleaning up GBM: {e}")
 
         if self.drm_fd is not None:
             try:
                 os.close(self.drm_fd)
+                self.drm_fd = None
             except Exception as e:
                 print(f"Warning: Error closing DRM device: {e}")
 
