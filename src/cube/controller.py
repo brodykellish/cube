@@ -128,7 +128,6 @@ class CubeController:
 
                 # Process key input based on mode
                 if self.in_volumetric_mode:
-                    print("[DEBUG] In volumetric mode")
                     # Volumetric mode input handling
                     if self.input.is_exit_requested():
                         # Exit volumetric mode, return to menu
