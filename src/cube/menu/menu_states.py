@@ -69,11 +69,6 @@ class MainMenu(MenuState):
             # Draw option text (centered)
             renderer.draw_text_centered(label, y, color=color, scale=scale)
 
-        # Instructions at bottom
-        help_y = renderer.height - 15 * scale
-        renderer.draw_text_centered("UP/DOWN SELECT", y=help_y, color=(100, 100, 100), scale=scale)
-        renderer.draw_text_centered("ENTER CONFIRM", y=help_y + 8 * scale, color=(100, 100, 100), scale=scale)
-
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle main menu input."""
         if key == 'up':
@@ -128,7 +123,6 @@ class ShaderBrowser(MenuState):
         if not self.shaders:
             error_y = renderer.height // 2
             renderer.draw_text_centered("NO SHADERS FOUND", y=error_y, color=(255, 100, 100), scale=scale)
-            renderer.draw_text_centered("ESC TO GO BACK", y=renderer.height - 10 * scale, color=(100, 100, 100), scale=scale)
             return
 
         # Calculate item height and visible items based on screen size
@@ -179,10 +173,6 @@ class ShaderBrowser(MenuState):
                 visible_items=visible_items,
                 color=(150, 150, 150)
             )
-
-        # Instructions
-        help_y = renderer.height - 10 * scale
-        renderer.draw_text_centered("UP/DN ESC", y=help_y, color=(100, 100, 100), scale=scale)
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle shader browser input."""
@@ -271,10 +261,6 @@ class CameraModeSelect(MenuState):
                 desc_y = y + 7 * scale
                 renderer.draw_text_centered(description, y=desc_y, color=(120, 120, 120), scale=scale)
 
-        # Instructions
-        help_y = renderer.height - 10 * scale
-        renderer.draw_text_centered("UP/DN ESC", y=help_y, color=(100, 100, 100), scale=scale)
-
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle camera mode selection input."""
         if key == 'up':
@@ -348,10 +334,6 @@ class VisualizationModeSelect(MenuState):
                 desc_y = y + 7 * scale
                 renderer.draw_text_centered(description, y=desc_y, color=(120, 120, 120), scale=scale)
 
-        # Instructions
-        help_y = renderer.height - 10 * scale
-        renderer.draw_text_centered("UP/DN ESC", y=help_y, color=(100, 100, 100), scale=scale)
-
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle visualization mode selection input."""
         if key == 'up':
@@ -411,7 +393,6 @@ class VolumetricShaderBrowser(MenuState):
         if not self.shaders:
             error_y = renderer.height // 2
             renderer.draw_text_centered("NO VOLUMETRIC SHADERS", y=error_y, color=(255, 100, 100), scale=scale)
-            renderer.draw_text_centered("ESC TO GO BACK", y=renderer.height - 10 * scale, color=(100, 100, 100), scale=scale)
             return
 
         # Calculate item height and visible items
@@ -462,10 +443,6 @@ class VolumetricShaderBrowser(MenuState):
                 visible_items=visible_items,
                 color=(150, 150, 150)
             )
-
-        # Instructions
-        help_y = renderer.height - 10 * scale
-        renderer.draw_text_centered("UP/DN ESC", y=help_y, color=(100, 100, 100), scale=scale)
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle volumetric shader browser input."""
@@ -549,11 +526,6 @@ class SettingsMenu(MenuState):
             elif option_type == "stub":
                 stub_x = renderer.width - 50 * scale
                 renderer.draw_text("SOON", stub_x, y, color=(80, 80, 80), scale=scale)
-
-        # Help text
-        help_y = renderer.height - 18 * scale
-        renderer.draw_text_centered("ENTER TOGGLE", y=help_y, color=(100, 100, 100), scale=scale)
-        renderer.draw_text_centered("ESC BACK", y=help_y + 8 * scale, color=(100, 100, 100), scale=scale)
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle settings menu input."""

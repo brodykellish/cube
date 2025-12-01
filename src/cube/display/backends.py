@@ -6,6 +6,10 @@ to screen or LED hardware.
 """
 
 import numpy as np
+import sys
+import select
+import termios
+import tty
 
 
 def create_backend(backend_type: str, width: int, height: int, **kwargs):
@@ -136,6 +140,31 @@ class PiomatterBackend:
         self.width = width
         self.height = height
 
+        # Setup terminal for raw input (non-blocking keyboard)
+        self.old_terminal_settings = None
+        try:
+            self.old_terminal_settings = termios.tcgetattr(sys.stdin)
+            # Use cbreak mode to allow Ctrl-C to work
+            tty.setcbreak(sys.stdin.fileno())
+
+            # Make stdin non-blocking
+            import fcntl
+            import os
+            self.stdin_fd = sys.stdin.fileno()
+            self.old_stdin_flags = fcntl.fcntl(self.stdin_fd, fcntl.F_GETFL)
+            fcntl.fcntl(self.stdin_fd, fcntl.F_SETFL, self.old_stdin_flags | os.O_NONBLOCK)
+            print("\n" + "=" * 60)
+            print("KEYBOARD CONTROLS (via SSH)")
+            print("=" * 60)
+            print("Navigation: w/s (↑/↓) or arrow keys")
+            print("Select:     Enter or Space")
+            print("Back:       b (ESC not available over SSH)")
+            print("Quit:       q")
+            print("=" * 60 + "\n")
+        except (termios.error, AttributeError):
+            # Not a terminal (e.g., running in background)
+            pass
+
         # Extract piomatter-specific arguments
         pinout_name = kwargs.get('pinout', 'AdafruitMatrixBonnet')
         pinout = getattr(piomatter.Pinout, pinout_name)
@@ -178,14 +207,94 @@ class PiomatterBackend:
 
     def handle_events(self) -> dict:
         """
-        Handle input events via GPIO buttons (if available).
-
-        For now, returns no events - keyboard input would need GPIO button setup.
+        Handle input events from stdin (keyboard over SSH).
+        Uses non-blocking read to get keyboard input without blocking the render loop.
         """
-        # TODO: Implement GPIO button handling for physical cube
-        return {'quit': False, 'key': None}
+        result = {'quit': False, 'key': None}
+
+        try:
+            # Try to read all available input (non-blocking)
+            chars = ''
+            while True:
+                try:
+                    c = sys.stdin.read(1)
+                    if c:
+                        chars += c
+                    else:
+                        break
+                except (IOError, OSError):
+                    # No more data available
+                    break
+
+            if not chars:
+                return result
+
+            print(f"[DEBUG] Read chars: {repr(chars)}")
+
+            # Map single characters to key events
+            key_map = {
+                'w': 'up',
+                'W': 'up',
+                's': 'down',
+                'S': 'down',
+                'a': 'left',
+                'A': 'left',
+                'd': 'right',
+                'D': 'right',
+                '\r': 'enter',
+                '\n': 'enter',
+                ' ': 'enter',
+                'b': 'back',
+                'B': 'back',
+                'q': 'quit',
+                'Q': 'quit',
+                '\x03': 'quit',  # Ctrl-C
+            }
+
+            # Check for escape sequences (arrow keys)
+            if '\x1b[A' in chars:
+                result['key'] = 'up'
+            elif '\x1b[B' in chars:
+                result['key'] = 'down'
+            elif '\x1b[C' in chars:
+                result['key'] = 'right'
+            elif '\x1b[D' in chars:
+                result['key'] = 'left'
+            # Check for standalone [ followed by direction (ESC consumed by terminal)
+            elif '[A' in chars:
+                result['key'] = 'up'
+            elif '[B' in chars:
+                result['key'] = 'down'
+            elif '[C' in chars:
+                result['key'] = 'right'
+            elif '[D' in chars:
+                result['key'] = 'left'
+            # Check for regular keys
+            elif len(chars) == 1:
+                result['key'] = key_map.get(chars)
+
+        except Exception as e:
+            print(f"[DEBUG] Unexpected error in handle_events: {e}")
+            import traceback
+            traceback.print_exc()
+
+        if result['key']:
+            print(f"[DEBUG] Key detected: {result['key']}")
+        return result
 
     def cleanup(self):
-        """Clean up piomatter resources."""
-        # Piomatter handles cleanup automatically
-        pass
+        """Clean up piomatter resources and restore terminal."""
+        # Restore stdin flags
+        if hasattr(self, 'old_stdin_flags'):
+            try:
+                import fcntl
+                fcntl.fcntl(self.stdin_fd, fcntl.F_SETFL, self.old_stdin_flags)
+            except:
+                pass
+
+        # Restore terminal settings
+        if self.old_terminal_settings is not None:
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_terminal_settings)
+            except (termios.error, AttributeError):
+                pass

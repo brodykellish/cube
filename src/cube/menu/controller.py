@@ -251,11 +251,13 @@ class CubeController:
                 events = self.display.handle_events()
 
                 if events['quit']:
+                    print("[DEBUG] Quit event received")
                     running = False
                     break
 
                 # Process key input based on mode
                 if self.in_volumetric_mode:
+                    print("[DEBUG] In volumetric mode")
                     # Volumetric mode input handling
                     if events['key']:
                         if events['key'] in ('escape', 'quit', 'back'):
@@ -370,11 +372,16 @@ class CubeController:
 
                 else:
                     # Menu mode input handling
+                    print("[DEBUG] In menu mode")
                     if events['key']:
+                        print(f"[DEBUG] Processing key in menu: {events['key']}")
                         next_state = self.current_state.handle_input(events['key'])
+                        print(f"[DEBUG] Next state: {next_state}")
 
                         if next_state:
+                            print(f"[DEBUG] Transitioning to: {next_state}")
                             running = self._handle_state_transition(next_state)
+                            print(f"[DEBUG] Running after transition: {running}")
 
                     # Clear shader layer (not used in menu mode)
                     self.shader_layer[:, :] = 0
@@ -385,9 +392,7 @@ class CubeController:
                     # Clear debug layer
                     self.debug_layer[:, :] = 0
 
-                    # Render debug overlay if enabled (even in menu mode)
-                    if self.settings.get('debug_ui', False):
-                        self._render_debug_overlay()
+                    # Don't render debug overlay in menu mode
 
                     self.display.show()
 
@@ -406,6 +411,12 @@ class CubeController:
                     self.fps_frames = 0
 
                 last_frame_time = time.time()
+
+        except Exception as e:
+            print(f"\nError in main loop: {e}")
+            import traceback
+            traceback.print_exc()
+            running = False
 
         finally:
             # Clean up preview window
