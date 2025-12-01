@@ -143,11 +143,6 @@ class ShaderBrowser(MenuState):
             list_index = i - self.scroll_offset
             y = y_start + list_index * item_height
 
-            # Highlight if selected
-            if i == self.selected:
-                renderer.draw_rect(2 * scale, y - scale, renderer.width - 4 * scale, item_height - scale,
-                                 color=(30, 50, 100), filled=True)
-
             # Draw selector arrow
             if i == self.selected:
                 renderer.draw_text(">", 3 * scale, y, color=(255, 255, 100), scale=scale)
@@ -236,25 +231,19 @@ class CameraModeSelect(MenuState):
             y = y_start + i * item_height
             is_selected = (i == self.selected)
 
-            # Highlight selected
-            if is_selected and mode is not None:
-                renderer.draw_rect(
-                    5 * scale, y - scale,
-                    renderer.width - 10 * scale, item_height - 2 * scale,
-                    color=(30, 50, 100), filled=True
-                )
-
-            # Draw selector arrow
-            if is_selected:
-                renderer.draw_text(">", 7 * scale, y, color=(255, 255, 100), scale=scale)
-
             # Draw option label
             color = (255, 255, 100) if is_selected else (200, 200, 200)
             # Gray out FPS (not implemented yet)
             if mode == "fps":
                 color = (100, 100, 100)
 
-            renderer.draw_text(label, 15 * scale, y, color=color, scale=scale)
+            text_x = 10 * scale
+            renderer.draw_text(label, text_x, y, color=color, scale=scale)
+
+            # Draw selector arrow to the left of text
+            if is_selected:
+                arrow_x = 2 * scale
+                renderer.draw_text(">", arrow_x, y, color=(255, 255, 100), scale=scale)
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle camera mode selection input."""
@@ -400,11 +389,6 @@ class VolumetricShaderBrowser(MenuState):
             shader = self.shaders[i]
             list_index = i - self.scroll_offset
             y = y_start + list_index * item_height
-
-            # Highlight if selected
-            if i == self.selected:
-                renderer.draw_rect(2 * scale, y - scale, renderer.width - 4 * scale, item_height - scale,
-                                 color=(30, 50, 100), filled=True)
 
             # Draw selector arrow
             if i == self.selected:
