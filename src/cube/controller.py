@@ -136,33 +136,15 @@ class CubeController:
                         self._exit_volumetric_mode()
                         continue
 
-                    # Clear menu layer (all RGB channels)
-                    self.menu_layer[:, :, :] = 0
-
                     # Render volumetric scene (all faces)
                     faces = self.volumetric_renderer.render_all_faces()
 
                     # Layout all faces into combined framebuffer
                     combined_fb = self._layout_volumetric_faces(faces)
 
-                    # Clear shader layer and draw combined layout (all RGB channels)
-                    self.shader_layer[:, :, :] = 0
-
-                    # Fit the combined framebuffer into the display
-                    combined_h, combined_w = combined_fb.shape[:2]
-                    display_h = min(combined_h, self.height)
-                    display_w = min(combined_w, self.width)
-                    self.shader_layer[:display_h, :display_w] = combined_fb[:display_h, :display_w]
-
-                    # Clear debug layer first (all RGB channels)
-                    self.debug_layer[:, :, :] = 0
-
-                    # Show FPS if debug_ui enabled (no mode indicator needed)
-                    if self.settings.get('debug_ui', False):
-                        self._render_debug_overlay()
-
-                    # Display (layered backend handles compositing and rendering)
-                    self.display.show()
+                    # Display volumetric framebuffer directly (bypasses normal layered rendering)
+                    # Backend will automatically resize window if needed (pygame) or crop to fit (piomatter)
+                    self.display.backend.show_volumetric(combined_fb)
 
                 elif self.in_shader_mode:
                     # Shader mode input handling
@@ -459,6 +441,10 @@ class CubeController:
 
     def _exit_volumetric_mode(self):
         """Exit volumetric mode and return to menu."""
+        # Restore window size if backend supports it
+        if hasattr(self.display.backend, 'exit_volumetric_mode'):
+            self.display.backend.exit_volumetric_mode()
+
         # Clean up volumetric renderer
         if self.volumetric_renderer is not None:
             try:
@@ -547,6 +533,23 @@ class CubeController:
             x_end = x_start + face_size
 
             combined_fb[y_start:y_end, x_start:x_end] = pixels
+
+        # Add face labels to each panel
+        label_renderer = MenuRenderer(combined_fb)
+        for face_name, (grid_x, grid_y) in layout.items():
+            if face_name not in faces:
+                continue
+
+            # Draw label at top-left of each face
+            label_x = grid_x * face_size + 2
+            label_y = grid_y * face_size + 2
+            label_renderer.draw_text(
+                face_name.upper(),
+                x=label_x,
+                y=label_y,
+                color=(255, 255, 255),
+                scale=1
+            )
 
         return combined_fb
 

@@ -36,6 +36,22 @@ class DisplayBackend(ABC):
         """Clean up resources."""
         pass
 
+    def show_volumetric(self, framebuffer: np.ndarray):
+        """
+        Display a volumetric framebuffer (may be larger than normal display size).
+
+        This is an optional method for backends that support dynamic window resizing.
+        Default implementation crops to fit the normal framebuffer.
+
+        Args:
+            framebuffer: Volumetric framebuffer to display (may be any size)
+        """
+        # Default: crop to fit normal framebuffer
+        h = min(framebuffer.shape[0], self.height)
+        w = min(framebuffer.shape[1], self.width)
+        self.framebuffer[:h, :w] = framebuffer[:h, :w]
+        self.show()
+
 
 def create_display_backend(width: int, height: int, preview: bool = False, **kwargs) -> DisplayBackend:
     """
