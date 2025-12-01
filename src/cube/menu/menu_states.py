@@ -49,11 +49,11 @@ class MainMenu(MenuState):
         scale = 1
 
         # Title
-        title_y = 5 * scale
+        title_y = 2 * scale
         renderer.draw_text_centered("CUBE CONTROL", y=title_y, color=(100, 200, 255), scale=scale)
 
         # Menu options - centered vertically
-        item_height = 10 * scale
+        item_height = 7 * scale
         total_height = len(self.options) * item_height
         y_start = (renderer.height - total_height) // 2
 
@@ -118,7 +118,7 @@ class ShaderBrowser(MenuState):
         scale = 1
 
         # Title
-        title_y = 3 * scale
+        title_y = 1 * scale
         renderer.draw_text_centered("SHADER SELECT", y=title_y, color=(100, 200, 255), scale=scale)
 
         if not self.shaders:
@@ -127,9 +127,9 @@ class ShaderBrowser(MenuState):
             return
 
         # Calculate item height and visible items based on screen size
-        item_height = 9 * scale
-        y_start = 12 * scale
-        available_height = renderer.height - y_start - (15 * scale)  # Leave room for instructions
+        item_height = 7 * scale
+        y_start = 8 * scale
+        available_height = renderer.height - y_start - (2 * scale)  # Minimal bottom margin
         visible_items = max(3, available_height // item_height)
 
         # Calculate scroll offset to keep selected item visible
@@ -155,7 +155,7 @@ class ShaderBrowser(MenuState):
 
             # Draw shader name (truncate if too long)
             shader_name = shader.stem
-            char_width = 6 * scale  # Approximate character width
+            char_width = 4 * scale  # 3x5 font: 3 pixels + 1 spacing
             max_chars = (renderer.width - 15 * scale) // char_width
             if len(shader_name) > max_chars:
                 shader_name = shader_name[:max_chars - 2] + ".."
@@ -218,20 +218,20 @@ class CameraModeSelect(MenuState):
         scale = 1
 
         # Title
-        title_y = 3 * scale
+        title_y = 1 * scale
         renderer.draw_text_centered("CAMERA MODE", y=title_y, color=(100, 200, 255), scale=scale)
 
         # Show shader name
         shader_name = Path(self.shader_path).stem
-        shader_y = 12 * scale
-        max_chars = (renderer.width - 10 * scale) // (6 * scale)
+        shader_y = 8 * scale
+        max_chars = (renderer.width - 10 * scale) // (4 * scale)  # 3x5 font: 4 pixels per char
         if len(shader_name) > max_chars:
             shader_name = shader_name[:max_chars - 2] + ".."
         renderer.draw_text_centered(shader_name, y=shader_y, color=(150, 150, 150), scale=scale)
 
         # Menu options
-        item_height = 10 * scale
-        y_start = 25 * scale
+        item_height = 7 * scale
+        y_start = 16 * scale
 
         for i, (label, mode, description) in enumerate(self.options):
             y = y_start + i * item_height
@@ -298,12 +298,12 @@ class VisualizationModeSelect(MenuState):
         scale = 1
 
         # Title
-        title_y = 5 * scale
+        title_y = 2 * scale
         renderer.draw_text_centered("VISUALIZATION MODE", y=title_y, color=(100, 200, 255), scale=scale)
 
         # Menu options
-        item_height = 10 * scale
-        y_start = 25 * scale
+        item_height = 7 * scale
+        y_start = 12 * scale
 
         for i, (label, mode, description) in enumerate(self.options):
             y = y_start + i * item_height
@@ -378,7 +378,7 @@ class VolumetricShaderBrowser(MenuState):
         scale = 1
 
         # Title
-        title_y = 3 * scale
+        title_y = 1 * scale
         renderer.draw_text_centered("VOLUMETRIC SHADERS", y=title_y, color=(100, 200, 255), scale=scale)
 
         if not self.shaders:
@@ -387,9 +387,9 @@ class VolumetricShaderBrowser(MenuState):
             return
 
         # Calculate item height and visible items
-        item_height = 9 * scale
-        y_start = 12 * scale
-        available_height = renderer.height - y_start - (15 * scale)
+        item_height = 7 * scale
+        y_start = 8 * scale
+        available_height = renderer.height - y_start - (2 * scale)
         visible_items = max(3, available_height // item_height)
 
         # Calculate scroll offset
@@ -415,7 +415,7 @@ class VolumetricShaderBrowser(MenuState):
 
             # Draw shader name (truncate if too long)
             shader_name = shader.stem
-            char_width = 6 * scale
+            char_width = 4 * scale  # 3x5 font: 4 pixels per char
             max_chars = (renderer.width - 15 * scale) // char_width
             if len(shader_name) > max_chars:
                 shader_name = shader_name[:max_chars - 2] + ".."
@@ -480,12 +480,12 @@ class SettingsMenu(MenuState):
         scale = 1
 
         # Title
-        title_y = 5 * scale
+        title_y = 2 * scale
         renderer.draw_text_centered("SETTINGS", y=title_y, color=(100, 200, 255), scale=scale)
 
         # Options
-        y_start = 25 * scale
-        item_height = 11 * scale
+        y_start = 12 * scale
+        item_height = 7 * scale
 
         for i, (label, setting_key, option_type) in enumerate(self.options):
             y = y_start + i * item_height

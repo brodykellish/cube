@@ -3,8 +3,12 @@ Cube Controller - main control loop for LED cube menu system.
 """
 
 import os
-# Configure PyOpenGL for EGL before any OpenGL imports
-os.environ['PYOPENGL_PLATFORM'] = 'egl'
+import sys
+
+# Configure PyOpenGL platform before any OpenGL imports
+# EGL is only for Linux - macOS uses native OpenGL
+if sys.platform == 'linux':
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
 import time
 import numpy as np

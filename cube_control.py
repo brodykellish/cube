@@ -5,11 +5,14 @@ Provides menu system for visualization selection and settings
 """
 
 import os
-# Configure PyOpenGL for EGL before any OpenGL imports
-os.environ['PYOPENGL_PLATFORM'] = 'egl'
+import sys
+
+# Configure PyOpenGL platform before any OpenGL imports
+# EGL is only for Linux - macOS uses native OpenGL
+if sys.platform == 'linux':
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
 import argparse
-import sys
 import time
 from pathlib import Path
 
