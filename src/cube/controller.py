@@ -30,7 +30,8 @@ from cube.volumetric import VolumetricCubeRenderer
 class CubeController:
     """Main controller for cube menu system with layered display support."""
 
-    def __init__(self, width: int, height: int, fps: int = 30, num_panels: int = 6, **kwargs):
+    def __init__(self, width: int, height: int, fps: int = 30, num_panels: int = 6,
+                 default_brightness: float = 60.0, default_gamma: float = 2.2, **kwargs):
         """
         Initialize cube controller.
 
@@ -39,6 +40,8 @@ class CubeController:
             height: Display height in pixels
             fps: Target frames per second
             num_panels: Number of cube panels/faces (1-6)
+            default_brightness: Default brightness percentage (1-90)
+            default_gamma: Default gamma correction value (0.5-3.0)
             **kwargs: Additional arguments passed to display backend
         """
         self.width = width
@@ -46,6 +49,8 @@ class CubeController:
         self.target_fps = fps
         self.frame_time = 1.0 / fps
         self.num_panels = num_panels
+        self.default_brightness = default_brightness
+        self.default_gamma = default_gamma
 
         # Create display with 3 layers
         # Layer 0: Menu
@@ -68,6 +73,8 @@ class CubeController:
         # Initialize settings (shared state)
         self.settings = {
             'debug_ui': False,  # Show FPS and debug info in shaders
+            'brightness': default_brightness,  # Default brightness
+            'gamma': default_gamma,  # Default gamma
         }
 
         # Initialize menu states
@@ -144,7 +151,9 @@ class CubeController:
 
                     # Display volumetric framebuffer directly (bypasses layer system)
                     # Backend handles window resizing (pygame) or slicing (piomatter)
-                    self.display.show_framebuffer(combined_fb)
+                    brightness = self.settings.get('brightness', self.default_brightness)
+                    gamma = self.settings.get('gamma', self.default_gamma)
+                    self.display.show_framebuffer(combined_fb, brightness=brightness, gamma=gamma)
 
                 elif self.in_shader_mode:
                     # Shader mode input handling
@@ -183,7 +192,9 @@ class CubeController:
                         self._render_debug_overlay()
 
                     # Display (layered backend handles compositing and rendering)
-                    self.display.show()
+                    brightness = self.settings.get('brightness', self.default_brightness)
+                    gamma = self.settings.get('gamma', self.default_gamma)
+                    self.display.show(brightness=brightness, gamma=gamma)
 
                 else:
                     # Menu mode input handling
@@ -211,12 +222,16 @@ class CubeController:
                     if self.settings.get('debug_ui', False):
                         self._render_debug_overlay()
 
-                    self.display.show()
+                    brightness = self.settings.get('brightness', self.default_brightness)
+                    gamma = self.settings.get('gamma', self.default_gamma)
+                    self.display.show(brightness=brightness, gamma=gamma)
 
-                # Frame rate limiting
+                # Frame rate limiting (use setting if available)
+                target_fps = self.settings.get('fps_limit', self.target_fps)
+                target_frame_time = 1.0 / target_fps
                 frame_time = time.time() - frame_start
-                if frame_time < self.frame_time:
-                    time.sleep(self.frame_time - frame_time)
+                if frame_time < target_frame_time:
+                    time.sleep(target_frame_time - frame_time)
 
                 # Update FPS (unified for both menu and shader modes)
                 self.frame_count += 1

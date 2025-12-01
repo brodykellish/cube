@@ -49,6 +49,34 @@ class DisplayBackend(ABC):
 
         return result
 
+    def apply_corrections(self, framebuffer: np.ndarray, brightness: float = 100.0, gamma: float = 1.0) -> np.ndarray:
+        """
+        Apply brightness and gamma corrections to framebuffer.
+
+        Args:
+            framebuffer: Input framebuffer
+            brightness: Brightness percentage (1-100)
+            gamma: Gamma correction value (0.5-3.0)
+
+        Returns:
+            Corrected framebuffer
+        """
+        # Convert to float for processing
+        result = framebuffer.astype(np.float32)
+
+        # Apply gamma correction
+        if gamma != 1.0:
+            result = np.power(result / 255.0, gamma) * 255.0
+
+        # Apply brightness scaling
+        if brightness != 100.0:
+            result = result * (brightness / 100.0)
+
+        # Clamp to valid range and convert back to uint8
+        result = np.clip(result, 0, 255).astype(np.uint8)
+
+        return result
+
     @abstractmethod
     def show_framebuffer(self, framebuffer: np.ndarray):
         """

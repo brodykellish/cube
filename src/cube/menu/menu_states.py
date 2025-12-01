@@ -43,7 +43,7 @@ class MainMenu(MenuState):
 
     def render(self, renderer: MenuRenderer):
         """Render main menu."""
-        renderer.clear((0, 0, 10))  # Dark blue background
+        renderer.clear((0, 0, 0))  # black background
 
         # Use fixed scale to ensure text fits on all resolutions
         scale = 1
@@ -111,7 +111,7 @@ class ShaderBrowser(MenuState):
 
     def render(self, renderer: MenuRenderer):
         """Render shader browser."""
-        renderer.clear((0, 0, 10))  # Dark blue background
+        renderer.clear((0, 0, 0))  # black background
 
         # Use fixed scale to ensure text fits on all resolutions
         scale = 1
@@ -207,7 +207,7 @@ class CameraModeSelect(MenuState):
 
     def render(self, renderer: MenuRenderer):
         """Render camera mode selection menu."""
-        renderer.clear((0, 0, 10))  # Dark blue background
+        renderer.clear((0, 0, 0))  # black background
 
         scale = 1
 
@@ -281,7 +281,7 @@ class VisualizationModeSelect(MenuState):
 
     def render(self, renderer: MenuRenderer):
         """Render visualization mode selection menu."""
-        renderer.clear((0, 0, 10))  # Dark blue background
+        renderer.clear((0, 0, 0))  # black background
 
         scale = 1
 
@@ -359,7 +359,7 @@ class VolumetricShaderBrowser(MenuState):
 
     def render(self, renderer: MenuRenderer):
         """Render volumetric shader browser."""
-        renderer.clear((0, 0, 10))  # Dark blue background
+        renderer.clear((0, 0, 0))  # black background
 
         scale = 1
 
@@ -445,17 +445,23 @@ class SettingsMenu(MenuState):
         """
         self.settings = settings
         self.options = [
-            ("DEBUG UI", "debug_ui", "toggle"),  # (label, setting_key, type)
-            ("RESOLUTION", None, "stub"),
-            ("BRIGHTNESS", None, "stub"),
-            ("FPS LIMIT", None, "stub"),
-            ("BACK TO MAIN", None, "exit"),
+            ("DEBUG UI", "debug_ui", "toggle", None),  # (label, setting_key, type, slider_params)
+            ("BRIGHTNESS", "brightness", "slider", {"min": 1, "max": 90, "step": 1, "default": 50, "suffix": "%"}),
+            ("GAMMA", "gamma", "slider", {"min": 0.5, "max": 3.0, "step": 0.1, "default": 1.0, "suffix": ""}),
+            ("FPS LIMIT", "fps_limit", "slider", {"min": 15, "max": 60, "step": 5, "default": 30, "suffix": ""}),
+            ("BACK TO MAIN", None, "exit", None),
         ]
         self.selected = 0
 
+        # Initialize default values for sliders if not set
+        for label, setting_key, option_type, params in self.options:
+            if option_type == "slider" and setting_key and params:
+                if setting_key not in self.settings:
+                    self.settings[setting_key] = params["default"]
+
     def render(self, renderer: MenuRenderer):
         """Render settings menu."""
-        renderer.clear((0, 0, 10))  # Dark blue background
+        renderer.clear((0, 0, 0))  # black background
 
         # Use fixed scale to ensure text fits on all resolutions
         scale = 1
@@ -468,14 +474,12 @@ class SettingsMenu(MenuState):
         y_start = 12 * scale
         item_height = 7 * scale
 
-        for i, (label, setting_key, option_type) in enumerate(self.options):
+        for i, (label, setting_key, option_type, params) in enumerate(self.options):
             y = y_start + i * item_height
 
             # Determine color based on state
             if i == self.selected:
                 color = (255, 255, 100)  # Yellow for selected
-            elif option_type == "stub":
-                color = (80, 80, 80)  # Dark gray for stub
             else:
                 color = (200, 200, 200)  # Normal color
 
@@ -488,16 +492,44 @@ class SettingsMenu(MenuState):
             label_x = 15 * scale
             renderer.draw_text(label, label_x, y, color=color, scale=scale)
 
-            # Draw option value (for toggles)
+            # Draw option value based on type
             if option_type == "toggle" and setting_key:
                 value = "ON" if self.settings.get(setting_key, False) else "OFF"
                 value_color = (100, 255, 100) if self.settings.get(setting_key, False) else (255, 100, 100)
                 # Right-align value
                 value_x = renderer.width - 30 * scale
                 renderer.draw_text(value, value_x, y, color=value_color, scale=scale)
-            elif option_type == "stub":
-                stub_x = renderer.width - 50 * scale
-                renderer.draw_text("SOON", stub_x, y, color=(80, 80, 80), scale=scale)
+            elif option_type == "slider" and setting_key and params:
+                # Draw slider bar and value
+                current_value = self.settings.get(setting_key, params["default"])
+
+                # Draw value text
+                if isinstance(current_value, float):
+                    value_text = f"{current_value:.1f}{params['suffix']}"
+                else:
+                    value_text = f"{current_value}{params['suffix']}"
+
+                value_x = renderer.width - 35 * scale
+                renderer.draw_text(value_text, value_x, y, color=(200, 200, 200), scale=scale)
+
+                # Draw slider bar below label (if selected)
+                if i == self.selected:
+                    bar_y = y + 4 * scale
+                    bar_x = 15 * scale
+                    bar_width = renderer.width - 40 * scale
+                    bar_height = 2 * scale
+
+                    # Background bar
+                    renderer.draw_rect(bar_x, bar_y, bar_width, bar_height, color=(50, 50, 50), filled=True)
+
+                    # Calculate filled portion
+                    value_range = params["max"] - params["min"]
+                    normalized = (current_value - params["min"]) / value_range
+                    filled_width = int(bar_width * normalized)
+
+                    # Filled bar
+                    if filled_width > 0:
+                        renderer.draw_rect(bar_x, bar_y, filled_width, bar_height, color=(100, 200, 255), filled=True)
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
         """Handle settings menu input."""
@@ -505,15 +537,37 @@ class SettingsMenu(MenuState):
             self.selected = max(0, self.selected - 1)
         elif key == 'down':
             self.selected = min(len(self.options) - 1, self.selected + 1)
+        elif key in ('left', 'right'):
+            # Handle slider adjustment
+            label, setting_key, option_type, params = self.options[self.selected]
+
+            if option_type == "slider" and setting_key and params:
+                current_value = self.settings.get(setting_key, params["default"])
+                step = params["step"]
+
+                if key == 'left':
+                    new_value = current_value - step
+                else:  # right
+                    new_value = current_value + step
+
+                # Clamp to min/max
+                new_value = max(params["min"], min(params["max"], new_value))
+
+                # Round to step precision (handle floating point)
+                if isinstance(step, float):
+                    new_value = round(new_value / step) * step
+                    new_value = round(new_value, 1)  # Round to 1 decimal place
+
+                self.settings[setting_key] = new_value
+
         elif key == 'enter':
-            label, setting_key, option_type = self.options[self.selected]
+            label, setting_key, option_type, params = self.options[self.selected]
 
             if option_type == "exit":
                 return 'main'
             elif option_type == "toggle" and setting_key:
                 # Toggle the setting
                 self.settings[setting_key] = not self.settings.get(setting_key, False)
-            # Other types not yet implemented
 
         elif key in ('back', 'escape'):
             return 'main'

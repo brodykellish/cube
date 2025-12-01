@@ -75,11 +75,29 @@ def main():
         help="Number of cube panels/faces (1-6, default: 6)"
     )
 
+    parser.add_argument(
+        "--brightness",
+        type=float,
+        default=60.0,
+        help="Default brightness percentage (1-90, default: 60)"
+    )
+
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=2.2,
+        help="Default gamma correction value (0.5-3.0, default: 2.2)"
+    )
+
     args = parser.parse_args()
 
-    # Validate num-panels
+    # Validate arguments
     if args.num_panels < 1 or args.num_panels > 6:
         parser.error("--num-panels must be between 1 and 6")
+    if args.brightness < 1 or args.brightness > 90:
+        parser.error("--brightness must be between 1 and 90")
+    if args.gamma < 0.5 or args.gamma > 3.0:
+        parser.error("--gamma must be between 0.5 and 3.0")
 
     # Print startup banner
     print("=" * 60)
@@ -87,6 +105,8 @@ def main():
     print("=" * 60)
     print(f"Resolution: {args.width}×{args.height}")
     print(f"Target FPS: {args.fps}")
+    print(f"Default Brightness: {args.brightness}%")
+    print(f"Default Gamma: {args.gamma}")
     print("=" * 60)
     print()
 
@@ -99,7 +119,9 @@ def main():
             pinout=args.pinout,
             num_planes=args.num_planes,
             num_address_lines=args.num_address_lines,
-            num_panels=args.num_panels
+            num_panels=args.num_panels,
+            default_brightness=args.brightness,
+            default_gamma=args.gamma
         )
 
         controller.run()

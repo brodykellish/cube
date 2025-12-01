@@ -137,18 +137,27 @@ class Display:
 
         self.layers[index][:, :] = framebuffer
 
-    def show(self):
+    def show(self, brightness: float = 100.0, gamma: float = 1.0):
         """
         Composite layers and display to screen.
 
         This is the main display method that should be called each frame.
         Backend handles all compositing and display-specific logic.
+
+        Args:
+            brightness: Brightness percentage (1-100), default 100
+            gamma: Gamma correction value (0.5-3.0), default 1.0
         """
-        # Backend composites layers and displays
+        # Backend composites layers
         framebuffer = self.backend.compose_layers(self.layers)
+
+        # Apply brightness and gamma corrections
+        framebuffer = self.backend.apply_corrections(framebuffer, brightness, gamma)
+
+        # Display
         self.backend.show_framebuffer(framebuffer)
 
-    def show_framebuffer(self, framebuffer: np.ndarray):
+    def show_framebuffer(self, framebuffer: np.ndarray, brightness: float = 100.0, gamma: float = 1.0):
         """
         Display a complete framebuffer directly (bypassing layer system).
 
@@ -156,7 +165,13 @@ class Display:
 
         Args:
             framebuffer: Complete framebuffer to display (any size)
+            brightness: Brightness percentage (1-100), default 100
+            gamma: Gamma correction value (0.5-3.0), default 1.0
         """
+        # Apply brightness and gamma corrections
+        framebuffer = self.backend.apply_corrections(framebuffer, brightness, gamma)
+
+        # Display
         self.backend.show_framebuffer(framebuffer)
 
     def handle_events(self) -> dict:
