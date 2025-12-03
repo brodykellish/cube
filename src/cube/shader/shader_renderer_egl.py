@@ -315,7 +315,7 @@ class EGLShaderRenderer(ShaderRendererBase):
     
     def cleanup(self):
         """Clean up EGL resources."""
-        self.input_manager.cleanup()
+        self.uniform_manager.cleanup()
 
         # Make context current before cleaning up OpenGL resources
         if self.egl_display is not None and self.egl_context is not None:
