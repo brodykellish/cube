@@ -31,6 +31,7 @@ from .uniform_sources import (
     KeyboardUniformSource, AudioFileUniformSource, MicrophoneUniformSource
 )
 from .camera_modes import CameraMode, SphericalCamera, StaticCamera
+from .camera_uniform_source import CameraUniformSource
 from .audio_processor import AudioProcessor
 
 # Aliases for backwards compatibility
@@ -49,10 +50,14 @@ __all__ = [
     'InputSource',
     'UniformSource',
     'InputManager',
-    'UniformManager',
+    'UniformSourceManager',
     'KeyboardInput',
+    'KeyboardUniformSource',
     'AudioFileInput',
+    'AudioFileUniformSource',
     'MicrophoneInput',
+    'MicrophoneUniformSource',
+    'CameraUniformSource',
 
     # Camera modes
     'CameraMode',

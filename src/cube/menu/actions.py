@@ -38,13 +38,6 @@ class LaunchVisualizationAction(MenuAction):
     """Launch a visualization with specified configuration."""
     shader_path: Path
     pixel_mapper: Literal['surface', 'cube']
-    primitive: Optional[str] = None  # For DRAW mode
-
-
-@dataclass
-class ShowRenderModeMenuAction(MenuAction):
-    """Show render mode selection for a primitive."""
-    primitive: str
 
 
 @dataclass

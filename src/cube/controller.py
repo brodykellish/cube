@@ -409,22 +409,6 @@ class CubeController:
             self._launch_visualization(shader_path, pixel_mapper)
             return True
 
-        if next_state.startswith('draw:'):
-            parts = next_state.split(':', 2)
-            primitive = parts[1]
-            mode = parts[2]
-            pixel_mapper = None
-            if mode == 'surface':
-                pixel_mapper = SurfacePixelMapper(self.width, self.height, SphericalCamera())
-            elif mode == 'cube':
-                pixel_mapper = CubePixelMapper(
-                    face_size=self.face_size,
-                    num_panels=self.num_panels,
-                    face_distance=5.0
-                )
-            self._launch_draw_primitive(primitive, pixel_mapper)
-            return True
-
         # Check for DRAW mode transitions
         if next_state.startswith('draw_render_select:'):
             primitive = next_state.split(':', 1)[1]
@@ -553,28 +537,6 @@ class CubeController:
 
         # Pop from stack to return to previous menu
         self._pop_state()
-
-    def _launch_draw_primitive(self, primitive: str, pixel_mapper: PixelMapper):
-        """Launch a geometric primitive with the specified pixel mapper."""
-        from cube.shader.template_engine import ShaderTemplateEngine
-        import tempfile
-
-        try:
-            # Generate shader from template
-            engine = ShaderTemplateEngine()
-            shader_code = engine.generate(primitive)
-
-            # Save to temporary file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.glsl', delete=False) as f:
-                f.write(shader_code)
-                temp_path = f.name
-
-            self._launch_visualization(temp_path, pixel_mapper)
-
-        except Exception as e:
-            print(f"Error launching primitive {primitive}: {e}")
-            import traceback
-            traceback.print_exc()
 
     def _launch_mixer_mode(self):
         """Launch mixer mode (shaders should already be loaded via mixer setup)."""

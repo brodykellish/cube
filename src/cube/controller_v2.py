@@ -24,7 +24,7 @@ from cube.menu.menu_states_v2 import (
 )
 from cube.render import UnifiedRenderer, SurfacePixelMapper, CubePixelMapper
 from cube.shader import SphericalCamera
-from cube.shader.template_engine import ShaderTemplateEngine
+from cube.midi import MIDIState, MIDIKeyboardDriver, MIDIUniformSource
 
 
 class CubeControllerV2:
@@ -92,6 +92,11 @@ class CubeControllerV2:
         self.menu_navigator = MenuNavigator(self.width, self.height, self.settings)
         self._register_menus()
 
+        # MIDI parameter control
+        self.midi_state = MIDIState(num_channels=4)
+        self.midi_keyboard = MIDIKeyboardDriver(self.midi_state)
+        self.midi_uniform_source = MIDIUniformSource(self.midi_state)
+
         # Visualization state
         self.unified_renderer: Optional[UnifiedRenderer] = None
         self.current_shader_path: Optional[Path] = None
@@ -140,6 +145,13 @@ class CubeControllerV2:
                     self._stop_visualization()
                 elif self.input_handler.is_key_pressed('r', 'reload') and self.current_shader_path:
                     self._reload_shader()
+                else:
+                    # Route key presses to uniform sources
+                    if key:
+                        self._route_visualization_key(key)
+
+                    # Update camera from held keys (for smooth movement)
+                    self._update_camera_from_held_keys()
             else:
                 # Handle menu input
                 if key:
@@ -203,25 +215,21 @@ class CubeControllerV2:
         print(f"Pixel mapper: {action.pixel_mapper}")
 
         # Generate or load shader
-        if action.primitive:
-            # Generate shader from primitive template
-            print(f"Generating shader for primitive: {action.primitive}")
-            engine = ShaderTemplateEngine()
-            shader_code = engine.generate(action.primitive)
-
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.glsl', delete=False) as f:
-                f.write(shader_code)
-                shader_path = Path(f.name)
-        else:
-            shader_path = action.shader_path
+        shader_path = action.shader_path
 
         print(f"Shader: {shader_path}")
         print(f"{'='*60}")
         print("Controls:")
-        print("  Arrow keys: Rotate view")
-        print("  Shift+arrows: Zoom")
+        print("  WASD: Rotate view")
+        print("  Shift+WS: Zoom in/out")
+        print("  Shift+AD: Roll left/right")
         print("  R: Reload shader")
         print("  ESC: Return to menu")
+        print("\nMIDI Parameters:")
+        print("  n/m: CC0 (param0) -/+")
+        print("  ,/. : CC1 (param1) -/+")
+        print("  [/] : CC2 (param2) -/+")
+        print("  ;/' : CC3 (param3) -/+")
 
         try:
             # Create pixel mapper
@@ -239,10 +247,24 @@ class CubeControllerV2:
             else:
                 raise ValueError(f"Unknown pixel mapper: {action.pixel_mapper}")
 
-            # Create renderer
+            # Create renderer with all uniform sources registered
             if self.unified_renderer:
                 self.unified_renderer.cleanup()
-            self.unified_renderer = UnifiedRenderer(pixel_mapper, self.settings)
+
+            # Register all uniform sources in one place
+            # Note: CameraUniformSource is automatically created by UnifiedRenderer
+            uniform_sources = [
+                self.midi_uniform_source,  # MIDI parameter control
+                # Add other sources here (audio, OSC, etc.)
+            ]
+
+            self.unified_renderer = UnifiedRenderer(
+                pixel_mapper,
+                self.settings,
+                uniform_sources=uniform_sources
+            )
+
+            # Load shader
             self.unified_renderer.load_shader(str(shader_path))
 
             self.current_shader_path = shader_path
@@ -264,6 +286,44 @@ class CubeControllerV2:
             self.unified_renderer = None
         self.is_visualizing = False
         self.current_shader_path = None
+
+    def _route_visualization_key(self, key: str):
+        """
+        Route keyboard input to appropriate uniform source.
+
+        Handles discrete key presses (MIDI controls).
+
+        Args:
+            key: Key that was pressed
+        """
+        # MIDI control keys (discrete presses)
+        if self.midi_keyboard.handle_key(key):
+            # Key was a MIDI control - print feedback
+            cc_num = self.midi_keyboard.get_cc_for_key(key)
+            if cc_num is not None:
+                value = self.midi_state.get_cc(cc_num)
+                name = self.midi_state.get_cc_name(cc_num)
+                print(f"MIDI: {name} = {value} ({value/127.0:.2f})")
+
+    def _update_camera_from_held_keys(self):
+        """
+        Update camera uniform source from currently held keys.
+
+        This provides smooth continuous camera movement.
+        Called every frame during visualization.
+        """
+        if not self.unified_renderer:
+            return
+
+        # Map WASD to camera directions
+        camera_source = self.unified_renderer.camera_source
+
+        # Update camera input state from held keys
+        camera_source.set_key_state('up', self.input_handler.is_key_held('w', 'up'))
+        camera_source.set_key_state('down', self.input_handler.is_key_held('s', 'down'))
+        camera_source.set_key_state('left', self.input_handler.is_key_held('a', 'left'))
+        camera_source.set_key_state('right', self.input_handler.is_key_held('d', 'right'))
+        camera_source.shift_pressed = self.input_handler.is_key_held('shift')
 
     def _reload_shader(self):
         """Reload current shader."""
@@ -294,23 +354,16 @@ class CubeControllerV2:
     def _render_visualization(self):
         """Render current visualization."""
         if self.unified_renderer:
-            # Apply input to shader keyboard controls and get states
-            states = self.input_handler.apply_to_shader_keyboard(
-                self.unified_renderer.keyboard_input
-            )
-            self.unified_renderer.shift_pressed = states['shift']
-
-            # Update camera with keyboard input
-            if hasattr(self.unified_renderer.pixel_mapper, 'update_cameras'):
-                self.unified_renderer.pixel_mapper.update_cameras(
-                    self.unified_renderer.keyboard_input,
-                    states['shift']
-                )
+            # Update pixel mapper cameras from main camera (for cube mode)
+            if hasattr(self.unified_renderer.pixel_mapper, 'update_from_camera'):
+                camera_uniforms = self.unified_renderer.camera_source.get_uniforms()
+                self.unified_renderer.pixel_mapper.update_from_camera(camera_uniforms)
 
             # Clear menu layer during visualization
             self.menu_layer[:, :, :] = 0
 
             # Render shader output to shader layer
+            # All uniform sources (camera, MIDI, etc.) updated in render()
             framebuffer = self.unified_renderer.render()
 
             # Copy framebuffer to shader layer, handling size mismatch

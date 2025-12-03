@@ -83,12 +83,12 @@ class GLUTShaderRenderer(ShaderRendererBase):
 
     def cleanup(self):
         """Clean up GLUT resources."""
-        self.input_manager.cleanup()
-        
+        self.uniform_manager.cleanup()
+
         for tex_id in self.textures.values():
             if tex_id is not None:
                 glDeleteTextures([tex_id])
         self.textures.clear()
-        
+
         print("GLUT context cleaned up")
 

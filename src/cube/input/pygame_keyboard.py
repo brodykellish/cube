@@ -57,6 +57,15 @@ class PygameKeyboard(Keyboard):
             self.pygame.K_c: 'c',  # backward (camera)
             self.pygame.K_t: 't',  # toggle
             self.pygame.K_m: 'm',  # mixer
+            self.pygame.K_n: 'n',  # MIDI CC0 down
+
+            # Punctuation keys (for MIDI control)
+            self.pygame.K_COMMA: ',',        # MIDI CC1 down
+            self.pygame.K_PERIOD: '.',       # MIDI CC1 up
+            self.pygame.K_LEFTBRACKET: '[',  # MIDI CC2 down
+            self.pygame.K_RIGHTBRACKET: ']', # MIDI CC2 up
+            self.pygame.K_SEMICOLON: ';',    # MIDI CC3 down
+            self.pygame.K_QUOTE: "'",        # MIDI CC3 up
 
             # Modifiers
             self.pygame.K_LSHIFT: 'shift',

@@ -116,20 +116,38 @@ class CubePixelMapper(PixelMapper):
         face_order = ['front', 'right', 'back', 'left', 'top', 'bottom']
         self.active_faces = face_order[:self.num_panels]
 
-        # Create camera for each face
-        self.face_cameras = []
-        for name in self.active_faces:
-            config = self.FACE_CONFIGS[name]
-            pos = self._compute_camera_position(name, config)
-            camera = StaticCamera(pos, config['look_at'])
-            self.face_cameras.append(camera)
-
     def get_render_specs(self) -> List[RenderSpec]:
         # One render per active face (can be rectangular)
+        # Note: camera field in RenderSpec is now ignored, kept for compatibility
         return [
-            RenderSpec(self.face_width, self.face_height, camera)
-            for camera in self.face_cameras
+            RenderSpec(self.face_width, self.face_height, None)
+            for _ in self.active_faces
         ]
+
+    def reposition_camera_for_face(self, face_index: int, camera_source):
+        """
+        Temporarily reposition the camera to view from a specific face.
+
+        The main camera (SphericalCamera) controls rotation/zoom of the entire cube.
+        This method repositions the viewpoint to see from one face of the cube.
+
+        Args:
+            face_index: Index of the face to render (0-5)
+            camera_source: CameraUniformSource to temporarily override
+        """
+        face_name = self.active_faces[face_index]
+        config = self.FACE_CONFIGS[face_name]
+
+        # Compute the camera position for this face based on current rotation/zoom
+        pos = self._compute_camera_position(face_name, config)
+        look_at = config['look_at']
+
+        # Create a temporary StaticCamera to compute the proper view vectors
+        temp_camera = StaticCamera(pos, look_at)
+        vectors = temp_camera.get_vectors()
+
+        # Temporarily override the camera vectors for this render pass
+        camera_source.set_override_vectors(vectors)
 
     def _compute_camera_position(self, face_name: str, config: dict) -> tuple:
         """
@@ -183,47 +201,6 @@ class CubePixelMapper(PixelMapper):
         z *= distance
 
         return (x, y, z)
-
-    def update_cameras(self, keyboard_input, shift_pressed: bool):
-        """
-        Update camera positions based on keyboard input.
-
-        Delegates all rotation to SphericalCamera (yaw, pitch, roll, zoom).
-
-        Controls (WASD):
-        - w: pitch down (rotate up)
-        - s: pitch up (rotate down)
-        - a: yaw left (rotate left)
-        - d: yaw right (rotate right)
-        - Shift+w: zoom in
-        - Shift+s: zoom out
-        - Shift+a: roll negative (rotate around view axis)
-        - Shift+d: roll positive (rotate around view axis)
-        """
-        # Convert keyboard input to SphericalCamera's expected format
-        uniforms = keyboard_input.get_uniforms()
-        input_state = {
-            'left': 1.0 if uniforms['iInput'][0] < 0 else 0.0,
-            'right': 1.0 if uniforms['iInput'][0] > 0 else 0.0,
-            'up': 1.0 if uniforms['iInput'][1] > 0 else 0.0,
-            'down': 1.0 if uniforms['iInput'][1] < 0 else 0.0,
-            'forward': 0.0,
-            'backward': 0.0,
-        }
-
-        # Update SphericalCamera (handles yaw, pitch, roll, zoom, damping)
-        # Use fixed dt for now (will be smoothed by SphericalCamera's damping)
-        dt = 1.0 / 30.0
-        self.camera.update(input_state, dt, shift_pressed)
-
-        # Update all camera positions using SphericalCamera's rotation state
-        for i, face_name in enumerate(self.active_faces):
-            config = self.FACE_CONFIGS[face_name]
-            new_pos = self._compute_camera_position(face_name, config)
-            # Update the StaticCamera's position
-            self.face_cameras[i].position = new_pos
-            # Recompute camera vectors
-            self.face_cameras[i]._compute_vectors()
 
     def layout_renders(self, renders: List[np.ndarray]) -> np.ndarray:
         # Horizontal chain layout

@@ -10,6 +10,7 @@ import numpy as np
 from OpenGL.GL import glViewport, glUniform3f, glUniform1f, glUseProgram
 
 from cube.shader import ShaderRenderer, UniformSource
+from cube.shader.camera_uniform_source import CameraUniformSource
 from .pixel_mappers import PixelMapper
 
 
@@ -20,13 +21,14 @@ class UnifiedRenderer:
     Separates shader execution (GPU, uniforms, input) from pixel layout.
     """
 
-    def __init__(self, pixel_mapper: PixelMapper, settings: dict = None):
+    def __init__(self, pixel_mapper: PixelMapper, settings: dict = None, uniform_sources: list = None):
         """
         Initialize unified renderer.
 
         Args:
             pixel_mapper: Strategy for mapping renders to output
             settings: Optional settings dictionary for debug flags, etc.
+            uniform_sources: Optional list of additional uniform sources (MIDI, audio, etc.)
         """
         self.pixel_mapper = pixel_mapper
         self.settings = settings or {}
@@ -41,23 +43,23 @@ class UnifiedRenderer:
         self.current_width = max_width
         self.current_height = max_height
 
-        # Initialize cameras from pixel mapper
-        self._init_cameras()
+        # Register ALL uniform sources in one place
+        # 1. Camera source (ALWAYS created here - single source of truth)
+        mapper_camera = getattr(pixel_mapper, 'camera', None)
+        self.camera_source = CameraUniformSource(camera=mapper_camera)
+        self.gpu_renderer.add_uniform_source(self.camera_source)
 
-    @property
-    def keyboard_input(self):
-        """Access keyboard input handler."""
-        return self.gpu_renderer.keyboard_input
+        # 2. Additional uniform sources (MIDI, audio, etc.)
+        # Filter out any CameraUniformSource from external sources to avoid duplicates
+        if uniform_sources:
+            for source in uniform_sources:
+                # Skip if it's a CameraUniformSource (we create our own)
+                if not isinstance(source, CameraUniformSource):
+                    self.gpu_renderer.add_uniform_source(source)
 
-    @property
-    def shift_pressed(self):
-        """Get shift key state."""
-        return self.gpu_renderer.shift_pressed
-
-    @shift_pressed.setter
-    def shift_pressed(self, value: bool):
-        """Set shift key state."""
-        self.gpu_renderer.shift_pressed = value
+    def get_camera_source(self):
+        """Get the camera uniform source."""
+        return self.camera_source
 
     def load_shader(self, shader_path: str):
         """Load shader file."""
@@ -71,15 +73,6 @@ class UnifiedRenderer:
         """Remove input source."""
         self.gpu_renderer.remove_uniform_source(source)
 
-    def _init_cameras(self):
-        """Initialize camera instances from pixel mapper specs."""
-        specs = self.pixel_mapper.get_render_specs()
-        self.cameras = [spec.camera for spec in specs]
-
-        # Set initial camera (will be switched during multi-pass rendering)
-        if self.cameras:
-            self.gpu_renderer.set_camera_mode(self.cameras[0])
-
     def render(self) -> np.ndarray:
         """
         Render using current pixel mapping strategy.
@@ -87,21 +80,14 @@ class UnifiedRenderer:
         Returns:
             Final framebuffer ready for display
         """
-        # Update volumetric cameras if pixel mapper supports it
-        if hasattr(self.pixel_mapper, 'update_cameras'):
-            self.pixel_mapper.update_cameras(
-                self.gpu_renderer.keyboard_input,
-                self.gpu_renderer.shift_pressed
-            )
-
         render_specs = self.pixel_mapper.get_render_specs()
         renders = []
 
+        # For volumetric/cube mode, temporarily reposition camera for each face
         for i, spec in enumerate(render_specs):
-            # For multi-pass rendering, switch camera for each pass
-            # For single-pass, keep the same camera instance (accumulates keyboard input)
-            if len(render_specs) > 1:
-                self.gpu_renderer.set_camera_mode(self.cameras[i])
+            # If multi-pass rendering, reposition the camera to view from this face
+            if len(render_specs) > 1 and hasattr(self.pixel_mapper, 'reposition_camera_for_face'):
+                self.pixel_mapper.reposition_camera_for_face(i, self.camera_source)
 
             # Resize viewport if needed
             if spec.width != self.current_width or spec.height != self.current_height:
@@ -118,6 +104,10 @@ class UnifiedRenderer:
             self.gpu_renderer.render()
             pixels = self.gpu_renderer.read_pixels()
             renders.append(pixels)
+
+        # Clear camera override after all faces rendered
+        if len(render_specs) > 1:
+            self.camera_source.set_override_vectors(None)
 
         # Layout all renders into final framebuffer
         return self.pixel_mapper.layout_renders(renders)

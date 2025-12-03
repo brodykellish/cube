@@ -17,12 +17,6 @@ from OpenGL.GL import shaders
 from .camera_modes import CameraMode, SphericalCamera
 from .uniform_sources import UniformSourceManager, KeyboardUniformSource, UniformSource
 
-# Aliases for backwards compatibility
-InputManager = UniformSourceManager
-KeyboardInput = KeyboardUniformSource
-InputSource = UniformSource
-
-
 class ShaderRendererBase(ABC):
     """
     Base shader renderer with shared functionality.
@@ -49,20 +43,8 @@ class ShaderRendererBase(ABC):
         self.fps = 0.0
         self.fps_frames = 0
         
-        self.input_manager = InputManager()
-        self.keyboard_input = KeyboardInput()
-        self.input_manager.add_source(self.keyboard_input)
-        
-        self.camera_mode = SphericalCamera(
-            distance=12.0,
-            yaw=0.785,
-            pitch=0.6,
-            rotate_speed=1.5,
-            zoom_speed=5.0,
-            damping=0.9
-        )
-        
-        self.shift_pressed = False
+        # Uniform manager - handles ALL uniforms (camera, keyboard, MIDI, audio, etc.)
+        self.uniform_manager = UniformSourceManager()
         
         self.program = None
         self.vbo = None
@@ -242,6 +224,11 @@ uniform float iBeatPulse;
 uniform float iAudioLevel;
 uniform vec4 iAudioSpectrum;
 uniform float iDebugAxes;
+uniform float iParam0;
+uniform float iParam1;
+uniform float iParam2;
+uniform float iParam3;
+uniform vec4 iParams;
 
 #define texture texture2D
 
@@ -327,49 +314,34 @@ void main() {{
         
         print(f"Shader loaded: {shader_path}")
     
-    def add_input_source(self, source: InputSource):
-        """Add an input source to the renderer."""
-        self.input_manager.add_source(source)
+    def add_uniform_source(self, source: UniformSource):
+        """Add an uniform source to the renderer."""
+        self.uniform_manager.add_source(source)
     
-    def remove_input_source(self, source: InputSource):
-        """Remove an input source from the renderer."""
-        self.input_manager.remove_source(source)
+    def remove_uniform_source(self, source: UniformSource):
+        """Remove an uniform source from the renderer."""
+        self.uniform_manager.remove_source(source)
     
-    def update_camera(self):
-        """Update camera using current camera mode."""
-        current_time = time.time()
-        dt = current_time - self.camera_mode.last_update_time
-        self.camera_mode.last_update_time = current_time
-        
-        if dt > 0.1:
-            dt = 0.1
-        
-        keyboard_uniforms = self.keyboard_input.get_uniforms()
-        iInput = keyboard_uniforms.get('iInput', (0.0, 0.0, 0.0, 0.0))
-        
-        input_state = {
-            'left': -min(0.0, iInput[0]),
-            'right': max(0.0, iInput[0]),
-            'up': max(0.0, iInput[1]),
-            'down': -min(0.0, iInput[1]),
-            'forward': max(0.0, iInput[2]),
-            'backward': -min(0.0, iInput[2])
-        }
-        
-        self.camera_mode.update(input_state, dt, self.shift_pressed)
-    
-    def get_camera_vectors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Get camera position and orientation vectors."""
-        return self.camera_mode.get_vectors()
-    
-    def set_camera_mode(self, mode: CameraMode):
-        """Switch to a different camera mode."""
-        self.camera_mode = mode
-        self.camera_mode.last_update_time = time.time()
-    
+    def get_camera_source(self):
+        """Get the camera uniform source (if one is added)."""
+        from .camera_uniform_source import CameraUniformSource
+        for source in self.uniform_manager.sources:
+            if isinstance(source, CameraUniformSource):
+                return source
+        return None
+
+    def set_camera_mode(self, camera: CameraMode):
+        """Set camera mode via camera uniform source."""
+        camera_source = self.get_camera_source()
+        if camera_source:
+            camera_source.camera = camera
+            camera_source.last_update_time = time.time()
+
     def reset_camera(self):
         """Reset camera to default position."""
-        self.camera_mode.reset()
+        camera_source = self.get_camera_source()
+        if camera_source:
+            camera_source.reset_camera()
     
     def render(self):
         """Render one frame of the shader."""
@@ -378,42 +350,35 @@ void main() {{
         
         elapsed = time.time() - self.start_time
         dt = elapsed - (self.frame_count / 60.0) if self.frame_count > 0 else 0.016
-        self.input_manager.update(dt)
-        
-        self.update_camera()
-        
-        input_uniforms = self.input_manager.get_all_uniforms()
-        
+        self.uniform_manager.update(dt)
+
+        # Collect all uniforms (from sources + built-ins)
+        uniforms = self.uniform_manager.get_all_uniforms()
+        uniforms['iTime'] = elapsed
+        uniforms['iFrame'] = self.frame_count
+        uniforms['iResolution'] = (float(self.width), float(self.height), 1.0)
+
         glUseProgram(self.program)
-        
-        if 'iTime' in self.uniform_locs:
-            glUniform1f(self.uniform_locs['iTime'], elapsed)
-        
-        if 'iFrame' in self.uniform_locs:
-            glUniform1i(self.uniform_locs['iFrame'], self.frame_count)
-        
-        if 'iInput' in self.uniform_locs and 'iInput' in input_uniforms:
-            glUniform4f(self.uniform_locs['iInput'], *input_uniforms['iInput'])
-        
-        pos, right, up, forward = self.get_camera_vectors()
-        
-        if 'iCameraPos' in self.uniform_locs:
-            glUniform3f(self.uniform_locs['iCameraPos'], *pos)
-        if 'iCameraRight' in self.uniform_locs:
-            glUniform3f(self.uniform_locs['iCameraRight'], *right)
-        if 'iCameraUp' in self.uniform_locs:
-            glUniform3f(self.uniform_locs['iCameraUp'], *up)
-        if 'iCameraForward' in self.uniform_locs:
-            glUniform3f(self.uniform_locs['iCameraForward'], *forward)
-        
-        for key in ['iBPM', 'iBeatPhase', 'iBeatPulse', 'iAudioLevel']:
-            if key in self.uniform_locs:
-                value = input_uniforms.get(key, 0.0)
-                glUniform1f(self.uniform_locs[key], value)
-        
-        if 'iAudioSpectrum' in self.uniform_locs:
-            spectrum = input_uniforms.get('iAudioSpectrum', (0.0, 0.0, 0.0, 0.0))
-            glUniform4f(self.uniform_locs['iAudioSpectrum'], *spectrum)
+
+        # Set all uniforms automatically based on type
+        for name, value in uniforms.items():
+            if name not in self.uniform_locs:
+                continue
+
+            loc = self.uniform_locs[name]
+
+            # Detect type and set appropriate uniform
+            if isinstance(value, (tuple, list)):
+                if len(value) == 2:
+                    glUniform2f(loc, *value)
+                elif len(value) == 3:
+                    glUniform3f(loc, *value)
+                elif len(value) == 4:
+                    glUniform4f(loc, *value)
+            elif isinstance(value, int):
+                glUniform1i(loc, value)
+            elif isinstance(value, float):
+                glUniform1f(loc, value)
         
         for i in range(4):
             if i in self.textures and self.textures[i] is not None:

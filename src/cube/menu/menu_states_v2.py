@@ -7,12 +7,11 @@ from typing import Optional, List, Tuple
 from abc import ABC, abstractmethod
 from .actions import (
     MenuAction, NavigateAction, BackAction, QuitAction,
-    LaunchVisualizationAction, ShowRenderModeMenuAction
+    LaunchVisualizationAction
 )
 from .navigation import MenuContext
 from .menu_renderer import MenuRenderer
 from .menu_utils import ScrollableList, MenuHeader, SliderConfig
-from cube.shader.template_engine import ShaderTemplateEngine
 
 
 class MenuState(ABC):
@@ -134,34 +133,35 @@ class ShaderBrowser(MenuState):
             pixel_mapper: 'surface' or 'cube' - determines how shader will be rendered
         """
         self.pixel_mapper = pixel_mapper
-        self.template_engine = ShaderTemplateEngine()
 
         # Build combined list: categories as headers, items as selectable entries
         self.items = []  # List of tuples: (type, name, data)
         self.list = ScrollableList(self.items)  # Create list first
         self._load_all_items()  # Then populate it
 
+    def _load_glsl_directory(self, directory: Path) -> List[Path]:
+        """Load all glsl files in a directory into a list of tuples (type, name, relative path)."""
+        shaders = []
+        if directory.exists():
+            for shader_path in sorted(directory.glob("*.glsl")):
+                # Store relative path from project root (not absolute path)
+                rel_path = directory / shader_path.name
+                shaders.append(("shader", shader_path.stem, rel_path))
+        return shaders
+
     def _load_all_items(self):
         """Load primitives and graphics shaders into categorized list."""
         self.items = []
 
         # Add primitives category
-        primitives = self.template_engine.list_primitives()
-        if primitives:
-            self.items.append(("category", "PRIMITIVES", None))
-            for primitive in primitives:
-                self.items.append(("primitive", primitive, primitive))
+        self.items.append(("category", "PRIMITIVES", None))
+        primitives_shaders = self._load_glsl_directory(Path("shaders/primitives"))
+        self.items.extend(primitives_shaders)
 
         # Add graphics category
-        shader_dir = Path("shaders")
-        graphics_shaders = []
-        if shader_dir.exists():
-            graphics_shaders = sorted(shader_dir.glob("*.glsl"))
-
-        if graphics_shaders:
-            self.items.append(("category", "GRAPHICS", None))
-            for shader_path in graphics_shaders:
-                self.items.append(("shader", shader_path.stem, shader_path))
+        self.items.append(("category", "GRAPHICS", None))
+        graphics_shaders = self._load_glsl_directory(Path("shaders/graphics"))
+        self.items.extend(graphics_shaders)
 
         # Add back option
         self.items.append(("action", "BACK", None))
@@ -230,23 +230,11 @@ class ShaderBrowser(MenuState):
         elif key == 'enter':
             selected = self.list.get_selected()
             if selected:
-                item_type, name, data = selected
-
-                if item_type == "primitive":
-                    # Generate shader from primitive
-                    return LaunchVisualizationAction(
-                        shader_path=None,
-                        pixel_mapper=self.pixel_mapper,
-                        primitive=data
-                    )
-                elif item_type == "shader":
-                    # Load graphics shader
-                    return LaunchVisualizationAction(
-                        shader_path=data,
-                        pixel_mapper=self.pixel_mapper
-                    )
-                elif item_type == "action" and name == "BACK":
-                    return BackAction()
+                _, _, data = selected
+                return LaunchVisualizationAction(
+                    shader_path=data,
+                    pixel_mapper=self.pixel_mapper
+                )
         elif key in ('back', 'escape'):
             return BackAction()
         return None
