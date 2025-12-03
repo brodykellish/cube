@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import List
 import numpy as np
 
-from cube.shader.camera_modes import CameraMode, StaticCamera
+from cube.shader.camera_modes import CameraMode, StaticCamera, SphericalCamera
 
 
 @dataclass
@@ -109,14 +109,8 @@ class CubePixelMapper(PixelMapper):
         self.num_panels = min(max(1, num_panels), 6)
         self.base_distance = face_distance
 
-        # Camera control state for rotation
-        self.yaw = 0.0        # Y-axis rotation
-        self.pitch = 0.0      # X-axis rotation
-        self.zoom = 1.0       # Distance multiplier
-
-        # Control speeds
-        self.rotation_speed = 0.03
-        self.zoom_speed = 0.02
+        # Use SphericalCamera for all rotation logic (yaw, pitch, roll, zoom)
+        self.camera = SphericalCamera(distance=face_distance)
 
         # Active faces (matches physical cube wiring order)
         face_order = ['front', 'right', 'back', 'left', 'top', 'bottom']
@@ -140,33 +134,48 @@ class CubePixelMapper(PixelMapper):
     def _compute_camera_position(self, face_name: str, config: dict) -> tuple:
         """
         Compute camera position based on face rotation and zoom.
+        Applies rotations in order: Yaw (Y) → Pitch (X) → Roll (Z)
         """
         base_pos = config['position']
-        distance = self.base_distance * self.zoom
+
+        # Get distance with zoom from SphericalCamera
+        distance = self.camera.distance
 
         # Apply rotation transforms
         import math
 
-        # Apply yaw (Y-axis rotation)
-        cos_yaw = math.cos(self.yaw)
-        sin_yaw = math.sin(self.yaw)
+        # Extract rotation angles from SphericalCamera
+        yaw = self.camera.yaw
+        pitch = self.camera.pitch
+        roll = self.camera.roll
 
-        # Apply pitch (X-axis rotation)
-        cos_pitch = math.cos(self.pitch)
-        sin_pitch = math.sin(self.pitch)
+        # Pre-compute trig values
+        cos_yaw = math.cos(yaw)
+        sin_yaw = math.sin(yaw)
+        cos_pitch = math.cos(pitch)
+        sin_pitch = math.sin(pitch)
+        cos_roll = math.cos(roll)
+        sin_roll = math.sin(roll)
 
-        # Rotate position
+        # Start with base position
         x, y, z = base_pos
 
-        # Yaw rotation (around Y)
+        # Apply rotations in order: Yaw → Pitch → Roll
+
+        # 1. Yaw rotation (around Y-axis)
         x_rot = x * cos_yaw + z * sin_yaw
         z_rot = -x * sin_yaw + z * cos_yaw
         x, z = x_rot, z_rot
 
-        # Pitch rotation (around X)
+        # 2. Pitch rotation (around X-axis)
         y_rot = y * cos_pitch - z * sin_pitch
         z_rot = y * sin_pitch + z * cos_pitch
         y, z = y_rot, z_rot
+
+        # 3. Roll rotation (around Z-axis)
+        x_rot = x * cos_roll - y * sin_roll
+        y_rot = x * sin_roll + y * cos_roll
+        x, y = x_rot, y_rot
 
         # Apply distance
         x *= distance
@@ -179,37 +188,35 @@ class CubePixelMapper(PixelMapper):
         """
         Update camera positions based on keyboard input.
 
-        Controls:
-        - Left/Right: Rotate Y-axis
-        - Up/Down: Rotate X-axis
-        - Shift+Up/Down: Zoom
+        Delegates all rotation to SphericalCamera (yaw, pitch, roll, zoom).
+
+        Controls (WASD):
+        - w: pitch down (rotate up)
+        - s: pitch up (rotate down)
+        - a: yaw left (rotate left)
+        - d: yaw right (rotate right)
+        - Shift+w: zoom in
+        - Shift+s: zoom out
+        - Shift+a: roll negative (rotate around view axis)
+        - Shift+d: roll positive (rotate around view axis)
         """
-        # Get current key states
+        # Convert keyboard input to SphericalCamera's expected format
         uniforms = keyboard_input.get_uniforms()
-        left_pressed = uniforms['iInput'][0] < 0
-        right_pressed = uniforms['iInput'][0] > 0
-        up_pressed = uniforms['iInput'][1] > 0
-        down_pressed = uniforms['iInput'][1] < 0
+        input_state = {
+            'left': 1.0 if uniforms['iInput'][0] < 0 else 0.0,
+            'right': 1.0 if uniforms['iInput'][0] > 0 else 0.0,
+            'up': 1.0 if uniforms['iInput'][1] > 0 else 0.0,
+            'down': 1.0 if uniforms['iInput'][1] < 0 else 0.0,
+            'forward': 0.0,
+            'backward': 0.0,
+        }
 
-        if shift_pressed:
-            # Shift+Up/Down: Zoom control
-            if up_pressed:
-                self.zoom = max(0.1, self.zoom - self.zoom_speed)  # Zoom in
-            elif down_pressed:
-                self.zoom = min(3.0, self.zoom + self.zoom_speed)  # Zoom out
-        else:
-            # Arrow keys: Rotate cube
-            if left_pressed:
-                self.yaw -= self.rotation_speed
-            elif right_pressed:
-                self.yaw += self.rotation_speed
+        # Update SphericalCamera (handles yaw, pitch, roll, zoom, damping)
+        # Use fixed dt for now (will be smoothed by SphericalCamera's damping)
+        dt = 1.0 / 30.0
+        self.camera.update(input_state, dt, shift_pressed)
 
-            if up_pressed:
-                self.pitch -= self.rotation_speed
-            elif down_pressed:
-                self.pitch += self.rotation_speed
-
-        # Update all camera positions
+        # Update all camera positions using SphericalCamera's rotation state
         for i, face_name in enumerate(self.active_faces):
             config = self.FACE_CONFIGS[face_name]
             new_pos = self._compute_camera_position(face_name, config)
@@ -225,16 +232,3 @@ class CubePixelMapper(PixelMapper):
 
     def get_output_dimensions(self) -> tuple:
         return (self.face_width * self.num_panels, self.face_height)
-
-
-# Backward compatibility aliases
-class VolumetricPixelMapper(CubePixelMapper):
-    """Legacy volumetric mapper - now uses CubePixelMapper with rotation controls."""
-    def __init__(self, face_size: int, num_panels: int, face_distance: float = 5.0):
-        super().__init__(face_size=face_size, num_panels=num_panels, face_distance=face_distance)
-
-
-class CubeWindowPixelMapper(CubePixelMapper):
-    """Legacy cube window mapper - now uses CubePixelMapper with rotation controls."""
-    def __init__(self, face_size: int, num_panels: int):
-        super().__init__(face_size=face_size, num_panels=num_panels)

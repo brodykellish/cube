@@ -98,11 +98,13 @@ class SphericalCamera(CameraMode):
         self.distance = distance
         self.yaw = yaw
         self.pitch = pitch
+        self.roll = 0.0  # Roll around viewing axis (barrel roll)
 
         # Velocities
         self.distance_vel = 0.0
         self.yaw_vel = 0.0
         self.pitch_vel = 0.0
+        self.roll_vel = 0.0
 
         # Parameters
         self.rotate_speed = rotate_speed
@@ -115,9 +117,16 @@ class SphericalCamera(CameraMode):
         self.initial_distance = distance
         self.initial_yaw = yaw
         self.initial_pitch = pitch
+        self.initial_roll = 0.0
 
     def update(self, input_state: Dict[str, float], dt: float, shift_pressed: bool = False):
-        """Update camera based on input with smooth acceleration and damping."""
+        """
+        Update camera based on input with smooth acceleration and damping.
+
+        Controls:
+        - Left/Right: Yaw (rotate horizontally) OR Roll (with shift)
+        - Up/Down: Pitch (rotate vertically) OR Zoom (with shift)
+        """
         # Get input values
         input_lr = input_state['right'] - input_state['left']
         input_ud = input_state['up'] - input_state['down']
@@ -126,8 +135,13 @@ class SphericalCamera(CameraMode):
         # Acceleration multiplier (makes controls more responsive)
         accel = 5.0
 
-        # Left/Right: Rotate yaw (horizontal rotation)
-        self.yaw_vel += input_lr * self.rotate_speed * accel * dt
+        # Left/Right behavior depends on shift key
+        if shift_pressed:
+            # Shift + Left/Right: Roll (rotate around view axis)
+            self.roll_vel += input_lr * self.rotate_speed * accel * dt
+        else:
+            # Left/Right: Rotate yaw (horizontal rotation)
+            self.yaw_vel += input_lr * self.rotate_speed * accel * dt
 
         # Up/Down behavior depends on shift key
         if shift_pressed:
@@ -144,11 +158,13 @@ class SphericalCamera(CameraMode):
         damping = self.damping ** (dt * 60.0)
         self.yaw_vel *= damping
         self.pitch_vel *= damping
+        self.roll_vel *= damping
         self.distance_vel *= damping
 
         # Update spherical coordinates
         self.yaw += self.yaw_vel * dt
         self.pitch += self.pitch_vel * dt
+        self.roll += self.roll_vel * dt
         self.distance += self.distance_vel * dt
 
         # No pitch clamping - allow full 360° rotation!
@@ -173,16 +189,36 @@ class SphericalCamera(CameraMode):
             forward = (0.0, 0.0, -1.0)  # Fallback
 
         # Right vector: tangent to circle of latitude (derivative w.r.t. yaw)
-        # Naturally perpendicular to forward and continuous everywhere
-        right = (math.cos(self.yaw), 0.0, -math.sin(self.yaw))
+        right_base = (math.cos(self.yaw), 0.0, -math.sin(self.yaw))
 
         # Up vector: tangent to meridian (derivative w.r.t. pitch)
-        # Naturally perpendicular to forward and continuous everywhere
-        up = (
+        up_base = (
             -math.sin(self.pitch) * math.sin(self.yaw),
             math.cos(self.pitch),
             -math.sin(self.pitch) * math.cos(self.yaw)
         )
+
+        # Apply roll rotation around the forward axis
+        if abs(self.roll) > 0.0001:
+            cos_roll = math.cos(self.roll)
+            sin_roll = math.sin(self.roll)
+
+            # Rotate right and up vectors around forward axis
+            # right' = right * cos(roll) + up * sin(roll)
+            # up' = -right * sin(roll) + up * cos(roll)
+            right = (
+                right_base[0] * cos_roll + up_base[0] * sin_roll,
+                right_base[1] * cos_roll + up_base[1] * sin_roll,
+                right_base[2] * cos_roll + up_base[2] * sin_roll
+            )
+            up = (
+                -right_base[0] * sin_roll + up_base[0] * cos_roll,
+                -right_base[1] * sin_roll + up_base[1] * cos_roll,
+                -right_base[2] * sin_roll + up_base[2] * cos_roll
+            )
+        else:
+            right = right_base
+            up = up_base
 
         return pos, right, up, forward
 
@@ -191,9 +227,11 @@ class SphericalCamera(CameraMode):
         self.distance = self.initial_distance
         self.yaw = self.initial_yaw
         self.pitch = self.initial_pitch
+        self.roll = self.initial_roll
         self.distance_vel = 0.0
         self.yaw_vel = 0.0
         self.pitch_vel = 0.0
+        self.roll_vel = 0.0
 
 
 class StaticCamera(CameraMode):
