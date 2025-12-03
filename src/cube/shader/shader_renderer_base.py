@@ -283,21 +283,28 @@ void main() {{
             raise RuntimeError(f"Shader compilation failed: {e}")
         
         glUseProgram(self.program)
-        
-        uniform_names = [
-            'iTime', 'iFrame', 'iResolution', 'iMouse', 'iInput',
-            'iCameraPos', 'iCameraRight', 'iCameraUp', 'iCameraForward',
-            'iChannel0', 'iChannel1', 'iChannel2', 'iChannel3',
-            'iBPM', 'iBeatPhase', 'iBeatPulse',
-            'iAudioLevel', 'iAudioSpectrum', 'iDebugAxes'
-        ]
-        
+
+        # Automatically discover and register all active uniforms in the shader
         self.uniform_locs = {}
-        for name in uniform_names:
+
+        # Get number of active uniforms
+        num_uniforms = glGetProgramiv(self.program, GL_ACTIVE_UNIFORMS)
+
+        # Query each uniform and register its location
+        for i in range(num_uniforms):
+            name, size, type_ = glGetActiveUniform(self.program, i)
+            # Decode name from bytes to string
+            if isinstance(name, bytes):
+                name = name.decode('utf-8')
+            # Strip null terminator if present
+            name = name.rstrip('\x00')
+
             loc = glGetUniformLocation(self.program, name.encode('ascii'))
             if loc >= 0:
                 self.uniform_locs[name] = loc
-        
+
+        print(f"Registered {len(self.uniform_locs)} shader uniforms: {list(self.uniform_locs.keys())}")
+
         if 'iResolution' in self.uniform_locs:
             glUniform3f(self.uniform_locs['iResolution'],
                        float(self.width), float(self.height), 1.0)

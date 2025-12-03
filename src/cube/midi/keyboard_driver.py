@@ -67,6 +67,27 @@ class MIDIKeyboardDriver:
 
         return True
 
+    def update_from_held_keys(self, held_keys: list, dt: float):
+        """
+        Update MIDI CC values from held keys (for smooth continuous adjustment).
+
+        Args:
+            held_keys: List of currently held key names
+            dt: Delta time in seconds
+        """
+        # Scale increment based on delta time (aim for ~60 per second when held)
+        increment_per_second = 60.0
+        delta = int(increment_per_second * dt)
+        if delta == 0:
+            delta = 1  # Minimum increment
+
+        for key in held_keys:
+            if key in self.KEY_BINDINGS:
+                cc_num, direction = self.KEY_BINDINGS[key]
+                # direction is +5 or -5, normalize to +1 or -1 then scale by delta
+                adjusted_delta = (direction // abs(direction)) * delta
+                self.midi_state.increment_cc(cc_num, adjusted_delta)
+
     def get_cc_for_key(self, key: str) -> Optional[int]:
         """
         Get which CC number a key controls.

@@ -123,9 +123,12 @@ class CubeControllerV2:
 
         clock = time.time()
         running = True
+        last_frame_time = time.time()
 
         while running:
             frame_start = time.time()
+            dt = frame_start - last_frame_time
+            last_frame_time = frame_start
 
             # Handle input - get events from display and update input handler
             events = self.display.handle_events()
@@ -150,8 +153,9 @@ class CubeControllerV2:
                     if key:
                         self._route_visualization_key(key)
 
-                    # Update camera from held keys (for smooth movement)
+                    # Update camera and MIDI from held keys (for smooth movement)
                     self._update_camera_from_held_keys()
+                    self._update_midi_from_held_keys(dt)
             else:
                 # Handle menu input
                 if key:
@@ -304,6 +308,16 @@ class CubeControllerV2:
                 value = self.midi_state.get_cc(cc_num)
                 name = self.midi_state.get_cc_name(cc_num)
                 print(f"MIDI: {name} = {value} ({value/127.0:.2f})")
+
+    def _update_midi_from_held_keys(self, dt: float):
+        """
+        Update MIDI CC values from currently held keys.
+
+        This provides smooth continuous MIDI parameter adjustment.
+        Called every frame during visualization.
+        """
+        held_keys = self.input_handler.get_held_keys()
+        self.midi_keyboard.update_from_held_keys(held_keys, dt)
 
     def _update_camera_from_held_keys(self):
         """

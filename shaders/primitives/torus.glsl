@@ -93,11 +93,43 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         // Colors change based on vertical position
         float heightFactor = (p.y + 2.0) / 4.0;
 
-        // Create gradient colors
-        vec3 topColor1 = vec3(0.9, 0.6, 0.2);    // Light orange
-        vec3 topColor2 = vec3(0.4, 0.2, 0.1);    // Dark brown
-        vec3 bottomColor1 = vec3(0.2, 0.9, 0.5); // Light green
-        vec3 bottomColor2 = vec3(0.1, 0.3, 0.2); // Dark forest green
+        // MIDI-controlled color palette (iParam0 = CC0, n/m keys)
+        // Note: iParam0 is already normalized to 0.0-1.0 by MIDIUniformSource
+        float colorParam = iParam0;
+
+        // Define 3 color palettes
+        vec3 palette1_top1 = vec3(0.9, 0.6, 0.2);    // Orange
+        vec3 palette1_top2 = vec3(0.4, 0.2, 0.1);    // Brown
+        vec3 palette1_bot1 = vec3(0.2, 0.9, 0.5);    // Light green
+        vec3 palette1_bot2 = vec3(0.1, 0.3, 0.2);    // Dark green
+
+        vec3 palette2_top1 = vec3(0.2, 0.6, 0.9);    // Blue
+        vec3 palette2_top2 = vec3(0.1, 0.2, 0.4);    // Dark blue
+        vec3 palette2_bot1 = vec3(0.9, 0.2, 0.6);    // Pink
+        vec3 palette2_bot2 = vec3(0.4, 0.1, 0.2);    // Dark pink
+
+        vec3 palette3_top1 = vec3(0.9, 0.2, 0.2);    // Red
+        vec3 palette3_top2 = vec3(0.4, 0.1, 0.1);    // Dark red
+        vec3 palette3_bot1 = vec3(0.9, 0.9, 0.2);    // Yellow
+        vec3 palette3_bot2 = vec3(0.4, 0.4, 0.1);    // Dark yellow
+
+        // Blend between palettes based on colorParam
+        vec3 topColor1, topColor2, bottomColor1, bottomColor2;
+        if (colorParam < 0.5) {
+            // Blend palette 1 → 2
+            float t = colorParam / 0.5;
+            topColor1 = mix(palette1_top1, palette2_top1, t);
+            topColor2 = mix(palette1_top2, palette2_top2, t);
+            bottomColor1 = mix(palette1_bot1, palette2_bot1, t);
+            bottomColor2 = mix(palette1_bot2, palette2_bot2, t);
+        } else {
+            // Blend palette 2 → 3
+            float t = (colorParam - 0.5) / 0.5;
+            topColor1 = mix(palette2_top1, palette3_top1, t);
+            topColor2 = mix(palette2_top2, palette3_top2, t);
+            bottomColor1 = mix(palette2_bot1, palette3_bot1, t);
+            bottomColor2 = mix(palette2_bot2, palette3_bot2, t);
+        }
 
         // Interpolate colors based on height
         vec3 color1 = mix(bottomColor1, topColor1, heightFactor);
