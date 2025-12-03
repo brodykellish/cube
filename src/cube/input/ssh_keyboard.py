@@ -192,6 +192,8 @@ class SSHKeyboard(Keyboard):
             return 't'
         elif chars == 'm':
             return 'm'
+        elif chars == 'n':
+            return 'n'
 
         # Uppercase letter keys (shift held)
         elif chars == 'E':
@@ -203,6 +205,23 @@ class SSHKeyboard(Keyboard):
         elif chars == 'M':
             self._shift_held = True
             return 'm'
+        elif chars == 'N':
+            self._shift_held = True
+            return 'n'
+
+        # MIDI control punctuation keys
+        elif chars == ',':
+            return ','
+        elif chars == '.':
+            return '.'
+        elif chars == '[':
+            return '['
+        elif chars == ']':
+            return ']'
+        elif chars == ';':
+            return ';'
+        elif chars == "'":
+            return "'"
 
         # Number keys
         elif chars in '0123456789':
