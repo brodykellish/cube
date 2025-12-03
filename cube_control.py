@@ -14,6 +14,7 @@ if sys.platform == 'linux':
 
 import argparse
 import time
+import atexit
 from pathlib import Path
 
 # Import the controller
@@ -131,6 +132,7 @@ def main():
     print()
 
     # Create and run controller
+    controller = None
     try:
         if args.v2:
             controller = CubeControllerV2(
@@ -159,6 +161,9 @@ def main():
                 scale=args.scale
             )
 
+        # Register cleanup as atexit handler (safety net)
+        atexit.register(controller.cleanup)
+
         controller.run()
 
     except KeyboardInterrupt:
@@ -167,7 +172,10 @@ def main():
         print(f"\n\nError: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
+    finally:
+        # Always cleanup, even on error
+        if controller:
+            controller.cleanup()
 
 
 if __name__ == "__main__":

@@ -113,6 +113,9 @@ class CubeController:
         # Unified renderer (initialized when needed)
         self.unified_renderer: Optional[UnifiedRenderer] = None
 
+        # Cleanup flag to prevent double-cleanup
+        self._cleanup_done = False
+
         # Navigation stack for menu states
         self._state_stack = []
 
@@ -320,15 +323,27 @@ class CubeController:
             running = False
 
         finally:
-            # Clean up renderer
-            if self.unified_renderer is not None:
-                try:
-                    self.unified_renderer.cleanup()
-                except Exception as e:
-                    print(f"Warning: Error cleaning up unified renderer: {e}")
+            self.cleanup()
 
+    def cleanup(self):
+        """Clean up resources (display, renderer, etc.)."""
+        # Prevent double cleanup (from both finally and atexit)
+        if self._cleanup_done:
+            return
+        self._cleanup_done = True
+
+        # Clean up renderer
+        if self.unified_renderer is not None:
+            try:
+                self.unified_renderer.cleanup()
+            except Exception as e:
+                print(f"Warning: Error cleaning up unified renderer: {e}")
+
+        # Clean up display (and terminal if SSH keyboard)
+        if self.display:
             self.display.cleanup()
-            print("\nShutdown complete")
+
+        print("\nShutdown complete")
 
     def _push_state(self):
         """Push current state onto navigation stack."""

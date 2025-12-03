@@ -97,6 +97,9 @@ class CubeControllerV2:
         self.current_shader_path: Optional[Path] = None
         self.is_visualizing = False
 
+        # Cleanup flag to prevent double-cleanup
+        self._cleanup_done = False
+
     def _register_menus(self):
         """Register all menu states with the navigator."""
         self.menu_navigator.register_menu('main', MainMenu())
@@ -150,13 +153,27 @@ class CubeControllerV2:
             else:
                 self._render_menu()
 
-            # Frame rate limiting
+            # Frame rate limiting (use current setting, not initial value)
             frame_time = time.time() - frame_start
-            sleep_time = (1.0 / self.fps) - frame_time
+            target_fps = self.settings.get('fps_limit', self.fps)
+            sleep_time = (1.0 / target_fps) - frame_time
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
         print("Shutdown complete")
+        self.cleanup()
+
+    def cleanup(self):
+        """Clean up resources (display, input, etc.)."""
+        # Prevent double cleanup (from both finally and atexit)
+        if self._cleanup_done:
+            return
+        self._cleanup_done = True
+
+        if self.display:
+            self.display.cleanup()
+        if self.unified_renderer:
+            self.unified_renderer.cleanup()
 
     def _handle_action(self, action: MenuAction) -> bool:
         """

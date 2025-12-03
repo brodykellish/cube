@@ -11,7 +11,7 @@ from .actions import (
 )
 from .navigation import MenuContext
 from .menu_renderer import MenuRenderer
-from .menu_utils import ScrollableList, MenuHeader
+from .menu_utils import ScrollableList, MenuHeader, SliderConfig
 from cube.shader.template_engine import ShaderTemplateEngine
 
 
@@ -266,6 +266,13 @@ class SettingsMenu(MenuState):
         ]
         self.list = ScrollableList(self.options)
 
+        # Define slider configurations
+        self.slider_configs = {
+            "brightness": SliderConfig(min_value=10.0, max_value=90.0, increment=5.0, format_string="{:.0f}%"),
+            "gamma": SliderConfig(min_value=0.5, max_value=3.0, increment=0.1, format_string="{:.1f}"),
+            "fps_limit": SliderConfig(min_value=10.0, max_value=60.0, increment=5.0, format_string="{:.0f}"),
+        }
+
     def render(self, renderer, context: MenuContext):
         renderer.clear((0, 0, 0))
 
@@ -284,7 +291,7 @@ class SettingsMenu(MenuState):
         elif selected_idx >= self.list.scroll_offset + visible_items:
             self.list.scroll_offset = selected_idx - visible_items + 1
 
-        # Render items manually to show toggle values
+        # Render items manually to show values
         y_start = header_height
         for i in range(self.list.scroll_offset, min(len(self.options), self.list.scroll_offset + visible_items)):
             label, setting_key, setting_type = self.options[i]
@@ -296,11 +303,24 @@ class SettingsMenu(MenuState):
             if i == selected_idx:
                 renderer.draw_text(">", 5, y, color=(255, 255, 100), scale=1)
 
-            # Show current value for toggles
+            # Show current value
             if setting_key and setting_type == "toggle":
                 value = "ON" if context.settings.get(setting_key, False) else "OFF"
                 value_color = (100, 255, 100) if value == "ON" else (255, 100, 100)
                 renderer.draw_text(value, context.width - 20, y, color=value_color, scale=1)
+            elif setting_key and setting_type == "slider":
+                # Get slider config and current value
+                config = self.slider_configs.get(setting_key)
+                if config:
+                    current_value = context.settings.get(setting_key, config.min_value)
+                    value_str = config.format_value(current_value)
+
+                    # Show left/right arrows if selected
+                    if i == selected_idx:
+                        renderer.draw_text("<", context.width - 35, y, color=(150, 150, 150), scale=1)
+                        renderer.draw_text(">", context.width - 5, y, color=(150, 150, 150), scale=1)
+
+                    renderer.draw_text(value_str, context.width - 28, y, color=(100, 200, 255), scale=1)
 
         # Draw scrollbar if needed
         if len(self.options) > visible_items:
@@ -318,6 +338,26 @@ class SettingsMenu(MenuState):
             self.list.move_up()
         elif key == 'down':
             self.list.move_down()
+        elif key in ('left', 'right'):
+            # Handle slider adjustments
+            selected = self.list.get_selected()
+            if selected:
+                label, setting_key, setting_type = selected
+
+                if setting_type == "slider" and setting_key:
+                    config = self.slider_configs.get(setting_key)
+                    if config:
+                        # Get current value (use min as default)
+                        current_value = context.settings.get(setting_key, config.min_value)
+
+                        # Increment or decrement
+                        if key == 'right':
+                            new_value = config.increment_value(current_value)
+                        else:  # left
+                            new_value = config.decrement_value(current_value)
+
+                        # Update setting
+                        context.settings[setting_key] = new_value
         elif key == 'enter':
             selected = self.list.get_selected()
             if selected:
@@ -328,7 +368,6 @@ class SettingsMenu(MenuState):
                 elif setting_type == "toggle" and setting_key:
                     # Toggle boolean setting
                     context.settings[setting_key] = not context.settings.get(setting_key, False)
-                # TODO: Handle slider settings with left/right keys
 
         elif key in ('back', 'escape'):
             return BackAction()

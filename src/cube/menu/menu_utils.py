@@ -2,9 +2,57 @@
 Reusable menu utilities for rendering scrollable lists and UI elements.
 """
 
-from typing import List, Tuple, Optional, Any
+from typing import List, Tuple, Optional, Any, Dict
+from dataclasses import dataclass
 from .menu_renderer import MenuRenderer
 from .navigation import MenuContext
+
+
+@dataclass
+class SliderConfig:
+    """
+    Configuration for a numeric slider setting with left/right adjustment.
+
+    This is a reusable utility for settings that need to be adjusted with
+    arrow keys. It handles value clamping, increments, and display formatting.
+
+    Example usage:
+        brightness_config = SliderConfig(
+            min_value=10.0,
+            max_value=90.0,
+            increment=5.0,
+            format_string="{:.0f}%"
+        )
+
+        # Increment value (right arrow)
+        new_value = brightness_config.increment_value(current_value)
+
+        # Decrement value (left arrow)
+        new_value = brightness_config.decrement_value(current_value)
+
+        # Display value
+        display_text = brightness_config.format_value(current_value)
+    """
+    min_value: float
+    max_value: float
+    increment: float
+    format_string: str = "{:.1f}"  # Default format for display
+
+    def clamp(self, value: float) -> float:
+        """Clamp value to valid range."""
+        return max(self.min_value, min(self.max_value, value))
+
+    def increment_value(self, value: float) -> float:
+        """Increment value by step, clamped to range."""
+        return self.clamp(value + self.increment)
+
+    def decrement_value(self, value: float) -> float:
+        """Decrement value by step, clamped to range."""
+        return self.clamp(value - self.increment)
+
+    def format_value(self, value: float) -> str:
+        """Format value for display."""
+        return self.format_string.format(value)
 
 
 class ScrollableList:
