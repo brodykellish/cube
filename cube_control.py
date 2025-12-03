@@ -104,6 +104,14 @@ def main():
              "scale=2 renders at half resolution and scales up for chunky pixels (default: 1)"
     )
 
+    parser.add_argument(
+        "--ssh-key-hold",
+        type=float,
+        default=0.15,
+        dest="ssh_key_hold_duration",
+        help="SSH keyboard hold duration in seconds for smooth input (0.05-0.5, default: 0.15)"
+    )
+
     args = parser.parse_args()
 
     # Validate arguments
@@ -115,6 +123,8 @@ def main():
         parser.error("--gamma must be between 0.5 and 3.0")
     if args.scale < 1 or args.scale > 20:
         parser.error("--scale must be between 1 and 20")
+    if args.ssh_key_hold_duration < 0.05 or args.ssh_key_hold_duration > 0.5:
+        parser.error("--ssh-key-hold must be between 0.05 and 0.5")
 
     # Print startup banner
     print("=" * 60)
@@ -145,7 +155,8 @@ def main():
                 num_panels=args.num_panels,
                 default_brightness=args.brightness,
                 default_gamma=args.gamma,
-                scale=args.scale
+                scale=args.scale,
+                ssh_key_hold_duration=args.ssh_key_hold_duration
             )
         else:
             controller = CubeController(
@@ -158,7 +169,8 @@ def main():
                 num_panels=args.num_panels,
                 default_brightness=args.brightness,
                 default_gamma=args.gamma,
-                scale=args.scale
+                scale=args.scale,
+                ssh_key_hold_duration=args.ssh_key_hold_duration
             )
 
         # Register cleanup as atexit handler (safety net)

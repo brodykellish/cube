@@ -40,7 +40,9 @@ class PiomatterBackend(DisplayBackend):
         print(f"Piomatter backend initialized: {width}×{height}")
 
         # Initialize SSH keyboard for remote control
-        self.keyboard = SSHKeyboard()
+        # Use longer hold duration for smoother input over SSH (accounts for network latency)
+        key_hold_duration = kwargs.get('ssh_key_hold_duration', 0.15)
+        self.keyboard = SSHKeyboard(key_hold_duration=key_hold_duration)
 
     def show_framebuffer(self, framebuffer: np.ndarray):
         """

@@ -9,7 +9,8 @@ import termios
 import tty
 import fcntl
 import os
-from typing import Optional
+import time
+from typing import Optional, Dict
 from .keyboard import Keyboard, KeyboardState
 
 
@@ -21,16 +22,24 @@ class SSHKeyboard(Keyboard):
     Typically used on Raspberry Pi to accept keyboard input from a remote Mac via SSH.
     """
 
-    def __init__(self):
-        """Initialize SSH keyboard with terminal in raw/cbreak mode."""
+    def __init__(self, key_hold_duration: float = 0.15):
+        """
+        Initialize SSH keyboard with terminal in raw/cbreak mode.
+
+        Args:
+            key_hold_duration: How long (in seconds) to keep keys "held" after press.
+                              This smooths out jittery SSH input by maintaining key state
+                              even if network latency causes gaps. Default 0.15s (150ms).
+        """
         self.stdin_fd = sys.stdin.fileno()
         self.old_settings = None
         self.old_flags = None
         self._setup_terminal()
 
-        # Track held keys (since terminal input doesn't provide key-up events)
-        # We'll use a simplified model: keys are "held" for one frame after press
-        self._held_keys = set()
+        # Track held keys with timestamps (for smooth SSH input)
+        # Keys remain "held" for key_hold_duration after last press
+        self._key_timestamps: Dict[str, float] = {}
+        self._key_hold_duration = key_hold_duration
 
         # Track shift state separately (detected via shift+arrow or 'z' key)
         self._shift_held = False
@@ -209,6 +218,7 @@ class SSHKeyboard(Keyboard):
             KeyboardState with current keyboard state
         """
         state = KeyboardState()
+        current_time = time.time()
 
         # Read input from terminal
         chars = self._read_terminal_input()
@@ -224,21 +234,28 @@ class SSHKeyboard(Keyboard):
                 if key in ('quit', 'q') and chars == '\x03':
                     state.quit = True
 
-                # For SSH keyboard, we simulate "held" keys by keeping them
-                # in the held list for this frame
-                self._held_keys.add(key)
+                # Record/update timestamp for this key
+                self._key_timestamps[key] = current_time
 
-                # If shift was detected, add it to held keys
+                # If shift was detected, add it to timestamps too
                 if self._shift_held:
-                    self._held_keys.add('shift')
+                    self._key_timestamps['shift'] = current_time
 
-        # Copy held keys to state
-        state.keys_held = list(self._held_keys)
+        # Build held keys list from keys within hold duration
+        held_keys = []
+        expired_keys = []
 
-        # Clear held keys for next frame
-        # (Terminal input doesn't give us key-up events, so we can't truly
-        # track held keys. This gives a one-frame "hold" effect)
-        self._held_keys.clear()
+        for key, timestamp in self._key_timestamps.items():
+            if current_time - timestamp <= self._key_hold_duration:
+                held_keys.append(key)
+            else:
+                expired_keys.append(key)
+
+        # Clean up expired keys
+        for key in expired_keys:
+            del self._key_timestamps[key]
+
+        state.keys_held = held_keys
 
         return state
 
