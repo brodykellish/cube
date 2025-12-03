@@ -63,28 +63,3 @@ class Keyboard(ABC):
     def cleanup(self):
         """Clean up resources and restore terminal state if needed."""
         pass
-
-
-# Standard key name mappings used across all keyboard implementations
-STANDARD_KEY_NAMES = {
-    # Navigation
-    'up', 'down', 'left', 'right',
-
-    # Actions
-    'enter', 'escape', 'back', 'quit',
-
-    # Modifiers
-    'shift', 'ctrl', 'alt',
-
-    # Letters (for WASD, reload, etc.)
-    'w', 'a', 's', 'd', 'r', 'e', 'c', 't', 'b',
-
-    # Function keys
-    'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12',
-
-    # Numbers
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-
-    # Special
-    'space', 'tab', 'backspace', 'delete',
-}

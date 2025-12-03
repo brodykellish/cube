@@ -15,7 +15,12 @@ from OpenGL.GL import *
 from OpenGL.GL import shaders
 
 from .camera_modes import CameraMode, SphericalCamera
-from .input_sources import InputManager, KeyboardInput, InputSource
+from .uniform_sources import UniformSourceManager, KeyboardUniformSource, UniformSource
+
+# Aliases for backwards compatibility
+InputManager = UniformSourceManager
+KeyboardInput = KeyboardUniformSource
+InputSource = UniformSource
 
 
 class ShaderRendererBase(ABC):
@@ -236,6 +241,7 @@ uniform float iBeatPhase;
 uniform float iBeatPulse;
 uniform float iAudioLevel;
 uniform vec4 iAudioSpectrum;
+uniform float iDebugAxes;
 
 #define texture texture2D
 
@@ -296,7 +302,7 @@ void main() {{
             'iCameraPos', 'iCameraRight', 'iCameraUp', 'iCameraForward',
             'iChannel0', 'iChannel1', 'iChannel2', 'iChannel3',
             'iBPM', 'iBeatPhase', 'iBeatPulse',
-            'iAudioLevel', 'iAudioSpectrum'
+            'iAudioLevel', 'iAudioSpectrum', 'iDebugAxes'
         ]
         
         self.uniform_locs = {}

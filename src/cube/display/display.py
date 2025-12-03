@@ -161,23 +161,6 @@ class Display:
         # Display
         self.backend.show_framebuffer(framebuffer)
 
-    def show_framebuffer(self, framebuffer: np.ndarray, brightness: float = 100.0, gamma: float = 1.0):
-        """
-        Display a complete framebuffer directly (bypassing layer system).
-
-        Useful for volumetric rendering or other special display modes.
-
-        Args:
-            framebuffer: Complete framebuffer to display (any size)
-            brightness: Brightness percentage (1-100), default 100
-            gamma: Gamma correction value (0.5-3.0), default 1.0
-        """
-        # Apply brightness and gamma corrections
-        framebuffer = self.backend.apply_corrections(framebuffer, brightness, gamma)
-
-        # Display
-        self.backend.show_framebuffer(framebuffer)
-
     def handle_events(self) -> dict:
         """
         Handle input events.

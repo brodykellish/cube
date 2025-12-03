@@ -7,7 +7,7 @@ Provides keyboard input abstractions for different platforms:
 - InputHandler: Unified interface for processing keyboard input
 """
 
-from .keyboard import Keyboard, KeyboardState, KeyEvent, STANDARD_KEY_NAMES
+from .keyboard import Keyboard, KeyboardState, KeyEvent
 from .pygame_keyboard import PygameKeyboard
 from .ssh_keyboard import SSHKeyboard
 from .input_handler import InputHandler
@@ -19,5 +19,4 @@ __all__ = [
     'PygameKeyboard',
     'SSHKeyboard',
     'InputHandler',
-    'STANDARD_KEY_NAMES',
 ]

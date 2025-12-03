@@ -349,9 +349,8 @@ To add a new keyboard implementation:
 1. Create a new file in `src/cube/input/`
 2. Subclass `Keyboard` abstract base class
 3. Implement `poll()` and `cleanup()` methods
-4. Map hardware-specific keys to `STANDARD_KEY_NAMES`
-5. Export from `__init__.py`
-6. Use in appropriate display backend
+4. Export from `__init__.py`
+5. Use in appropriate display backend
 
 Example:
 ```python

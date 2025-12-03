@@ -35,6 +35,7 @@ class MainMenu(MenuState):
 
     def __init__(self):
         self.options = [
+            ("DRAW", "draw_primitives"),
             ("VISUALIZE", "visualization_mode"),
             ("MIXER", "mixer_setup"),
             ("SETTINGS", "settings"),
@@ -177,105 +178,24 @@ class ShaderBrowser(MenuState):
         elif key == 'down':
             self.selected = min(len(self.shaders) - 1, self.selected + 1)
         elif key == 'enter':
-            # Go to camera mode selection
+            # Launch surface shader with spherical camera
             if self.shaders:
                 selected_shader = str(self.shaders[self.selected])
-                return f'camera_select:{selected_shader}'
+                return f'visualize:surface:{selected_shader}'
         elif key in ('back', 'escape'):
             return 'main'
 
         return None
 
 
-class CameraModeSelect(MenuState):
-    """Camera mode selection menu - choose camera for shader."""
-
-    def __init__(self, shader_path: str):
-        """
-        Initialize camera mode selection menu.
-
-        Args:
-            shader_path: Path to shader file that will be visualized
-        """
-        self.shader_path = shader_path
-        self.options = [
-            ("STATIC", "static", "No camera movement"),
-            ("SPHERICAL", "spherical", "Orbit around origin"),
-            ("FPS", "fps", "First-person (coming soon)"),
-            ("BACK", None, None),
-        ]
-        self.selected = 1  # Default to spherical
-
-    def render(self, renderer: MenuRenderer):
-        """Render camera mode selection menu."""
-        renderer.clear((0, 0, 0))  # black background
-
-        scale = 1
-
-        # Title
-        title_y = 1 * scale
-        renderer.draw_text("CAMERA MODE", 0, y=title_y, color=(100, 200, 255), scale=scale)
-
-        # Show shader name
-        shader_name = Path(self.shader_path).stem
-        shader_y = 8 * scale
-        max_chars = (renderer.width - 10 * scale) // (4 * scale)  # 3x5 font: 4 pixels per char
-        if len(shader_name) > max_chars:
-            shader_name = shader_name[:max_chars - 2] + ".."
-        renderer.draw_text(shader_name, 0, y=shader_y, color=(150, 150, 150), scale=scale)
-
-        # Menu options
-        item_height = 7 * scale
-        y_start = 16 * scale
-
-        for i, (label, mode, description) in enumerate(self.options):
-            y = y_start + i * item_height
-            is_selected = (i == self.selected)
-
-            # Draw option label
-            color = (255, 255, 100) if is_selected else (200, 200, 200)
-            # Gray out FPS (not implemented yet)
-            if mode == "fps":
-                color = (100, 100, 100)
-
-            text_x = 10 * scale
-            renderer.draw_text(label, text_x, y, color=color, scale=scale)
-
-            # Draw selector arrow to the left of text
-            if is_selected:
-                arrow_x = 2 * scale
-                renderer.draw_text(">", arrow_x, y, color=(255, 255, 100), scale=scale)
-
-    def handle_input(self, key: Optional[str]) -> Optional[str]:
-        """Handle camera mode selection input."""
-        if key == 'up':
-            self.selected = max(0, self.selected - 1)
-        elif key == 'down':
-            self.selected = min(len(self.options) - 1, self.selected + 1)
-        elif key == 'enter':
-            label, mode, _ = self.options[self.selected]
-
-            if mode is None:  # Back option
-                return 'surface_browser'  # Return to shader browser
-            elif mode == "fps":
-                # Not implemented yet - stay in menu
-                return None
-            else:
-                # Launch shader with selected camera mode
-                return f'visualize:{self.shader_path}:{mode}'
-        elif key in ('back', 'escape'):
-            return 'surface_browser'  # Return to shader browser
-
-        return None
-
 
 class VisualizationModeSelect(MenuState):
-    """Visualization mode selection - choose between Surface and Volume rendering."""
+    """Visualization mode selection - choose between Surface and Cube rendering."""
 
     def __init__(self):
         self.options = [
             ("SURFACE", "surface", "2D shader scenes"),
-            ("VOLUME", "volume", "3D volumetric cube"),
+            ("CUBE", "cube", "3D cube rendering"),
             ("BACK", None, None),
         ]
         self.selected = 0
@@ -321,16 +241,16 @@ class VisualizationModeSelect(MenuState):
                 return 'main'
             elif mode == 'surface':
                 return 'surface_browser'
-            elif mode == 'volume':
-                return 'volumetric_browser'
+            elif mode == 'cube':
+                return 'cube_browser'
         elif key in ('back', 'escape'):
             return 'main'
 
         return None
 
 
-class VolumetricShaderBrowser(MenuState):
-    """Volumetric shader browser - select a volumetric shader."""
+class CubeShaderBrowser(MenuState):
+    """Cube shader browser - select a shader for cube rendering with control mode selection."""
 
     def __init__(self, width: int, height: int):
         self.width = width
@@ -343,34 +263,47 @@ class VolumetricShaderBrowser(MenuState):
         self._load_shaders()
 
     def _load_shaders(self):
-        """Scan for available volumetric shaders."""
-        # Find volumetric package shaders directory
-        import cube.volumetric
-        volumetric_module_path = Path(cube.volumetric.__file__).parent
-        shader_dirs = [
-            volumetric_module_path / "shaders",
-            Path("volumetric/shaders"),  # Fallback: old location
-            Path.cwd() / "volumetric" / "shaders",  # Fallback: old location
-        ]
+        """Scan for available cube shaders from both standard and volumetric directories."""
+        self.shaders = []
 
-        for shader_dir in shader_dirs:
-            if shader_dir.exists() and shader_dir.is_dir():
-                self.shaders = sorted(shader_dir.glob("*.glsl"))
-                break
+        # Check standard shaders directory
+        shader_dir = Path("shaders")
+        if shader_dir.exists() and shader_dir.is_dir():
+            self.shaders.extend(sorted(shader_dir.glob("*.glsl")))
+
+        # Also check volumetric shaders directory
+        try:
+            import cube.volumetric
+            volumetric_module_path = Path(cube.volumetric.__file__).parent
+            volumetric_shader_dirs = [
+                volumetric_module_path / "shaders",
+                Path("volumetric/shaders"),  # Fallback
+                Path.cwd() / "volumetric" / "shaders",  # Fallback
+            ]
+
+            for vol_dir in volumetric_shader_dirs:
+                if vol_dir.exists() and vol_dir.is_dir():
+                    self.shaders.extend(sorted(vol_dir.glob("*.glsl")))
+                    break
+        except ImportError:
+            pass  # Volumetric module not available
+
+        # Remove duplicates and sort
+        self.shaders = sorted(list(set(self.shaders)))
 
     def render(self, renderer: MenuRenderer):
-        """Render volumetric shader browser."""
+        """Render cube shader browser."""
         renderer.clear((0, 0, 0))  # black background
 
         scale = 1
 
         # Title
         title_y = 1 * scale
-        renderer.draw_text("VOLUMETRIC SHADERS", 0, y=title_y, color=(100, 200, 255), scale=scale)
+        renderer.draw_text("CUBE SHADERS", 0, y=title_y, color=(100, 200, 255), scale=scale)
 
         if not self.shaders:
             error_y = 12 * scale
-            renderer.draw_text("NO VOLUMETRIC SHADERS", 0, y=error_y, color=(255, 100, 100), scale=scale)
+            renderer.draw_text("NO SHADERS FOUND", 0, y=error_y, color=(255, 100, 100), scale=scale)
             return
 
         # Calculate item height and visible items
@@ -418,21 +351,20 @@ class VolumetricShaderBrowser(MenuState):
             )
 
     def handle_input(self, key: Optional[str]) -> Optional[str]:
-        """Handle volumetric shader browser input."""
+        """Handle cube shader browser input."""
         if key == 'up':
             self.selected = max(0, self.selected - 1)
         elif key == 'down':
             self.selected = min(len(self.shaders) - 1, self.selected + 1)
         elif key == 'enter':
-            # Launch volumetric shader directly (no camera selection needed)
+            # Launch cube visualization directly
             if self.shaders:
                 selected_shader = str(self.shaders[self.selected])
-                return f'volumetric:{selected_shader}'
+                return f'visualize:cube:{selected_shader}'
         elif key in ('back', 'escape'):
             return 'visualization_mode'
 
         return None
-
 
 class SettingsMenu(MenuState):
     """Settings menu - configure system parameters."""
@@ -447,6 +379,7 @@ class SettingsMenu(MenuState):
         self.settings = settings
         self.options = [
             ("DEBUG UI", "debug_ui", "toggle", None),  # (label, setting_key, type, slider_params)
+            ("DEBUG AXES", "debug_axes", "toggle", None),  # Show XYZ axes in 3D renders
             ("BRIGHTNESS", "brightness", "slider", {"min": 1, "max": 90, "step": 1, "default": 50, "suffix": "%"}),
             ("GAMMA", "gamma", "slider", {"min": 0.5, "max": 3.0, "step": 0.1, "default": 1.0, "suffix": ""}),
             ("FPS LIMIT", "fps_limit", "slider", {"min": 15, "max": 60, "step": 5, "default": 30, "suffix": ""}),
@@ -572,5 +505,126 @@ class SettingsMenu(MenuState):
 
         elif key in ('back', 'escape'):
             return 'main'
+
+        return None
+
+
+class DrawPrimitiveBrowser(MenuState):
+    """Browse and select geometric primitives for DRAW mode."""
+
+    def __init__(self, width: int, height: int):
+        self.width = width
+        self.height = height
+        self.primitives = [
+            ("Sphere", "sphere", "Static sphere"),
+            ("Box", "box", "Rotating cube"),
+            ("Plane", "plane", "Infinite checkerboard plane"),
+            ("Torus", "torus", "Rotating torus ring"),
+        ]
+        self.selected = 0
+
+    def render(self, renderer: MenuRenderer):
+        """Render primitive browser."""
+        renderer.clear((0, 0, 0))
+
+        scale = 1
+
+        # Title
+        title_y = 2 * scale
+        renderer.draw_text("DRAW MODE", 0, y=title_y, color=(100, 200, 255), scale=scale)
+
+        # Primitives list
+        item_height = 10 * scale
+        y_start = 12 * scale
+
+        for i, (name, primitive_id, description) in enumerate(self.primitives):
+            y = y_start + i * item_height
+
+            # Primitive name
+            color = (255, 255, 100) if i == self.selected else (200, 200, 200)
+            text_x = 10 * scale
+            renderer.draw_text(name.upper(), text_x, y, color=color, scale=scale)
+
+            # Selector arrow
+            if i == self.selected:
+                arrow_x = 2 * scale
+                renderer.draw_text(">", arrow_x, y, color=(255, 255, 100), scale=scale)
+
+    def handle_input(self, key: Optional[str]) -> Optional[str]:
+        """Handle primitive browser input."""
+        if key == 'up':
+            self.selected = (self.selected - 1) % len(self.primitives)
+        elif key == 'down':
+            self.selected = (self.selected + 1) % len(self.primitives)
+        elif key == 'enter':
+            if self.primitives:
+                _, primitive_id, _ = self.primitives[self.selected]
+                return f'draw_render_select:{primitive_id}'
+        elif key in ('back', 'escape'):
+            return 'main'
+
+        return None
+
+
+class DrawRenderModeSelect(MenuState):
+    """Select rendering mode for DRAW primitive."""
+
+    def __init__(self, width: int, height: int):
+        self.width = width
+        self.height = height
+        self.primitive = None
+        self.options = [
+            ("SURFACE", "surface", "Single full-frame view"),
+            ("CUBE", "cube", "Multi-panel cube faces with rotation"),
+            ("BACK", None, None),
+        ]
+        self.selected = 0
+
+    def set_primitive(self, primitive: str):
+        """Set the primitive to render."""
+        self.primitive = primitive
+
+    def render(self, renderer: MenuRenderer):
+        """Render render mode selection."""
+        renderer.clear((0, 0, 0))
+
+        scale = 1
+
+        # Title
+        title_y = 2 * scale
+        renderer.draw_text("RENDER MODE", 0, y=title_y, color=(100, 200, 255), scale=scale)
+
+        # Options
+        item_height = 10 * scale
+        y_start = 12 * scale
+
+        for i, (label, mode, desc) in enumerate(self.options):
+            y = y_start + i * item_height
+            color = (255, 255, 100) if i == self.selected else (200, 200, 200)
+
+            # Option text
+            text_x = 10 * scale
+            renderer.draw_text(label, text_x, y, color=color, scale=scale)
+
+            # Selector arrow
+            if i == self.selected:
+                arrow_x = 2 * scale
+                renderer.draw_text(">", arrow_x, y, color=(255, 255, 100), scale=scale)
+
+    def handle_input(self, key: Optional[str]) -> Optional[str]:
+        """Handle render mode selection input."""
+        if key == 'up':
+            self.selected = (self.selected - 1) % len(self.options)
+        elif key == 'down':
+            self.selected = (self.selected + 1) % len(self.options)
+        elif key == 'enter':
+            label, mode, _ = self.options[self.selected]
+
+            if label == "BACK":
+                return 'draw_primitives'
+            elif mode and self.primitive:
+                return f'visualize:draw:{self.primitive}:{mode}'
+        elif key in ('back', 'escape'):
+            return 'draw_primitives'
 
         return None

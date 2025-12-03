@@ -123,18 +123,12 @@ class InputHandler:
         shader_keyboard.set_key_state('left', self.is_key_held('left', 'a'))
         shader_keyboard.set_key_state('right', self.is_key_held('right', 'd'))
 
-        # Forward/backward for camera depth
-        shader_keyboard.set_key_state('forward', self.is_key_held('e'))
-        shader_keyboard.set_key_state('backward', self.is_key_held('c'))
-
         # Return mapped states
         return {
             'up': self.is_key_held('up', 'w'),
             'down': self.is_key_held('down', 's'),
             'left': self.is_key_held('left', 'a'),
             'right': self.is_key_held('right', 'd'),
-            'forward': self.is_key_held('e'),
-            'backward': self.is_key_held('c'),
             'shift': self.is_key_held('shift'),
         }
 

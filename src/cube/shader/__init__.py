@@ -26,12 +26,19 @@ Example usage:
 """
 
 from .shader_renderer import ShaderRenderer, create_shader_renderer
-from .input_sources import (
-    InputSource, InputManager,
-    KeyboardInput, AudioFileInput, MicrophoneInput, CameraInput
+from .uniform_sources import (
+    UniformSource, UniformSourceManager,
+    KeyboardUniformSource, AudioFileUniformSource, MicrophoneUniformSource
 )
 from .camera_modes import CameraMode, SphericalCamera, StaticCamera
 from .audio_processor import AudioProcessor
+
+# Aliases for backwards compatibility
+InputSource = UniformSource
+InputManager = UniformSourceManager
+KeyboardInput = KeyboardUniformSource
+AudioFileInput = AudioFileUniformSource
+MicrophoneInput = MicrophoneUniformSource
 
 __all__ = [
     # Renderer
@@ -40,11 +47,12 @@ __all__ = [
 
     # Input abstraction
     'InputSource',
+    'UniformSource',
     'InputManager',
+    'UniformManager',
     'KeyboardInput',
     'AudioFileInput',
     'MicrophoneInput',
-    'CameraInput',
 
     # Camera modes
     'CameraMode',

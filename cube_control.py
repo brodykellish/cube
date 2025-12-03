@@ -17,8 +17,8 @@ import time
 from pathlib import Path
 
 # Import the controller
-from cube import CubeController
-
+from cube.controller_v2 import CubeControllerV2
+from cube.controller import CubeController
 
 def main():
     parser = argparse.ArgumentParser(
@@ -26,7 +26,13 @@ def main():
     )
 
     parser.add_argument(
-        "--width", "-w",
+        "--v2",
+        action="store_true",
+        help="Use new controller v2"
+    )
+
+    parser.add_argument(
+        "--width",
         type=int,
         default=64,
         help="Display width in pixels (default: 64)"
@@ -85,8 +91,8 @@ def main():
     parser.add_argument(
         "--gamma",
         type=float,
-        default=1.5,
-        help="Default gamma correction value (0.5-3.0, default: 1.5)"
+        default=1.0,
+        help="Default gamma correction value (0.5-3.0, default: 1.0)"
     )
 
     parser.add_argument(
@@ -126,18 +132,32 @@ def main():
 
     # Create and run controller
     try:
-        controller = CubeController(
-            width=args.width,
-            height=args.height,
-            fps=args.fps,
-            pinout=args.pinout,
-            num_planes=args.num_planes,
-            num_address_lines=args.num_address_lines,
-            num_panels=args.num_panels,
-            default_brightness=args.brightness,
-            default_gamma=args.gamma,
-            scale=args.scale
-        )
+        if args.v2:
+            controller = CubeControllerV2(
+                width=args.width,
+                height=args.height,
+                fps=args.fps,
+                pinout=args.pinout,
+                num_planes=args.num_planes,
+                num_address_lines=args.num_address_lines,
+                num_panels=args.num_panels,
+                default_brightness=args.brightness,
+                default_gamma=args.gamma,
+                scale=args.scale
+            )
+        else:
+            controller = CubeController(
+                width=args.width,
+                height=args.height,
+                fps=args.fps,
+                pinout=args.pinout,
+                num_planes=args.num_planes,
+                num_address_lines=args.num_address_lines,
+                num_panels=args.num_panels,
+                default_brightness=args.brightness,
+                default_gamma=args.gamma,
+                scale=args.scale
+            )
 
         controller.run()
 
