@@ -50,6 +50,45 @@ void main() {{
     # Modern GLSL has texture() built-in, legacy needs texture2D()
     texture_define = "" if is_modern else "#define texture texture2D"
 
+    # Modern GLSL has tanh() and round() built-in, legacy needs polyfills
+    helper_functions = "" if is_modern else """
+float tanh(float x) {
+    float e = exp(2.0 * x);
+    return (e - 1.0) / (e + 1.0);
+}
+
+vec2 tanh(vec2 x) {
+    vec2 e = exp(2.0 * x);
+    return (e - 1.0) / (e + 1.0);
+}
+
+vec3 tanh(vec3 x) {
+    vec3 e = exp(2.0 * x);
+    return (e - 1.0) / (e + 1.0);
+}
+
+vec4 tanh(vec4 x) {
+    vec4 e = exp(2.0 * x);
+    return (e - 1.0) / (e + 1.0);
+}
+
+float round(float x) {
+    return floor(x + 0.5);
+}
+
+vec2 round(vec2 x) {
+    return floor(x + 0.5);
+}
+
+vec3 round(vec3 x) {
+    return floor(x + 0.5);
+}
+
+vec4 round(vec4 x) {
+    return floor(x + 0.5);
+}
+"""
+
     fragment_wrapped = f"""#version {glsl_version}
 {precision_statement}
 {frag_output_decl}
@@ -80,43 +119,7 @@ uniform float iParam3;
 uniform vec4 iParams;
 
 {texture_define}
-
-float tanh(float x) {{
-    float e = exp(2.0 * x);
-    return (e - 1.0) / (e + 1.0);
-}}
-
-vec2 tanh(vec2 x) {{
-    vec2 e = exp(2.0 * x);
-    return (e - 1.0) / (e + 1.0);
-}}
-
-vec3 tanh(vec3 x) {{
-    vec3 e = exp(2.0 * x);
-    return (e - 1.0) / (e + 1.0);
-}}
-
-vec4 tanh(vec4 x) {{
-    vec4 e = exp(2.0 * x);
-    return (e - 1.0) / (e + 1.0);
-}}
-
-float round(float x) {{
-    return floor(x + 0.5);
-}}
-
-vec2 round(vec2 x) {{
-    return floor(x + 0.5);
-}}
-
-vec3 round(vec3 x) {{
-    return floor(x + 0.5);
-}}
-
-vec4 round(vec4 x) {{
-    return floor(x + 0.5);
-}}
-
+{helper_functions}
 {fragment_source}
 
 void main() {{
