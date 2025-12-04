@@ -16,15 +16,29 @@ from OpenGL.GL import shaders
 
 from .camera_modes import CameraMode, SphericalCamera
 from .uniform_sources import UniformSourceManager, KeyboardUniformSource, UniformSource
+from .shader_compiler import wrap_shadertoy_shader
 
 class ShaderRendererBase(ABC):
     """
     Base shader renderer with shared functionality.
-    
+
     Platform-specific implementations should inherit from this class
     and implement the abstract methods for context creation.
     """
-    
+
+    @abstractmethod
+    def make_context_current(self) -> bool:
+        """
+        Make this renderer's OpenGL context current for the calling thread.
+
+        This is required when using the renderer from a different thread than
+        where it was created (e.g., background shader validation).
+
+        Returns:
+            True if context was made current, False otherwise
+        """
+        pass
+
     def __init__(self, width: int, height: int, scale: int = 1):
         """
         Initialize base shader renderer.
@@ -192,89 +206,15 @@ class ShaderRendererBase(ABC):
             fragment_source = f.read()
 
         glsl_version = self._get_glsl_version()
-        attribute_keyword = self._get_attribute_keyword()
         precision_statement = self._get_precision_statement()
 
-        vertex_source = f"""#version {glsl_version}
-{attribute_keyword} vec2 position;
-void main() {{
-    gl_Position = vec4(position, 0.0, 1.0);
-}}
-"""
+        # Use shared shader wrapping function
+        vertex_source, fragment_wrapped = wrap_shadertoy_shader(
+            fragment_source,
+            glsl_version=glsl_version,
+            precision_statement=precision_statement
+        )
 
-        fragment_wrapped = f"""#version {glsl_version}
-{precision_statement}
-uniform vec3 iResolution;
-uniform float iTime;
-uniform float iTimeDelta;
-uniform int iFrame;
-uniform vec4 iMouse;
-uniform vec4 iInput;
-uniform sampler2D iChannel0;
-uniform sampler2D iChannel1;
-uniform sampler2D iChannel2;
-uniform sampler2D iChannel3;
-uniform vec3 iCameraPos;
-uniform vec3 iCameraRight;
-uniform vec3 iCameraUp;
-uniform vec3 iCameraForward;
-uniform float iBPM;
-uniform float iBeatPhase;
-uniform float iBeatPulse;
-uniform float iAudioLevel;
-uniform vec4 iAudioSpectrum;
-uniform float iDebugAxes;
-uniform float iParam0;
-uniform float iParam1;
-uniform float iParam2;
-uniform float iParam3;
-uniform vec4 iParams;
-
-#define texture texture2D
-
-float tanh(float x) {{
-    float e = exp(2.0 * x);
-    return (e - 1.0) / (e + 1.0);
-}}
-
-vec2 tanh(vec2 x) {{
-    vec2 e = exp(2.0 * x);
-    return (e - 1.0) / (e + 1.0);
-}}
-
-vec3 tanh(vec3 x) {{
-    vec3 e = exp(2.0 * x);
-    return (e - 1.0) / (e + 1.0);
-}}
-
-vec4 tanh(vec4 x) {{
-    vec4 e = exp(2.0 * x);
-    return (e - 1.0) / (e + 1.0);
-}}
-
-float round(float x) {{
-    return floor(x + 0.5);
-}}
-
-vec2 round(vec2 x) {{
-    return floor(x + 0.5);
-}}
-
-vec3 round(vec3 x) {{
-    return floor(x + 0.5);
-}}
-
-vec4 round(vec4 x) {{
-    return floor(x + 0.5);
-}}
-
-{fragment_source}
-
-void main() {{
-    mainImage(gl_FragColor, gl_FragCoord.xy);
-}}
-"""
-        
         try:
             vertex_shader = shaders.compileShader(vertex_source, GL_VERTEX_SHADER)
             fragment_shader = shaders.compileShader(fragment_wrapped, GL_FRAGMENT_SHADER)

@@ -18,7 +18,6 @@ import atexit
 from pathlib import Path
 
 # Import the controller
-from cube.controller_v2 import CubeControllerV2
 from cube.controller import CubeController
 
 def main():
@@ -26,11 +25,6 @@ def main():
         description="LED Cube Control - Master control interface"
     )
 
-    parser.add_argument(
-        "--v2",
-        action="store_true",
-        help="Use new controller v2"
-    )
 
     parser.add_argument(
         "--width",
@@ -144,34 +138,16 @@ def main():
     # Create and run controller
     controller = None
     try:
-        if args.v2:
-            controller = CubeControllerV2(
-                width=args.width,
-                height=args.height,
-                fps=args.fps,
-                pinout=args.pinout,
-                num_planes=args.num_planes,
-                num_address_lines=args.num_address_lines,
-                num_panels=args.num_panels,
-                default_brightness=args.brightness,
-                default_gamma=args.gamma,
-                scale=args.scale,
-                ssh_key_hold_duration=args.ssh_key_hold_duration
-            )
-        else:
-            controller = CubeController(
-                width=args.width,
-                height=args.height,
-                fps=args.fps,
-                pinout=args.pinout,
-                num_planes=args.num_planes,
-                num_address_lines=args.num_address_lines,
-                num_panels=args.num_panels,
-                default_brightness=args.brightness,
-                default_gamma=args.gamma,
-                scale=args.scale,
-                ssh_key_hold_duration=args.ssh_key_hold_duration
-            )
+        controller = CubeController(
+            width=args.width,
+            height=args.height,
+            num_panels=args.num_panels,
+            fps=args.fps,
+            default_brightness=args.brightness,
+            default_gamma=args.gamma,
+            scale=args.scale,
+            ssh_key_hold_duration=args.ssh_key_hold_duration
+        )
 
         # Register cleanup as atexit handler (safety net)
         atexit.register(controller.cleanup)

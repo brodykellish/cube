@@ -1,4 +1,4 @@
-// Pyramid Primitive - standalone shader
+// Multiple Pyramids in Ring - standalone shader
 
 // === SDF ===
 float sdPyramid(vec3 p, float h) {
@@ -25,15 +25,32 @@ float sdPyramid(vec3 p, float h) {
 }
 
 float sceneSDF(vec3 p) {
-    // iParam3 controls height ratio (0=flat, 1=height equals base area)
-    // Base has side length 2.0, so area = 4.0
-    // Height = iParam3 * 4.0 for proper ratio
+    // Number of pyramids controlled by iParam3 (minimum 3, maximum ~20)
+    int numPyramids = int(3.0 + iParam3 * 17.0);
+    float ringRadius = 4.0;
+    
+    // Height based on base area
     float baseArea = 4.0;
-    float height = iParam3 * baseArea;
-    // Clamp to avoid degenerate pyramid
+    float height = 2.0; // Fixed height for all pyramids
     height = max(height, 0.01);
-
-    return sdPyramid(p, height);
+    
+    float minDist = 1000.0;
+    
+    // Create pyramids in a ring
+    for (int i = 0; i < 20; i++) {
+        if (i >= numPyramids) break;
+        
+        float angle = float(i) * 2.0 * 3.14159 / float(numPyramids);
+        vec2 offset = ringRadius * vec2(cos(angle), sin(angle));
+        
+        // Position each pyramid at ring position
+        vec3 pyramidPos = p - vec3(offset.x, 0.0, offset.y);
+        
+        float dist = sdPyramid(pyramidPos, height);
+        minDist = min(minDist, dist);
+    }
+    
+    return minDist;
 }
 
 // === Raymarching ===
@@ -83,7 +100,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec3 ro = iCameraPos;
     vec3 rd = normalize(uv.x * iCameraRight + uv.y * iCameraUp + iCameraForward);
 
-    float t = raymarch(ro, rd, 20.0);
+    float t = raymarch(ro, rd, 50.0);
 
     vec3 color = vec3(0.02, 0.02, 0.05);
 

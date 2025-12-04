@@ -32,6 +32,19 @@ class GLUTShaderRenderer(ShaderRendererBase):
         super().__init__(width, height, scale=1)
         print(f"GLUT shader renderer initialized: {width}×{height} (offscreen)")
     
+    def make_context_current(self) -> bool:
+        """Make this GLUT window's context current."""
+        if not self.glut_window:
+            return False
+
+        try:
+            from OpenGL.GLUT import glutSetWindow
+            glutSetWindow(self.glut_window)
+            return True
+        except Exception as e:
+            print(f"Error making GLUT context current: {e}")
+            return False
+
     def _init_context(self):
         """Initialize GLUT offscreen context."""
         from OpenGL.GLUT import (
@@ -42,9 +55,9 @@ class GLUTShaderRenderer(ShaderRendererBase):
         
         try:
             glutInit()
-        except:
-            pass
-        
+        except Exception as e:
+            print(f"GLUT already initialized (this is OK)")
+
         glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
         glutInitWindowSize(self.width, self.height)
         self.glut_window = glutCreateWindow(b"Shader Renderer")

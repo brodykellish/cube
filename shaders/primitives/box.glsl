@@ -1,4 +1,4 @@
-// Box Primitive - standalone shader
+// Box Primitive - standalone shader with color and size controls
 
 // === SDF ===
 float sdBox(vec3 p, vec3 size) {
@@ -8,7 +8,9 @@ float sdBox(vec3 p, vec3 size) {
 
 // === Raymarching ===
 float sceneSDF(vec3 p) {
-    vec3 size = vec3(1.0, 1.5, 1.0);
+    // Box size controlled by iParam3
+    float boxScale = 0.5 + iParam3 * 2.0; // Range: 0.5 to 2.5
+    vec3 size = vec3(1.0, 1.5, 1.0) * boxScale;
     return sdBox(p, size);
 }
 
@@ -83,20 +85,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         vec3 p = ro + rd * t;
         vec3 normal = calcNormal(p);
 
-        // Box coloring with checkerboard
-        vec2 surfaceUV = getBoxUV(p, normal);
-        float checker = checkerboard(surfaceUV, 4.0);
-        float heightFactor = (p.y + 1.5) / 3.0;
-
-        vec3 topColor1 = vec3(0.9, 0.7, 0.3);   // Light yellow
-        vec3 topColor2 = vec3(0.4, 0.3, 0.1);   // Dark brown
-        vec3 bottomColor1 = vec3(0.5, 0.9, 0.7); // Light teal
-        vec3 bottomColor2 = vec3(0.1, 0.3, 0.2); // Dark green
-
-        vec3 color1 = mix(bottomColor1, topColor1, heightFactor);
-        vec3 color2 = mix(bottomColor2, topColor2, heightFactor);
-
-        vec3 baseColor = mix(color1, color2, checker);
+        // Solid color controlled by RGB parameters 0-2
+        vec3 baseColor = vec3(iParam0, iParam1, iParam2);
 
         // Apply lighting
         color = simpleLighting(p, rd, normal, baseColor);

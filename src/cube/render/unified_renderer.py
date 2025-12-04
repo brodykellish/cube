@@ -61,6 +61,18 @@ class UnifiedRenderer:
         """Get the camera uniform source."""
         return self.camera_source
 
+    def make_context_current(self) -> bool:
+        """
+        Make this renderer's OpenGL context current for the calling thread.
+
+        This is required when using the renderer from a different thread than
+        where it was created (e.g., background shader validation).
+
+        Returns:
+            True if context was made current, False otherwise
+        """
+        return self.gpu_renderer.make_context_current()
+
     def load_shader(self, shader_path: str):
         """Load shader file."""
         self.gpu_renderer.load_shader(shader_path)

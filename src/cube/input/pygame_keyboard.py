@@ -27,7 +27,12 @@ class PygameKeyboard(Keyboard):
         self._key_map = self._build_key_map()
 
     def _build_key_map(self) -> Dict[int, str]:
-        """Build mapping from pygame key constants to standard key names."""
+        """
+        Build mapping from pygame key constants to standard key names.
+
+        Note: This only maps special keys (arrows, function keys, etc.).
+        Printable characters will be passed through via event.unicode.
+        """
         return {
             # Arrow keys
             self.pygame.K_UP: 'up',
@@ -35,37 +40,12 @@ class PygameKeyboard(Keyboard):
             self.pygame.K_LEFT: 'left',
             self.pygame.K_RIGHT: 'right',
 
-            # WASD (mapped to same directional names as arrows)
-            self.pygame.K_w: 'w',
-            self.pygame.K_a: 'a',
-            self.pygame.K_s: 's',
-            self.pygame.K_d: 'd',
-
             # Action keys
             self.pygame.K_RETURN: 'enter',
-            self.pygame.K_SPACE: 'space',
             self.pygame.K_ESCAPE: 'escape',
             self.pygame.K_BACKSPACE: 'backspace',
             self.pygame.K_DELETE: 'delete',
             self.pygame.K_TAB: 'tab',
-
-            # Letter keys
-            self.pygame.K_b: 'b',  # back
-            self.pygame.K_q: 'q',  # quit
-            self.pygame.K_r: 'r',  # reload
-            self.pygame.K_e: 'e',  # forward (camera)
-            self.pygame.K_c: 'c',  # backward (camera)
-            self.pygame.K_t: 't',  # toggle
-            self.pygame.K_m: 'm',  # mixer
-            self.pygame.K_n: 'n',  # MIDI CC0 down
-
-            # Punctuation keys (for MIDI control)
-            self.pygame.K_COMMA: ',',        # MIDI CC1 down
-            self.pygame.K_PERIOD: '.',       # MIDI CC1 up
-            self.pygame.K_LEFTBRACKET: '[',  # MIDI CC2 down
-            self.pygame.K_RIGHTBRACKET: ']', # MIDI CC2 up
-            self.pygame.K_SEMICOLON: ';',    # MIDI CC3 down
-            self.pygame.K_QUOTE: "'",        # MIDI CC3 up
 
             # Modifiers
             self.pygame.K_LSHIFT: 'shift',
@@ -88,18 +68,6 @@ class PygameKeyboard(Keyboard):
             self.pygame.K_F10: 'f10',
             self.pygame.K_F11: 'f11',
             self.pygame.K_F12: 'f12',
-
-            # Number keys
-            self.pygame.K_0: '0',
-            self.pygame.K_1: '1',
-            self.pygame.K_2: '2',
-            self.pygame.K_3: '3',
-            self.pygame.K_4: '4',
-            self.pygame.K_5: '5',
-            self.pygame.K_6: '6',
-            self.pygame.K_7: '7',
-            self.pygame.K_8: '8',
-            self.pygame.K_9: '9',
         }
 
     def poll(self) -> KeyboardState:
@@ -116,15 +84,24 @@ class PygameKeyboard(Keyboard):
             if event.type == self.pygame.QUIT:
                 state.quit = True
             elif event.type == self.pygame.KEYDOWN:
-                mapped_key = self._key_map.get(event.key)
-                if mapped_key:
-                    # Store single key press (only the most recent if multiple)
-                    state.key_press = mapped_key
+                # Check for Ctrl+C (clear input)
+                mods = self.pygame.key.get_mods()
+                if (mods & self.pygame.KMOD_CTRL) and event.key == self.pygame.K_c:
+                    state.key_press = 'ctrl-c'
+                    continue
 
-                    # Special handling for quit keys
-                    if mapped_key in ('escape', 'q'):
-                        # ESC or Q can signal quit in some contexts
-                        pass
+                # First try to get a mapped key (for special keys like arrows, escape, etc.)
+                mapped_key = self._key_map.get(event.key)
+
+                if mapped_key:
+                    # Store mapped key (arrow keys, escape, enter, etc.)
+                    state.key_press = mapped_key
+                elif event.unicode and event.unicode.isprintable():
+                    # Pass through any printable character (letters, numbers, symbols)
+                    # This allows full text input without needing to map every key
+                    state.key_press = event.unicode
+
+                # Note: Non-printable characters without a mapping are ignored
 
         # Get all currently held keys
         pressed = self.pygame.key.get_pressed()

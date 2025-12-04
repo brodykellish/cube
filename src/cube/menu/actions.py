@@ -45,3 +45,16 @@ class MixerAction(MenuAction):
     """Mixer-related actions."""
     action_type: Literal['setup', 'select_shader', 'launch']
     channel: Optional[int] = None
+
+
+@dataclass
+class PromptAction(MenuAction):
+    """Enter AI prompt interface for shader generation."""
+    pass
+
+
+@dataclass
+class ShaderSelectionAction(MenuAction):
+    """Shader selected from browser (may or may not include pixel mapper)."""
+    shader_path: Path
+    pixel_mapper: Optional[Literal['surface', 'cube']] = None

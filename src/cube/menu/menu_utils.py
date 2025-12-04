@@ -5,7 +5,7 @@ Reusable menu utilities for rendering scrollable lists and UI elements.
 from typing import List, Tuple, Optional, Any, Dict
 from dataclasses import dataclass
 from .menu_renderer import MenuRenderer
-from .navigation import MenuContext
+from .menu_context import MenuContext
 
 
 @dataclass

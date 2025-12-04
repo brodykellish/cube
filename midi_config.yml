@@ -1,0 +1,35 @@
+# MIDI Controller Configuration
+# Maps physical MIDI controller CC numbers to shader parameters
+
+# Device name to connect to (or "auto" to use first available)
+device_name: "auto"
+
+# MIDI CC mappings
+# Each mapping connects a MIDI CC from your controller to a shader parameter
+mappings:
+  # Example: Map your controller's CC 74 to param0 (typically fader 1)
+  - midi_cc: 74
+    target: param0
+    min: 0      # Optional: minimum MIDI value to accept (default: 0)
+    max: 127    # Optional: maximum MIDI value to accept (default: 127)
+
+  # Example: Map CC 71 to param1 (typically fader 2)
+  - midi_cc: 71
+    target: param1
+
+  # Example: Map CC 76 to param2 (typically knob 1)
+  - midi_cc: 76
+    target: param2
+
+  # Example: Map CC 77 to param3 (typically knob 2)
+  - midi_cc: 77
+    target: param3
+
+# Notes:
+# - Find your controller's CC numbers using a MIDI monitor tool
+# - Common CC numbers:
+#   - Faders: 70-79
+#   - Knobs: 10-19, 70-79
+#   - Buttons: 20-29, 40-49
+# - Targets must be: param0, param1, param2, or param3
+# - Multiple MIDI CCs can map to the same parameter (last value wins)

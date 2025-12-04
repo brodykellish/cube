@@ -3,17 +3,9 @@ Clean menu navigation system with proper state management.
 """
 
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
 from .actions import MenuAction, NavigateAction, BackAction
+from .menu_context import MenuContext
 from .menu_states import MenuState
-
-
-@dataclass
-class MenuContext:
-    """Context passed to menu states for rendering and input handling."""
-    width: int
-    height: int
-    settings: Dict[str, Any]
 
 
 class MenuNavigator:
@@ -91,4 +83,22 @@ class MenuNavigator:
             action = self.current_state.handle_input(key, self.context)
             if action:
                 return self.handle_action(action)
+        return None
+
+    def update(self, dt: float) -> Optional[MenuAction]:
+        """
+        Update current menu state (if it has an update method).
+
+        Args:
+            dt: Delta time since last update
+
+        Returns:
+            Action that needs external handling or None.
+        """
+        if self.current_state and hasattr(self.current_state, 'update'):
+            # Call state's update method if it exists
+            result = self.current_state.update(dt)
+            # If state returns an action, handle it
+            if isinstance(result, MenuAction):
+                return self.handle_action(result)
         return None

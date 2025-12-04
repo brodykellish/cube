@@ -47,6 +47,23 @@ class EGLShaderRenderer(ShaderRendererBase):
 
         super().__init__(width, height, scale=1)
         print(f"EGL shader renderer initialized: {width}×{height} (headless)")
+
+    def make_context_current(self) -> bool:
+        """Make this EGL context current."""
+        if not self.egl_display or not self.egl_context or not self.egl_surface:
+            return False
+
+        try:
+            result = EGL.eglMakeCurrent(
+                self.egl_display,
+                self.egl_surface,
+                self.egl_surface,
+                self.egl_context
+            )
+            return bool(result)
+        except Exception as e:
+            print(f"Error making EGL context current: {e}")
+            return False
     
     def _init_context(self):
         """Initialize EGL context for offscreen rendering using GBM."""

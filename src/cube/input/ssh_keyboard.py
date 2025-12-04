@@ -97,9 +97,9 @@ class SSHKeyboard(Keyboard):
         # Reset shift state (will be set if detected)
         self._shift_held = False
 
-        # Check for Ctrl-C
+        # Check for Ctrl-C (clear input buffer in prompt mode)
         if '\x03' in chars:
-            return 'quit'
+            return 'ctrl-c'
 
         # Check for Shift+Arrow escape sequences (terminal sends different codes)
         # Shift+Up: ESC[1;2A
@@ -227,6 +227,10 @@ class SSHKeyboard(Keyboard):
         elif chars in '0123456789':
             return chars
 
+        # Catch-all: Pass through any single printable character for text input
+        elif len(chars) == 1 and chars.isprintable():
+            return chars
+
         return None
 
     def poll(self) -> KeyboardState:
@@ -248,10 +252,6 @@ class SSHKeyboard(Keyboard):
 
             if key:
                 state.key_press = key
-
-                # Handle quit signal
-                if key in ('quit', 'q') and chars == '\x03':
-                    state.quit = True
 
                 # Record/update timestamp for this key
                 self._key_timestamps[key] = current_time
