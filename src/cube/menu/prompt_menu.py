@@ -278,6 +278,13 @@ class PromptMenuState(MenuState):
             # Delete character at cursor
             if self.cursor_pos < len(self.input_buffer):
                 self.input_buffer = self.input_buffer[:self.cursor_pos] + self.input_buffer[self.cursor_pos+1:]
+        elif key == 'space':
+            # Insert space character (SSH keyboard returns 'space' as the key name)
+            self.input_buffer = self.input_buffer[:self.cursor_pos] + ' ' + self.input_buffer[self.cursor_pos:]
+            self.cursor_pos += 1
+            # Reset cursor blink on typing
+            self.cursor_visible = True
+            self.cursor_blink_time = 0
         elif len(key) == 1 and key.isprintable():
             # Insert character at cursor position
             self.input_buffer = self.input_buffer[:self.cursor_pos] + key + self.input_buffer[self.cursor_pos:]
@@ -308,7 +315,7 @@ class PromptMenuState(MenuState):
             return self._handle_command(user_prompt)
 
         # Update display
-        self.text_box.append_text(f"> {user_prompt}")
+        self.text_box.append_text(f"user: {user_prompt}")
 
         # Route to active command or echo back
         if self.active_command:
@@ -340,7 +347,7 @@ class PromptMenuState(MenuState):
 
         # Check if command exists
         if command_name not in self.commands:
-            self.text_box.append_text(f"> {command_input}")
+            self.text_box.append_text(f"user: {command_input}")
             self.text_box.append_text(f"cube: ERROR - Unknown command '/{command_name}'")
             self.text_box.append_text(f"cube: Available commands: {', '.join('/' + c for c in self.commands.keys())}")
             self.status_message = f"Unknown command: /{command_name}"
@@ -363,7 +370,7 @@ class PromptMenuState(MenuState):
                     pixel_mapper='surface'  # Default to surface
                 )
             else:
-                self.text_box.append_text(f"> {command_input}")
+                self.text_box.append_text(f"user: {command_input}")
                 self.text_box.append_text(f"cube: ERROR - No shader loaded")
                 self.text_box.append_text(f"cube: Use /shader to create or /list to load a shader first")
                 self.status_message = "No shader loaded"
@@ -626,11 +633,25 @@ class PromptMenuState(MenuState):
         left_indicator = "<" if self.scroll_offset > 0 else ""
         right_indicator = ">" if visible_end < len(self.input_buffer) else ""
 
-        # Build final prompt text
-        prompt_text = left_indicator + prompt_prefix + display_text + right_indicator
+        # Render input line with color coding
+        # Left indicator in white
+        current_x = input_text_x
+        if left_indicator:
+            renderer.draw_text(left_indicator, current_x, input_text_y, color=(200, 200, 200), scale=1)
+            current_x += len(left_indicator) * char_width
 
-        # Render input line
-        renderer.draw_text(prompt_text, input_text_x, input_text_y, color=(200, 200, 200), scale=1)
+        # Prompt prefix "user: " in red
+        renderer.draw_text(prompt_prefix, current_x, input_text_y, color=(200, 200, 200), scale=1)
+        current_x += len(prompt_prefix) * char_width
+
+        # User input text in white
+        if display_text:
+            renderer.draw_text(display_text, current_x, input_text_y, color=(200, 200, 200), scale=1)
+            current_x += len(display_text) * char_width
+
+        # Right indicator in white
+        if right_indicator:
+            renderer.draw_text(right_indicator, current_x, input_text_y, color=(200, 200, 200), scale=1)
 
     def update(self, dt: float) -> Optional[MenuAction]:
         """

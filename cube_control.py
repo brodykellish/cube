@@ -86,8 +86,8 @@ def main():
     parser.add_argument(
         "--gamma",
         type=float,
-        default=1.0,
-        help="Default gamma correction value (0.5-3.0, default: 1.0)"
+        default=2.2,
+        help="Default gamma correction value (0.5-3.0, default: 2.2)"
     )
 
     parser.add_argument(

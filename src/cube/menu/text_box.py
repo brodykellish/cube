@@ -78,10 +78,10 @@ class TextBox:
             line_type = 'other'
             continuation_type = 'other'
 
-            if paragraph.startswith('> '):
-                prefix = '> '
-                content_start = 2
-                indent = '  '  # 2-char indent for wrapped lines
+            if paragraph.startswith('user: '):
+                prefix = 'user: '
+                content_start = 6
+                indent = '  '  # 2-char indent for wrapped lines (matches cube style)
                 line_type = 'user'
                 continuation_type = 'user_cont'
             elif paragraph.startswith('cube: '):
@@ -242,8 +242,16 @@ class TextBox:
                 elif line_type == 'cube_cont':
                     # Continuation line of cube message - render in white
                     renderer.draw_text(line, text_x, text_y, color=(200, 200, 200), scale=1)
-                elif line_type in ('user', 'user_cont'):
-                    # User input - white
+                elif line_type == 'user':
+                    # User message first line - render prefix in red, rest in white
+                    # Render "user: " in red
+                    renderer.draw_text('user: ', text_x, text_y, color=(255, 80, 80), scale=1)
+                    # Render rest of message in white (offset by prefix width)
+                    rest_of_message = line[6:]  # After "user: "
+                    prefix_width = 6 * 4  # 6 chars * 4 pixels per char
+                    renderer.draw_text(rest_of_message, text_x + prefix_width, text_y, color=(200, 200, 200), scale=1)
+                elif line_type == 'user_cont':
+                    # Continuation line of user message - render in white with indentation
                     renderer.draw_text(line, text_x, text_y, color=(200, 200, 200), scale=1)
                 else:
                     # Default color

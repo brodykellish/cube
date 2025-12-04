@@ -80,6 +80,10 @@ class SSHKeyboard(Keyboard):
         except Exception:
             pass
 
+        # Debug: Print what we received (uncomment for debugging)
+        # if chars:
+        #     print(f"DEBUG: Received {repr(chars)} (hex: {chars.encode('utf-8').hex()})")
+
         return chars if chars else None
 
     def _parse_terminal_input(self, chars: str) -> Optional[str]:
@@ -170,7 +174,7 @@ class SSHKeyboard(Keyboard):
         # Special keys
         elif chars == '\r' or chars == '\n':
             return 'enter'
-        elif chars == ' ':
+        elif chars == ' ' or chars == '\x20':  # Space character (ASCII 32)
             return 'space'
         elif chars == '\x1b':  # Bare ESC
             return 'escape'
@@ -228,7 +232,8 @@ class SSHKeyboard(Keyboard):
             return chars
 
         # Catch-all: Pass through any single printable character for text input
-        elif len(chars) == 1 and chars.isprintable():
+        # (but exclude space since we handle it above as 'space')
+        elif len(chars) == 1 and chars.isprintable() and chars != ' ':
             return chars
 
         return None
