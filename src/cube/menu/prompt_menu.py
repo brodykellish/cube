@@ -80,7 +80,7 @@ class PromptMenuState(MenuState):
         text_box_height = height - 80  # Leave room for input and status
         self.text_box = TextBox(
             x=char_width, y=40, width=width - (char_width * 2), height=text_box_height,
-            fg_color=(200, 200, 200), bg_color=(20, 20, 30)
+            fg_color=(200, 200, 200), bg_color=(00, 00, 00)
         )
 
         # User input buffer and cursor
@@ -526,8 +526,8 @@ class PromptMenuState(MenuState):
             self.shader_browser.render(renderer, context)
             return
 
-        # Clear background
-        renderer.clear((15, 15, 20))
+        # Clear background - black
+        renderer.clear((0, 0, 0))
 
         # Minimal header - show mode and shader info
         header_y = 5
@@ -563,6 +563,18 @@ class PromptMenuState(MenuState):
             width=context.width - (char_width * 2),
             height=input_y - text_box_y_start - 5
         )
+
+        # Draw 1px border around text box
+        border_color = (60, 60, 60)  # Dark gray border
+        x, y, w, h = self.text_box.x, self.text_box.y, self.text_box.width, self.text_box.height
+        # Top border
+        renderer.framebuffer[y:y+1, x:x+w] = border_color
+        # Bottom border
+        renderer.framebuffer[y+h-1:y+h, x:x+w] = border_color
+        # Left border
+        renderer.framebuffer[y:y+h, x:x+1] = border_color
+        # Right border
+        renderer.framebuffer[y:y+h, x+w-1:x+w] = border_color
 
         # Render text box (conversation history)
         self.text_box.render(renderer.framebuffer)
