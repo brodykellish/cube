@@ -24,13 +24,17 @@ def wrap_shadertoy_shader(fragment_source: str, glsl_version: str = "120",
 
     Args:
         fragment_source: Raw shader source code (must contain mainImage function)
-        glsl_version: GLSL version string (e.g., "120", "330")
+        glsl_version: GLSL version string (e.g., "120", "300 es", "330 core")
         precision_statement: Precision statement for mobile (e.g., "precision mediump float;")
 
     Returns:
         Tuple of (vertex_source, fragment_wrapped)
     """
-    attribute_keyword = "attribute" if glsl_version == "120" else "in"
+    # Determine if we're using modern GLSL (ES 3.00+ or desktop 3.30+)
+    is_modern = glsl_version not in ["100", "120"]
+
+    # Modern GLSL uses 'in'/'out', legacy uses 'attribute'/'varying'
+    attribute_keyword = "in" if is_modern else "attribute"
 
     vertex_source = f"""#version {glsl_version}
 {attribute_keyword} vec2 position;
@@ -39,8 +43,16 @@ void main() {{
 }}
 """
 
+    # Modern GLSL requires explicit output declaration
+    frag_output_decl = "out vec4 fragColor;" if is_modern else ""
+    frag_color_target = "fragColor" if is_modern else "gl_FragColor"
+
+    # Modern GLSL has texture() built-in, legacy needs texture2D()
+    texture_define = "" if is_modern else "#define texture texture2D"
+
     fragment_wrapped = f"""#version {glsl_version}
 {precision_statement}
+{frag_output_decl}
 uniform vec3 iResolution;
 uniform float iTime;
 uniform float iTimeDelta;
@@ -67,7 +79,7 @@ uniform float iParam2;
 uniform float iParam3;
 uniform vec4 iParams;
 
-#define texture texture2D
+{texture_define}
 
 float tanh(float x) {{
     float e = exp(2.0 * x);
@@ -108,7 +120,7 @@ vec4 round(vec4 x) {{
 {fragment_source}
 
 void main() {{
-    mainImage(gl_FragColor, gl_FragCoord.xy);
+    mainImage({frag_color_target}, gl_FragCoord.xy);
 }}
 """
 

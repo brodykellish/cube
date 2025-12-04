@@ -46,29 +46,52 @@ class GLUTShaderRenderer(ShaderRendererBase):
             return False
 
     def _init_context(self):
-        """Initialize GLUT offscreen context."""
+        """Initialize GLUT offscreen context with OpenGL 3.3 Core Profile."""
         from OpenGL.GLUT import (
             glutInit, glutInitDisplayMode, glutInitWindowSize,
             glutCreateWindow, glutHideWindow, glutDisplayFunc,
             GLUT_RGBA, GLUT_DOUBLE, GLUT_DEPTH
         )
-        
+
         try:
             glutInit()
         except Exception as e:
             print(f"GLUT already initialized (this is OK)")
 
+        # Try to request OpenGL 3.3 Core Profile (not all GLUT implementations support this)
+        try:
+            from OpenGL.GLUT import glutInitContextVersion, glutInitContextProfile, GLUT_CORE_PROFILE
+            from OpenGL.error import NullFunctionError
+
+            # Check if functions are actually available before calling
+            if glutInitContextVersion and glutInitContextProfile:
+                glutInitContextVersion(3, 3)
+                glutInitContextProfile(GLUT_CORE_PROFILE)
+                print("Requested OpenGL 3.3 Core Profile")
+            else:
+                raise NullFunctionError("Context version functions not available")
+        except (ImportError, AttributeError, Exception) as e:
+            # NullFunctionError or any other error means the functions aren't available
+            print("Warning: GLUT context version/profile not available on this platform")
+            print("Falling back to default OpenGL context (macOS will use highest available)")
+
         glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
         glutInitWindowSize(self.width, self.height)
         self.glut_window = glutCreateWindow(b"Shader Renderer")
-        
+
         def dummy_display():
             pass
         glutDisplayFunc(dummy_display)
-        
+
         glutHideWindow()
-        
-        print("Created offscreen OpenGL context via GLUT")
+
+        # Query actual OpenGL version we got
+        from OpenGL.GL import glGetString, GL_VERSION, GL_SHADING_LANGUAGE_VERSION
+        gl_version = glGetString(GL_VERSION)
+        glsl_version = glGetString(GL_SHADING_LANGUAGE_VERSION)
+        print(f"Created offscreen OpenGL context via GLUT")
+        print(f"OpenGL Version: {gl_version.decode() if gl_version else 'Unknown'}")
+        print(f"GLSL Version: {glsl_version.decode() if glsl_version else 'Unknown'}")
     
     def _get_viewport_width(self) -> int:
         """Get viewport width."""
@@ -83,7 +106,7 @@ class GLUTShaderRenderer(ShaderRendererBase):
         pass
 
     def _get_glsl_version(self) -> str:
-        """Use desktop OpenGL GLSL version 120 for macOS."""
+        """Use desktop OpenGL GLSL version 120 for macOS compatibility."""
         return "120"
 
     def _get_attribute_keyword(self) -> str:

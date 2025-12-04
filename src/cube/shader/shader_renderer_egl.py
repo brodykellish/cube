@@ -207,9 +207,9 @@ class EGLShaderRenderer(ShaderRendererBase):
         else:
             print("Using surfaceless context for offscreen rendering")
         
-        # Create OpenGL ES 2.0 context (don't specify minor version)
+        # Create OpenGL ES 3.0 context
         context_attribs = [
-            EGL.EGL_CONTEXT_CLIENT_VERSION, 2,
+            EGL.EGL_CONTEXT_CLIENT_VERSION, 3,
             EGL.EGL_NONE
         ]
 
@@ -245,6 +245,18 @@ class EGLShaderRenderer(ShaderRendererBase):
 
         # Create FBO for offscreen rendering (required for surfaceless context)
         self._create_fbo()
+
+    def _get_glsl_version(self) -> str:
+        """Use OpenGL ES 3.00 for Raspberry Pi."""
+        return "300 es"
+
+    def _get_attribute_keyword(self) -> str:
+        """Use 'in' keyword for GLSL ES 3.00."""
+        return "in"
+
+    def _get_precision_statement(self) -> str:
+        """ES 3.00 still requires precision qualifiers."""
+        return "precision mediump float;"
 
     def _create_fbo(self):
         """Create framebuffer object for offscreen rendering."""
