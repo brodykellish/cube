@@ -39,10 +39,11 @@ class TextBox:
 
         # Text content
         self.lines: List[str] = []
+        self.line_types: List[str] = []  # Track line types: 'user', 'cube', 'cube_cont', 'other'
         self.scroll_offset = 0
 
-        # Character dimensions (approximate for monospace)
-        self.char_width = 6
+        # Character dimensions (must match MenuRenderer.draw_text at scale=1)
+        self.char_width = 4  # Actual character width: 3 pixels + 1 spacing
         self.char_height = 8  # Reduced from 10
         self.line_spacing = 1  # Reduced from 2
 
@@ -58,6 +59,7 @@ class TextBox:
             text: Text content (may contain newlines)
         """
         self.lines = []
+        self.line_types = []
 
         # Split by newlines first
         paragraphs = text.split('\n')
@@ -66,15 +68,41 @@ class TextBox:
             if not paragraph.strip():
                 # Empty line
                 self.lines.append('')
+                self.line_types.append('empty')
                 continue
 
+            # Detect message type and extract prefix
+            prefix = ''
+            indent = ''
+            content_start = 0
+            line_type = 'other'
+            continuation_type = 'other'
+
+            if paragraph.startswith('> '):
+                prefix = '> '
+                content_start = 2
+                indent = '  '  # 2-char indent for wrapped lines
+                line_type = 'user'
+                continuation_type = 'user_cont'
+            elif paragraph.startswith('cube: '):
+                prefix = 'cube: '
+                content_start = 6
+                indent = '  '  # 2-char indent for wrapped lines
+                line_type = 'cube'
+                continuation_type = 'cube_cont'
+
+            # Get the actual content (without prefix)
+            content = paragraph[content_start:] if content_start > 0 else paragraph
+
             # Word wrap this paragraph
-            words = paragraph.split(' ')
-            current_line = ''
+            words = content.split(' ')
+            current_line = prefix  # Start with prefix on first line
+            is_first_line = True
 
             for word in words:
-                # Check if adding this word would exceed line width
-                test_line = current_line + (' ' if current_line else '') + word
+                # Determine if we need a space before this word
+                need_space = current_line and current_line != prefix and current_line != indent
+                test_line = current_line + (' ' if need_space else '') + word
 
                 if len(test_line) <= self.chars_per_line:
                     current_line = test_line
@@ -82,20 +110,30 @@ class TextBox:
                     # Current line is full, start new line
                     if current_line:
                         self.lines.append(current_line)
+                        self.line_types.append(line_type if is_first_line else continuation_type)
+                        is_first_line = False
 
-                    # Handle very long words (break mid-word)
-                    if len(word) > self.chars_per_line:
-                        # Split long word across multiple lines
-                        while len(word) > self.chars_per_line:
-                            self.lines.append(word[:self.chars_per_line])
-                            word = word[self.chars_per_line:]
-                        current_line = word
+                    # Start new line with indent (for continuation) or just the word
+                    if not is_first_line:
+                        # Continuation line - use indent
+                        # Handle very long words (break mid-word)
+                        if len(word) > self.chars_per_line - len(indent):
+                            # Split long word across multiple lines with indent
+                            while len(word) > self.chars_per_line - len(indent):
+                                self.lines.append(indent + word[:self.chars_per_line - len(indent)])
+                                self.line_types.append(continuation_type)
+                                word = word[self.chars_per_line - len(indent):]
+                            current_line = indent + word
+                        else:
+                            current_line = indent + word
                     else:
+                        # First line wrapping - shouldn't happen if prefix already added
                         current_line = word
 
             # Add remaining content
-            if current_line:
+            if current_line and current_line != prefix and current_line != indent:
                 self.lines.append(current_line)
+                self.line_types.append(line_type if is_first_line else continuation_type)
 
         # Reset scroll to bottom
         self.scroll_to_bottom()
@@ -188,22 +226,28 @@ class TextBox:
 
         for i in range(start_line, end_line):
             line = self.lines[i]
+            line_type = self.line_types[i] if i < len(self.line_types) else 'other'
             text_x = self.x + 2  # Minimal padding
 
             # Render text using MenuRenderer with color coding
             if line:  # Only render non-empty lines
-                # Determine color based on line prefix
-                if line.startswith('>'):
+                if line_type == 'cube':
+                    # Cube message first line - render prefix in blue, rest in white
+                    # Render "cube: " in blue
+                    renderer.draw_text('cube: ', text_x, text_y, color=(100, 200, 255), scale=1)
+                    # Render rest of message in white (offset by prefix width)
+                    rest_of_message = line[6:]  # After "cube: "
+                    prefix_width = 6 * 4  # 6 chars * 4 pixels per char
+                    renderer.draw_text(rest_of_message, text_x + prefix_width, text_y, color=(200, 200, 200), scale=1)
+                elif line_type == 'cube_cont':
+                    # Continuation line of cube message - render in white
+                    renderer.draw_text(line, text_x, text_y, color=(200, 200, 200), scale=1)
+                elif line_type in ('user', 'user_cont'):
                     # User input - white
-                    color = (200, 200, 200)
-                elif line.startswith('cube:'):
-                    # Cube responses - electric blue
-                    color = (100, 200, 255)
+                    renderer.draw_text(line, text_x, text_y, color=(200, 200, 200), scale=1)
                 else:
                     # Default color
-                    color = self.fg_color
-
-                renderer.draw_text(line, text_x, text_y, color=color, scale=1)
+                    renderer.draw_text(line, text_x, text_y, color=self.fg_color, scale=1)
 
             text_y += self.char_height + self.line_spacing
 

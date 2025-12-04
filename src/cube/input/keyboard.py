@@ -32,9 +32,10 @@ class KeyboardState:
         self.quit = False
         self.key_press: Optional[str] = None  # Single key press this frame
         self.keys_held: List[str] = []  # All keys currently held down
+        self.paste_text: Optional[str] = None  # Clipboard text pasted this frame (Cmd+V / Ctrl+V)
 
     def __repr__(self) -> str:
-        return f"KeyboardState(quit={self.quit}, key_press={self.key_press}, keys_held={self.keys_held})"
+        return f"KeyboardState(quit={self.quit}, key_press={self.key_press}, keys_held={self.keys_held}, paste={self.paste_text})"
 
 
 class Keyboard(ABC):

@@ -84,10 +84,71 @@ class PygameKeyboard(Keyboard):
             if event.type == self.pygame.QUIT:
                 state.quit = True
             elif event.type == self.pygame.KEYDOWN:
-                # Check for Ctrl+C (clear input)
+                # Check for modifier keys
                 mods = self.pygame.key.get_mods()
+
+                # Check for Ctrl+C (clear input)
                 if (mods & self.pygame.KMOD_CTRL) and event.key == self.pygame.K_c:
                     state.key_press = 'ctrl-c'
+                    continue
+
+                # Check for Cmd+V (macOS) or Ctrl+V (Windows/Linux) - paste
+                is_cmd = mods & self.pygame.KMOD_META  # Command on macOS
+                is_ctrl = mods & self.pygame.KMOD_CTRL  # Ctrl on Windows/Linux
+
+                if (is_cmd or is_ctrl) and event.key == self.pygame.K_v:
+                    # Get clipboard text using platform-specific method
+                    clipboard_text = None
+
+                    try:
+                        # Try platform-specific clipboard access first
+                        import sys
+                        import subprocess
+
+                        if sys.platform == 'darwin':
+                            # macOS - use pbpaste command (pygame.scrap doesn't work well)
+                            result = subprocess.run(['pbpaste'], capture_output=True, text=True, timeout=1)
+                            if result.returncode == 0:
+                                clipboard_text = result.stdout
+                        elif sys.platform in ('linux', 'linux2'):
+                            # Linux - try xclip or xsel
+                            try:
+                                result = subprocess.run(['xclip', '-selection', 'clipboard', '-o'],
+                                                      capture_output=True, text=True, timeout=1)
+                                if result.returncode == 0:
+                                    clipboard_text = result.stdout
+                            except FileNotFoundError:
+                                # xclip not available, try xsel
+                                try:
+                                    result = subprocess.run(['xsel', '--clipboard', '--output'],
+                                                          capture_output=True, text=True, timeout=1)
+                                    if result.returncode == 0:
+                                        clipboard_text = result.stdout
+                                except FileNotFoundError:
+                                    pass
+
+                        # Fallback to pygame.scrap on Windows or if commands fail
+                        if clipboard_text is None:
+                            # Initialize scrap module if needed
+                            if not self.pygame.scrap.get_init():
+                                self.pygame.scrap.init()
+
+                            # Get text from clipboard
+                            clipboard_bytes = self.pygame.scrap.get(self.pygame.SCRAP_TEXT)
+                            if clipboard_bytes:
+                                if isinstance(clipboard_bytes, bytes):
+                                    clipboard_text = clipboard_bytes.decode('utf-8', errors='ignore')
+                                else:
+                                    clipboard_text = clipboard_bytes
+
+                        # Clean up clipboard text
+                        if clipboard_text:
+                            clipboard_text = clipboard_text.rstrip('\x00').strip()
+                            if clipboard_text:
+                                state.paste_text = clipboard_text
+
+                    except Exception as e:
+                        print(f"Paste error: {e}")
                     continue
 
                 # First try to get a mapped key (for special keys like arrows, escape, etc.)

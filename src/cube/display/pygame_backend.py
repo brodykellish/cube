@@ -73,11 +73,12 @@ class PygameBackend(DisplayBackend):
         # Poll keyboard for input
         keyboard_state = self.keyboard.poll()
 
-        # Convert KeyboardState to old dict format for backward compatibility
+        # Convert KeyboardState to dict format
         result = {
             'quit': keyboard_state.quit,
             'key': keyboard_state.key_press,
-            'keys': keyboard_state.keys_held
+            'keys': keyboard_state.keys_held,
+            'paste': keyboard_state.paste_text  # Paste text from Cmd+V / Ctrl+V
         }
 
         return result

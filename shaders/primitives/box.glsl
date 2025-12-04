@@ -1,4 +1,4 @@
-// Box Primitive - standalone shader with color and size controls
+// Box Primitive - multiple boxes in a line with count and spacing control
 
 // === SDF ===
 float sdBox(vec3 p, vec3 size) {
@@ -8,10 +8,39 @@ float sdBox(vec3 p, vec3 size) {
 
 // === Raymarching ===
 float sceneSDF(vec3 p) {
-    // Box size controlled by iParam3
-    float boxScale = 0.5 + iParam3 * 2.0; // Range: 0.5 to 2.5
-    vec3 size = vec3(1.0, 1.5, 1.0) * boxScale;
-    return sdBox(p, size);
+    // Number of boxes controlled by iParam3 (1 to 100)
+    int numBoxes = int(1.0 + iParam3 * 99.0);
+    
+    // Box size
+    float boxScale = 0.5;
+    vec3 size = vec3(0.8, 1.0, 0.8) * boxScale;
+    
+    // Spacing between boxes controlled by iParam2 (0 to 12 units)
+    float spacing = iParam2 * 12.0;
+    
+    float minDist = 1000.0;
+    
+    // Generate boxes in a line along X axis
+    for (int i = 0; i < 100; i++) {
+        if (i >= numBoxes) break;
+        
+        // Calculate position for this box
+        float offset = float(i) * spacing;
+        // Center the line of boxes
+        float centerOffset = float(numBoxes - 1) * spacing * 0.5;
+        vec3 boxPos = vec3(offset - centerOffset, 0.0, 0.0);
+        
+        // Transform point to box local space
+        vec3 localP = p - boxPos;
+        
+        // Calculate distance to this box
+        float boxDist = sdBox(localP, size);
+        
+        // Keep minimum distance
+        minDist = min(minDist, boxDist);
+    }
+    
+    return minDist;
 }
 
 float raymarch(vec3 ro, vec3 rd, float maxDist) {
@@ -77,7 +106,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec3 ro = iCameraPos;
     vec3 rd = normalize(uv.x * iCameraRight + uv.y * iCameraUp + iCameraForward);
 
-    float t = raymarch(ro, rd, 20.0);
+    float t = raymarch(ro, rd, 50.0);
 
     vec3 color = vec3(0.02, 0.02, 0.05);
 
@@ -85,8 +114,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         vec3 p = ro + rd * t;
         vec3 normal = calcNormal(p);
 
-        // Solid color controlled by RGB parameters 0-2
-        vec3 baseColor = vec3(iParam0, iParam1, iParam2);
+        // Solid color controlled by RGB parameters 0-1
+        vec3 baseColor = vec3(iParam0, iParam1, 0.5);
 
         // Apply lighting
         color = simpleLighting(p, rd, normal, baseColor);

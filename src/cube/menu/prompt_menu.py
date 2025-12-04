@@ -75,9 +75,11 @@ class PromptMenuState(MenuState):
         )
 
         # Text box for conversation history
+        # Use 1 character width (4 pixels) padding on each edge
+        char_width = 4  # Character width at scale=1 (3 pixels + 1 spacing)
         text_box_height = height - 80  # Leave room for input and status
         self.text_box = TextBox(
-            x=10, y=40, width=width - 20, height=text_box_height,
+            x=char_width, y=40, width=width - (char_width * 2), height=text_box_height,
             fg_color=(200, 200, 200), bg_color=(20, 20, 30)
         )
 
@@ -183,6 +185,28 @@ class PromptMenuState(MenuState):
         self.text_box.append_text(f"cube: ERROR - Shader failed to render")
         self.text_box.append_text(f"cube: {error_message[:200]}")  # Show truncated error
         self.status_message = "Shader error captured - will auto-fix on retry"
+
+    def handle_paste(self, text: str):
+        """
+        Handle pasted text (Cmd+V / Ctrl+V).
+
+        Args:
+            text: Pasted text from clipboard
+        """
+        # Don't accept paste while generating or browser active
+        if self.is_generating or self.browser_active:
+            return
+
+        # Insert pasted text at cursor position
+        # Replace newlines with spaces (single-line input)
+        text = text.replace('\n', ' ').replace('\r', ' ')
+
+        self.input_buffer = self.input_buffer[:self.cursor_pos] + text + self.input_buffer[self.cursor_pos:]
+        self.cursor_pos += len(text)
+
+        # Reset cursor blink
+        self.cursor_visible = True
+        self.cursor_blink_time = 0
 
     def handle_input(self, key: str, context: MenuContext) -> Optional[MenuAction]:
         """
@@ -531,21 +555,24 @@ class PromptMenuState(MenuState):
         input_height = 12  # Reduced from 25 - single row
 
         # Update text box position and size
-        self.text_box.y = text_box_y_start
-        self.text_box.x = 5
-        self.text_box.width = context.width - 10
-        self.text_box.height = input_y - text_box_y_start - 5
+        # Use 1 character width (4 pixels) padding on each edge
+        char_width = 4  # Character width at scale=1 (3 pixels + 1 spacing)
+        self.text_box.update_dimensions(
+            x=char_width,
+            y=text_box_y_start,
+            width=context.width - (char_width * 2),
+            height=input_y - text_box_y_start - 5
+        )
 
         # Render text box (conversation history)
         self.text_box.render(renderer.framebuffer)
 
         # Render input area with cursor navigation
         input_text_y = input_y + 1  # Minimal padding
-        input_text_x = 5
+        input_text_x = char_width
 
         # Calculate visible width for input
-        char_width = 4  # Character width at scale=1 (3 pixels + 1 spacing)
-        available_width = context.width - 10
+        available_width = context.width - (char_width * 2)
         prompt_prefix = "> "
         prefix_width = len(prompt_prefix)
         max_visible_chars = (available_width // char_width) - prefix_width

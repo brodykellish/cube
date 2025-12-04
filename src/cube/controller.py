@@ -182,6 +182,13 @@ class CubeController:
                     if action:
                         running = self._handle_action(action)
 
+                # Handle paste events
+                paste_text = self.input_handler.get_paste_text()
+                if paste_text:
+                    # Pass paste to current menu state if it supports it
+                    if hasattr(self.menu_navigator.current_state, 'handle_paste'):
+                        self.menu_navigator.current_state.handle_paste(paste_text)
+
                 # Update menu state (for animations, async operations, etc.)
                 action = self.menu_navigator.update(dt)
                 if action:

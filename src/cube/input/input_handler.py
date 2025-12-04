@@ -21,6 +21,7 @@ class InputHandler:
         self.quit_requested = False
         self.key_pressed: Optional[str] = None
         self.keys_held: List[str] = []
+        self.paste_text: Optional[str] = None
 
     def update(self, events: dict):
         """
@@ -28,11 +29,12 @@ class InputHandler:
 
         Args:
             events: Events dict from display.handle_events()
-                    Format: {'quit': bool, 'key': str|None, 'keys': list}
+                    Format: {'quit': bool, 'key': str|None, 'keys': list, 'paste': str|None}
         """
         self.quit_requested = events.get('quit', False)
         self.key_pressed = events.get('key')
         self.keys_held = events.get('keys', [])
+        self.paste_text = events.get('paste')
 
     def is_quit_requested(self) -> bool:
         """Check if quit was requested (Ctrl+C, window close, etc.)."""
@@ -87,6 +89,15 @@ class InputHandler:
             Key name or None if no key was pressed
         """
         return self.key_pressed
+
+    def get_paste_text(self) -> Optional[str]:
+        """
+        Get pasted text from clipboard (Cmd+V / Ctrl+V).
+
+        Returns:
+            Pasted text or None if no paste event
+        """
+        return self.paste_text
 
     def get_held_keys(self) -> List[str]:
         """
