@@ -473,27 +473,21 @@ class PromptMenuState(MenuState):
                 except Exception:
                     edit_prompt = f"Modify the shader '{self.current_shader_name}': {user_prompt}"
 
-                # For editing, use direct generate_shader with editing prompt
-                # The shader already compiled before, we're just modifying it
+                # For editing, pass the existing shader path
+                # The agent will handle temp files and committing on success
                 result = self.commands['shader']['agent'].generate_shader_with_validation(
                     edit_prompt,
-                    "editing"
+                    "editing",
+                    existing_shader_path=self.current_shader_path
                 )
 
-                # If successful, overwrite the existing shader
-                if result.success and result.shader_path:
-                    # Move generated shader to replace the current one
-                    try:
-                        # Read content BEFORE unlinking
-                        generated_content = result.shader_path.read_text()
-                        # Write to current shader
-                        self.current_shader_path.write_text(generated_content)
-                        # Remove temp generated file
-                        result.shader_path.unlink()
-                        # Update result to point to the actual file
-                        result.shader_path = self.current_shader_path
-                    except Exception as e:
-                        print(f"Warning: Could not replace shader: {e}")
+                # Result handling is simpler now:
+                # - If successful: result.shader_path points to the updated original file
+                # - If failed: original file is unchanged, temp files cleaned up
+                if result.success:
+                    print(f"✓ Successfully updated shader: {self.current_shader_name}")
+                else:
+                    print(f"❌ Shader edit failed - original shader '{self.current_shader_name}' unchanged")
             else:
                 # Creation mode - generate new shader WITH VALIDATION
                 # This will automatically detect and retry on compilation errors
@@ -592,7 +586,7 @@ class PromptMenuState(MenuState):
 
         # Calculate visible width for input
         available_width = context.width - (char_width * 2)
-        prompt_prefix = "> "
+        prompt_prefix = "user: "
         prefix_width = len(prompt_prefix)
         max_visible_chars = (available_width // char_width) - prefix_width
 
@@ -641,7 +635,7 @@ class PromptMenuState(MenuState):
             current_x += len(left_indicator) * char_width
 
         # Prompt prefix "user: " in red
-        renderer.draw_text(prompt_prefix, current_x, input_text_y, color=(200, 200, 200), scale=1)
+        renderer.draw_text(prompt_prefix, current_x, input_text_y, color=(255, 80, 80), scale=1)
         current_x += len(prompt_prefix) * char_width
 
         # User input text in white
@@ -720,8 +714,6 @@ class PromptMenuState(MenuState):
             else:
                 # Generation failed
                 self.text_box.append_text(f"cube: ERROR - {result.error}")
-                if result.log:
-                    self.text_box.append_text(f"cube: {result.log[:200]}")  # Truncate long logs
                 self.status_message = "Generation failed. Try again."
 
         return None

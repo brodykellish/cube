@@ -18,7 +18,7 @@ class TextBox:
 
     def __init__(self, x: int, y: int, width: int, height: int,
                  fg_color: Tuple[int, int, int] = (200, 200, 200),
-                 bg_color: Tuple[int, int, int] = (20, 20, 30)):
+                 bg_color: Tuple[int, int, int] = (0, 0, 0)):
         """
         Initialize text box.
 
