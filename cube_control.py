@@ -65,8 +65,8 @@ def main():
     parser.add_argument(
         "--num-address-lines",
         type=int,
-        default=4,
-        help="Address lines: 4 for 32-pixel tall, 5 for 64-pixel (default: 4)"
+        default=5,
+        help="Address lines: 4 for 32-pixel tall, 5 for 64-pixel (default: 5)"
     )
 
     parser.add_argument(
@@ -142,6 +142,7 @@ def main():
             width=args.width,
             height=args.height,
             num_panels=args.num_panels,
+            num_address_lines=args.num_address_lines,
             fps=args.fps,
             default_brightness=args.brightness,
             default_gamma=args.gamma,
