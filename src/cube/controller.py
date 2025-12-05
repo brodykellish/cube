@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from typing import Optional
 import tempfile
+import numpy as np
 
 from cube.display import Display
 from cube.input import InputHandler
