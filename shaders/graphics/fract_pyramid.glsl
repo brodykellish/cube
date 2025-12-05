@@ -20,12 +20,12 @@ float map(vec3 p){
     float timeScale = 0.05 + iParam1 * 0.75;
     
     // iParam2 controls rotation phase offset
-    // float phaseOffset = iParam2 * 6.28318; // 0 to 2*PI
+    float phaseOffset = iParam2 * 6.28318; // 0 to 2*PI
     
     for( int i = 0; i < 12; ++i){
         if(i >= iterations) break;
         
-        float t = iTime; //* timeScale // + phaseOffset;
+        float t = iTime * timeScale + phaseOffset;
         p.xz = rotate(p.xz, t);
         p.xy = rotate(p.xy, t * 1.89);
         p.xz = abs(p.xz);
@@ -62,7 +62,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 uv = (fragCoord - (iResolution.xy/2.0))/iResolution.x;
     
-    // Use camera parameters instead of fixed camera position
+    // Use camera parameters to properly construct ray origin and direction
     vec3 ro = iCameraPos;
     vec3 rd = normalize(iCameraForward + uv.x * iCameraRight + uv.y * iCameraUp);
     

@@ -30,8 +30,8 @@ class PygameKeyboard(Keyboard):
         """
         Build mapping from pygame key constants to standard key names.
 
-        Note: This only maps special keys (arrows, function keys, etc.).
-        Printable characters will be passed through via event.unicode.
+        Includes both special keys and common letter keys that need held-key detection
+        (like WASD for camera controls).
         """
         return {
             # Arrow keys
@@ -40,12 +40,38 @@ class PygameKeyboard(Keyboard):
             self.pygame.K_LEFT: 'left',
             self.pygame.K_RIGHT: 'right',
 
+            # WASD keys (for camera controls - must be tracked as held keys)
+            self.pygame.K_w: 'w',
+            self.pygame.K_a: 'a',
+            self.pygame.K_s: 's',
+            self.pygame.K_d: 'd',
+
             # Action keys
             self.pygame.K_RETURN: 'enter',
             self.pygame.K_ESCAPE: 'escape',
             self.pygame.K_BACKSPACE: 'backspace',
             self.pygame.K_DELETE: 'delete',
             self.pygame.K_TAB: 'tab',
+            self.pygame.K_SPACE: 'space',
+
+            # Common letter keys (for various controls)
+            self.pygame.K_r: 'r',
+            self.pygame.K_e: 'e',
+            self.pygame.K_q: 'q',
+            self.pygame.K_b: 'b',
+            self.pygame.K_c: 'c',
+            self.pygame.K_t: 't',
+            self.pygame.K_m: 'm',
+            self.pygame.K_n: 'n',
+            self.pygame.K_z: 'z',
+
+            # MIDI control punctuation keys (for smooth parameter adjustment)
+            self.pygame.K_COMMA: ',',
+            self.pygame.K_PERIOD: '.',
+            self.pygame.K_LEFTBRACKET: '[',
+            self.pygame.K_RIGHTBRACKET: ']',
+            self.pygame.K_SEMICOLON: ';',
+            self.pygame.K_QUOTE: "'",
 
             # Modifiers
             self.pygame.K_LSHIFT: 'shift',
