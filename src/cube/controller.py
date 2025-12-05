@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 from typing import Optional
 import tempfile
-import numpy as np
 
 from cube.display import Display
 from cube.input import InputHandler
@@ -441,9 +440,6 @@ class CubeController:
 
         # Render menu to menu layer
         self.menu_navigator.render(self.menu_renderer)
-
-        print(
-            f"Pct of colored pixels in composite output: {np.sum(self.display.backend.framebuffer > 0) / self.display.backend.framebuffer.size * 100}%")
 
         # Show the composed layers
         self.display.show(
