@@ -43,7 +43,7 @@ class CubeController:
                  default_brightness: float = 90.0, default_gamma: float = 1.0,
                  scale: int = 1, **kwargs):
         """Initialize the controller."""
-        
+
         self.window_width = width
         self.window_height = height
         self.fps = fps
@@ -56,7 +56,8 @@ class CubeController:
         # Layer 0: Menu
         # Layer 1: Shader
         # Layer 2: Debug overlay (always on top)
-        self.display = Display(width, height, num_layers=3, scale=scale,**kwargs)
+        self.display = Display(
+            width, height, num_layers=3, scale=scale, **kwargs)
 
         # Use display's actual render resolution (may be scaled down)
         self.width = self.display.width
@@ -74,7 +75,8 @@ class CubeController:
         # Get layer references
         self.menu_layer = self.display.get_layer(0)      # Menu rendering
         self.shader_layer = self.display.get_layer(1)    # Shader output
-        self.debug_layer = self.display.get_layer(2)     # Debug overlay (FPS, etc.)
+        self.debug_layer = self.display.get_layer(
+            2)     # Debug overlay (FPS, etc.)
 
         # Settings
         self.settings = {
@@ -91,7 +93,8 @@ class CubeController:
         self.menu_renderer = MenuRenderer(self.menu_layer)
 
         # Initialize menu navigation (use display's actual dimensions)
-        self.menu_navigator = MenuNavigator(self.width, self.height, self.settings)
+        self.menu_navigator = MenuNavigator(
+            self.width, self.height, self.settings)
         self._register_menus()
 
         # MIDI parameter control
@@ -105,7 +108,8 @@ class CubeController:
         if self.midi_config:
             self.usb_midi = USBMIDIDriver(self.midi_state, self.midi_config)
             if self.usb_midi.is_connected():
-                print(f"USB MIDI controller connected: {self.usb_midi.connected_device}")
+                print(
+                    f"USB MIDI controller connected: {self.usb_midi.connected_device}")
         else:
             print("No MIDI config found (midi_config.yml) - USB MIDI disabled")
 
@@ -123,14 +127,18 @@ class CubeController:
     def _register_menus(self):
         """Register all menu states with the navigator."""
         self.menu_navigator.register_menu('main', MainMenu())
-        self.menu_navigator.register_menu('visualize', VisualizationModeSelect())
-        self.menu_navigator.register_menu('surface_browser', ShaderBrowser('surface'))
-        self.menu_navigator.register_menu('cube_browser', ShaderBrowser('cube'))
-        self.menu_navigator.register_menu('settings', SettingsMenu())        
+        self.menu_navigator.register_menu(
+            'visualize', VisualizationModeSelect())
+        self.menu_navigator.register_menu(
+            'surface_browser', ShaderBrowser('surface'))
+        self.menu_navigator.register_menu(
+            'cube_browser', ShaderBrowser('cube'))
+        self.menu_navigator.register_menu('settings', SettingsMenu())
 
         shaders_dir = Path(__file__).parent.parent.parent / 'shaders'
         # Pass shaders_dir directly - PromptMenuState will create the 'generated' subdirectory
-        self.menu_navigator.register_menu('prompt', PromptMenuState(self.width, self.height, shaders_dir))
+        self.menu_navigator.register_menu(
+            'prompt', PromptMenuState(self.width, self.height, shaders_dir))
 
         # Start at main menu
         self.menu_navigator.navigate_to('main')
@@ -187,7 +195,8 @@ class CubeController:
                 if paste_text:
                     # Pass paste to current menu state if it supports it
                     if hasattr(self.menu_navigator.current_state, 'handle_paste'):
-                        self.menu_navigator.current_state.handle_paste(paste_text)
+                        self.menu_navigator.current_state.handle_paste(
+                            paste_text)
 
                 # Update menu state (for animations, async operations, etc.)
                 action = self.menu_navigator.update(dt)
@@ -255,7 +264,8 @@ class CubeController:
                 )
                 self._launch_visualization(launch_action)
             else:
-                print(f"Warning: Shader selected but no pixel mapper specified: {action.shader_path}")
+                print(
+                    f"Warning: Shader selected but no pixel mapper specified: {action.shader_path}")
             return True
 
         elif isinstance(action, MixerAction):
@@ -268,7 +278,8 @@ class CubeController:
     def _launch_visualization(self, action: LaunchVisualizationAction):
         """Launch a visualization based on the action configuration."""
         # Track if launching from prompt (for return navigation)
-        self.launched_from_prompt = (self.menu_navigator.current_state.name == 'prompt')
+        self.launched_from_prompt = (
+            self.menu_navigator.current_state.name == 'prompt')
 
         print(f"\n{'='*60}")
         print(f"Launching visualization")
@@ -295,9 +306,11 @@ class CubeController:
             # Create pixel mapper
             if action.pixel_mapper == 'surface':
                 camera = SphericalCamera()
-                pixel_mapper = SurfacePixelMapper(self.width, self.height, camera)
+                pixel_mapper = SurfacePixelMapper(
+                    self.width, self.height, camera)
             elif action.pixel_mapper == 'cube':
-                print(f"Cube panel dimensions: {self.panel_width}×{self.panel_height}")
+                print(
+                    f"Cube panel dimensions: {self.panel_width}×{self.panel_height}")
                 print(f"Cube num panels: {self.num_panels}")
                 pixel_mapper = CubePixelMapper(
                     face_width=self.panel_width,
@@ -305,7 +318,8 @@ class CubeController:
                     num_panels=self.num_panels
                 )
             else:
-                raise ValueError(f"Unknown pixel mapper: {action.pixel_mapper}")
+                raise ValueError(
+                    f"Unknown pixel mapper: {action.pixel_mapper}")
 
             # Create renderer with all uniform sources registered
             if self.unified_renderer:
@@ -396,10 +410,14 @@ class CubeController:
         camera_source = self.unified_renderer.camera_source
 
         # Update camera input state from held keys
-        camera_source.set_key_state('up', self.input_handler.is_key_held('w', 'up'))
-        camera_source.set_key_state('down', self.input_handler.is_key_held('s', 'down'))
-        camera_source.set_key_state('left', self.input_handler.is_key_held('a', 'left'))
-        camera_source.set_key_state('right', self.input_handler.is_key_held('d', 'right'))
+        camera_source.set_key_state(
+            'up', self.input_handler.is_key_held('w', 'up'))
+        camera_source.set_key_state(
+            'down', self.input_handler.is_key_held('s', 'down'))
+        camera_source.set_key_state(
+            'left', self.input_handler.is_key_held('a', 'left'))
+        camera_source.set_key_state(
+            'right', self.input_handler.is_key_held('d', 'right'))
         camera_source.shift_pressed = self.input_handler.is_key_held('shift')
 
     def _reload_shader(self):
@@ -407,7 +425,8 @@ class CubeController:
         if self.unified_renderer and self.current_shader_path:
             print(f"Reloading shader: {self.current_shader_path}")
             try:
-                self.unified_renderer.load_shader(str(self.current_shader_path))
+                self.unified_renderer.load_shader(
+                    str(self.current_shader_path))
             except Exception as e:
                 print(f"Error reloading shader: {e}")
 
@@ -422,6 +441,9 @@ class CubeController:
         # Render menu to menu layer
         self.menu_navigator.render(self.menu_renderer)
 
+        print(
+            f"Pct of colored pixels in composite output: {np.sum(self.display.backend.framebuffer > 0) / self.display.backend.framebuffer.size * 100}%")
+
         # Show the composed layers
         self.display.show(
             brightness=self.settings.get('brightness', 90.0),
@@ -434,7 +456,8 @@ class CubeController:
             # Update pixel mapper cameras from main camera (for cube mode)
             if hasattr(self.unified_renderer.pixel_mapper, 'update_from_camera'):
                 camera_uniforms = self.unified_renderer.camera_source.get_uniforms()
-                self.unified_renderer.pixel_mapper.update_from_camera(camera_uniforms)
+                self.unified_renderer.pixel_mapper.update_from_camera(
+                    camera_uniforms)
 
             # Clear menu layer during visualization
             self.menu_layer[:, :, :] = 0
@@ -459,7 +482,8 @@ class CubeController:
                 x_offset = (layer_width - fb_width) // 2
 
                 # Copy framebuffer to centered position
-                self.shader_layer[y_offset:y_offset+fb_height, x_offset:x_offset+fb_width] = framebuffer
+                self.shader_layer[y_offset:y_offset+fb_height,
+                                  x_offset:x_offset+fb_width] = framebuffer
 
             # Show the composed layers with brightness and gamma
             self.display.show(
