@@ -355,7 +355,7 @@ class SettingsMenu(MenuState):
         self.slider_configs = {
             "brightness": SliderConfig(min_value=10.0, max_value=90.0, increment=5.0, format_string="{:.0f}%"),
             "gamma": SliderConfig(min_value=0.5, max_value=3.0, increment=0.1, format_string="{:.1f}"),
-            "fps_limit": SliderConfig(min_value=10.0, max_value=60.0, increment=5.0, format_string="{:.0f}"),
+            "fps_limit": SliderConfig(min_value=10.0, max_value=120.0, increment=5.0, format_string="{:.0f}"),
         }
 
     def render(self, renderer, context: MenuContext):

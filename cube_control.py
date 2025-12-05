@@ -43,8 +43,8 @@ def main():
     parser.add_argument(
         "--fps",
         type=int,
-        default=30,
-        help="Target frames per second for menu rendering (default: 30)"
+        default=60,
+        help="Target frames per second for menu rendering (default: 60)"
     )
 
     # Hardware-specific options (only used when not in preview mode)
@@ -79,8 +79,8 @@ def main():
     parser.add_argument(
         "--brightness",
         type=float,
-        default=90.0,
-        help="Default brightness percentage (1-90, default: 90)"
+        default=60.0,
+        help="Default brightness percentage (1-90, default: 60)"
     )
 
     parser.add_argument(

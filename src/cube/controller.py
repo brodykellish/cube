@@ -39,8 +39,8 @@ class CubeController:
     - Main run loop
     """
 
-    def __init__(self, width: int, height: int, num_panels: int = 6, fps: int = 30,
-                 default_brightness: float = 90.0, default_gamma: float = 1.0,
+    def __init__(self, width: int, height: int, num_panels: int = 6, fps: int = 60,
+                 default_brightness: float = 60.0, default_gamma: float = 2.2,
                  scale: int = 1, **kwargs):
         """Initialize the controller."""
 
