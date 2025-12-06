@@ -489,6 +489,22 @@ class CubeController:
                 # Silently ignore camera info errors
                 pass
 
+        # Show MIDI parameters
+        try:
+            # Get normalized parameter values (0-1)
+            p0 = self.midi_state.get_normalized(0)
+            p1 = self.midi_state.get_normalized(1)
+            p2 = self.midi_state.get_normalized(2)
+            p3 = self.midi_state.get_normalized(3)
+
+            # Format parameters (2 decimal places)
+            params_text = f"P: {p0:.2f} {p1:.2f} {p2:.2f} {p3:.2f}"
+            lines.append(params_text)
+
+        except Exception as e:
+            # Silently ignore parameter errors
+            pass
+
         # Calculate max text width
         max_text_len = max(len(line) for line in lines) if lines else 0
         text_width = max_text_len * char_width
@@ -500,8 +516,15 @@ class CubeController:
         # Render each line from bottom to top
         for i, line in enumerate(lines):
             y_pos = y_start + i * (char_height + line_spacing)
-            # Color: FPS in green, camera in cyan
-            color = (0, 255, 0) if i == 0 else (100, 200, 255)
+            # Color: FPS in green, camera in cyan, params in yellow
+            if i == 0:
+                color = (0, 255, 0)  # FPS - green
+            elif line.startswith('Cam:'):
+                color = (100, 200, 255)  # Camera - cyan
+            elif line.startswith('P:'):
+                color = (255, 255, 100)  # Parameters - yellow
+            else:
+                color = (200, 200, 200)  # Default - white
             debug_renderer.draw_text(line, x_pos, y_pos, color=color, scale=1)
 
     def _render_menu(self):
