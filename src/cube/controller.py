@@ -113,6 +113,19 @@ class CubeController:
         else:
             print("No MIDI config found (midi_config.yml) - USB MIDI disabled")
 
+        # Gamepad input (optional, auto-detected)
+        self.gamepad = None
+        try:
+            # Only initialize on pygame-based platforms
+            if hasattr(self.display.backend, 'pygame'):
+                from cube.input.gamepad import GamepadCameraInput
+                self.gamepad = GamepadCameraInput(self.display.backend.pygame, joystick_index=0)
+                if not self.gamepad.is_connected():
+                    self.gamepad = None
+        except Exception as e:
+            # Silently ignore if no gamepad (not an error condition)
+            pass
+
         # Visualization state
         self.unified_renderer: Optional[UnifiedRenderer] = None
         self.current_shader_path: Optional[Path] = None
@@ -243,6 +256,10 @@ class CubeController:
         if self.usb_midi:
             self.usb_midi.cleanup()
 
+        # Clean up gamepad
+        if hasattr(self, 'gamepad') and self.gamepad:
+            self.gamepad.cleanup()
+
         # Prevent double cleanup (from both finally and atexit)
         if self._cleanup_done:
             return
@@ -312,7 +329,11 @@ class CubeController:
         print("  WASD: Rotate view")
         print("  Shift+WS: Zoom in/out")
         print("  Shift+AD: Roll left/right")
-        print("  R: Reload shader")
+        if self.gamepad and self.gamepad.is_connected():
+            print("\nGamepad:")
+            print("  Left Stick: Rotate camera")
+            print("  Right Stick Y: Zoom in/out")
+        print("\n  R: Reload shader")
         print("  I: Toggle debug info (FPS, camera)")
         print("  ESC: Return to menu")
         print("\nMIDI Parameters:")
@@ -417,27 +438,40 @@ class CubeController:
 
     def _update_camera_from_held_keys(self):
         """
-        Update camera uniform source from currently held keys.
+        Update camera uniform source from held keys and gamepad.
 
-        This provides smooth continuous camera movement.
+        Combines keyboard and gamepad input for camera control.
         Called every frame during visualization.
         """
         if not self.unified_renderer:
             return
 
-        # Map WASD to camera directions
         camera_source = self.unified_renderer.camera_source
 
-        # Update camera input state from held keys
-        camera_source.set_key_state(
-            'up', self.input_handler.is_key_held('w', 'up'))
-        camera_source.set_key_state(
-            'down', self.input_handler.is_key_held('s', 'down'))
-        camera_source.set_key_state(
-            'left', self.input_handler.is_key_held('a', 'left'))
-        camera_source.set_key_state(
-            'right', self.input_handler.is_key_held('d', 'right'))
-        camera_source.shift_pressed = self.input_handler.is_key_held('shift')
+        # Get keyboard input
+        kb_up = self.input_handler.is_key_held('w', 'up')
+        kb_down = self.input_handler.is_key_held('s', 'down')
+        kb_left = self.input_handler.is_key_held('a', 'left')
+        kb_right = self.input_handler.is_key_held('d', 'right')
+        kb_shift = self.input_handler.is_key_held('shift')
+
+        # Get gamepad input if available
+        gp_state = {'up': 0.0, 'down': 0.0, 'left': 0.0, 'right': 0.0, 'forward': 0.0, 'backward': 0.0}
+        gp_shift = False
+
+        if self.gamepad:
+            gp_state = self.gamepad.poll()
+            gp_shift = self.gamepad.is_shift_pressed()
+
+        # Combine keyboard and gamepad input (additive)
+        # Keyboard: boolean (0 or 1), Gamepad: float (0-1)
+        camera_source.set_key_state('up', kb_up or gp_state['up'] > 0.1)
+        camera_source.set_key_state('down', kb_down or gp_state['down'] > 0.1)
+        camera_source.set_key_state('left', kb_left or gp_state['left'] > 0.1)
+        camera_source.set_key_state('right', kb_right or gp_state['right'] > 0.1)
+        camera_source.set_key_state('forward', gp_state['forward'] > 0.1)
+        camera_source.set_key_state('backward', gp_state['backward'] > 0.1)
+        camera_source.shift_pressed = kb_shift or gp_shift
 
     def _reload_shader(self):
         """Reload current shader."""
