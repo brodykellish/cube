@@ -198,6 +198,8 @@ class SSHKeyboard(Keyboard):
             return 'm'
         elif chars == 'n':
             return 'n'
+        elif chars == 'i':
+            return 'i'
 
         # Uppercase letter keys (shift held)
         elif chars == 'E':

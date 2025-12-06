@@ -121,6 +121,11 @@ class CubeController:
         # Track if we launched from prompt (for return navigation)
         self.launched_from_prompt = False
 
+        # FPS tracking
+        self.fps_counter = 0
+        self.fps_last_time = time.time()
+        self.fps_current = 0.0
+
         # Cleanup flag to prevent double-cleanup
         self._cleanup_done = False
 
@@ -175,6 +180,11 @@ class CubeController:
                     self._stop_visualization()
                 elif self.input_handler.is_key_pressed('r', 'reload') and self.current_shader_path:
                     self._reload_shader()
+                elif self.input_handler.is_key_pressed('i'):
+                    # Toggle debug UI
+                    self.settings['debug_ui'] = not self.settings.get('debug_ui', False)
+                    status = "enabled" if self.settings['debug_ui'] else "disabled"
+                    print(f"Debug UI {status}")
                 else:
                     # Route key presses to uniform sources
                     if key:
@@ -208,6 +218,14 @@ class CubeController:
                 self._render_visualization()
             else:
                 self._render_menu()
+
+            # Update FPS counter
+            self.fps_counter += 1
+            current_time = time.time()
+            if current_time - self.fps_last_time >= 1.0:
+                self.fps_current = self.fps_counter / (current_time - self.fps_last_time)
+                self.fps_counter = 0
+                self.fps_last_time = current_time
 
             # Frame rate limiting (use current setting, not initial value)
             frame_time = time.time() - frame_start
@@ -295,6 +313,7 @@ class CubeController:
         print("  Shift+WS: Zoom in/out")
         print("  Shift+AD: Roll left/right")
         print("  R: Reload shader")
+        print("  I: Toggle debug info (FPS, camera)")
         print("  ESC: Return to menu")
         print("\nMIDI Parameters:")
         print("  n/m: CC0 (param0) -/+")
@@ -430,6 +449,61 @@ class CubeController:
             except Exception as e:
                 print(f"Error reloading shader: {e}")
 
+    def _render_debug_overlay(self):
+        """Render debug information (FPS, camera position, etc.) to debug layer."""
+        # Clear debug layer first
+        self.debug_layer[:, :, :] = 0
+
+        if not self.settings.get('debug_ui', False):
+            return  # Debug UI disabled
+
+        # Create a temporary renderer for the debug layer
+        from cube.menu.menu_renderer import MenuRenderer
+        debug_renderer = MenuRenderer(self.debug_layer)
+
+        # Get display dimensions
+        height, width = self.debug_layer.shape[:2]
+
+        # Character dimensions (scale=1): 4 pixels wide, 8 pixels tall
+        char_width = 4
+        char_height = 8
+        line_spacing = 2
+
+        # Build debug text lines
+        lines = []
+        fps_text = f"FPS: {self.fps_current:.1f}"
+        lines.append(fps_text)
+
+        # If visualizing, show camera info
+        if self.is_visualizing and self.unified_renderer:
+            try:
+                # Get camera position from camera uniform source
+                camera_uniforms = self.unified_renderer.camera_source.get_uniforms()
+                cam_pos = camera_uniforms.get('iCameraPos', (0, 0, 0))
+
+                # Format camera position (limit to 1 decimal place for readability)
+                cam_text = f"Cam: ({cam_pos[0]:.1f},{cam_pos[1]:.1f},{cam_pos[2]:.1f})"
+                lines.append(cam_text)
+
+            except Exception as e:
+                # Silently ignore camera info errors
+                pass
+
+        # Calculate max text width
+        max_text_len = max(len(line) for line in lines) if lines else 0
+        text_width = max_text_len * char_width
+
+        # Position in bottom-right corner with 2-pixel padding
+        x_pos = width - text_width - 2
+        y_start = height - (len(lines) * (char_height + line_spacing)) - 2
+
+        # Render each line from bottom to top
+        for i, line in enumerate(lines):
+            y_pos = y_start + i * (char_height + line_spacing)
+            # Color: FPS in green, camera in cyan
+            color = (0, 255, 0) if i == 0 else (100, 200, 255)
+            debug_renderer.draw_text(line, x_pos, y_pos, color=color, scale=1)
+
     def _render_menu(self):
         """Render current menu."""
         # Clear shader layer when in menu mode
@@ -440,6 +514,9 @@ class CubeController:
 
         # Render menu to menu layer
         self.menu_navigator.render(self.menu_renderer)
+
+        # Render debug overlay (FPS, etc.)
+        self._render_debug_overlay()
 
         # Show the composed layers
         self.display.show(
@@ -481,6 +558,9 @@ class CubeController:
                 # Copy framebuffer to centered position
                 self.shader_layer[y_offset:y_offset+fb_height,
                                   x_offset:x_offset+fb_width] = framebuffer
+
+            # Render debug overlay (FPS, camera info, etc.)
+            self._render_debug_overlay()
 
             # Show the composed layers with brightness and gamma
             self.display.show(

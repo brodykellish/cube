@@ -64,6 +64,7 @@ class PygameKeyboard(Keyboard):
             self.pygame.K_m: 'm',
             self.pygame.K_n: 'n',
             self.pygame.K_z: 'z',
+            self.pygame.K_i: 'i',
 
             # MIDI control punctuation keys (for smooth parameter adjustment)
             self.pygame.K_COMMA: ',',

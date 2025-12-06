@@ -1,4 +1,4 @@
-// Box Primitive - multiple boxes in a line with count and spacing control
+// Box Primitive - multiple boxes in a line with count and spacing control with enhanced lighting
 
 // === SDF ===
 float sdBox(vec3 p, vec3 size) {
@@ -65,19 +65,39 @@ vec3 calcNormal(vec3 p) {
     ));
 }
 
-// === Lighting ===
-vec3 simpleLighting(vec3 p, vec3 rd, vec3 normal, vec3 color) {
-    vec3 lightPos = vec3(4.0 * sin(iTime * 0.5), 3.0, 4.0 * cos(iTime * 0.5));
-    vec3 lightDir = normalize(lightPos - p);
-
-    float diff = max(dot(normal, lightDir), 0.0);
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(-rd, reflectDir), 0.0), 32.0);
-
-    vec3 ambient = color * 0.2;
-    vec3 diffuse = color * diff * 0.7;
-    vec3 specular = vec3(1.0) * spec * 0.5;
-
+// === Enhanced Lighting ===
+vec3 enhancedLighting(vec3 p, vec3 rd, vec3 normal, vec3 color) {
+    // Main rotating light
+    vec3 lightPos1 = vec3(4.0 * sin(iTime * 0.5), 3.0, 4.0 * cos(iTime * 0.5));
+    vec3 lightDir1 = normalize(lightPos1 - p);
+    
+    // Additional fixed lights for better illumination
+    vec3 lightPos2 = vec3(-5.0, 4.0, 2.0);
+    vec3 lightDir2 = normalize(lightPos2 - p);
+    
+    vec3 lightPos3 = vec3(2.0, -3.0, -4.0);
+    vec3 lightDir3 = normalize(lightPos3 - p);
+    
+    // Key light (main rotating)
+    float diff1 = max(dot(normal, lightDir1), 0.0);
+    vec3 reflectDir1 = reflect(-lightDir1, normal);
+    float spec1 = pow(max(dot(-rd, reflectDir1), 0.0), 32.0);
+    
+    // Fill light (left side)
+    float diff2 = max(dot(normal, lightDir2), 0.0);
+    vec3 reflectDir2 = reflect(-lightDir2, normal);
+    float spec2 = pow(max(dot(-rd, reflectDir2), 0.0), 16.0);
+    
+    // Rim light (bottom)
+    float diff3 = max(dot(normal, lightDir3), 0.0);
+    
+    // Enhanced ambient lighting
+    vec3 ambient = color * 0.4;  // Increased from 0.2
+    
+    // Multiple light contributions
+    vec3 diffuse = color * (diff1 * 0.8 + diff2 * 0.5 + diff3 * 0.3);
+    vec3 specular = vec3(1.0) * (spec1 * 0.7 + spec2 * 0.3);
+    
     return ambient + diffuse + specular;
 }
 
@@ -108,21 +128,22 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     float t = raymarch(ro, rd, 50.0);
 
-    vec3 color = vec3(0.02, 0.02, 0.05);
+    // Keep background black
+    vec3 color = vec3(0.0, 0.0, 0.0);
 
     if (t > 0.0) {
         vec3 p = ro + rd * t;
         vec3 normal = calcNormal(p);
 
-        // Solid color controlled by RGB parameters 0-1
-        vec3 baseColor = vec3(iParam0, iParam1, 0.5);
+        // Brighter base color controlled by RGB parameters 0-1
+        vec3 baseColor = vec3(iParam0, iParam1, 0.5) * 1.5;  // Increased brightness
 
-        // Apply lighting
-        color = simpleLighting(p, rd, normal, baseColor);
+        // Apply enhanced lighting
+        color = enhancedLighting(p, rd, normal, baseColor);
 
-        // Simple fog
-        float fog = 1.0 - exp(-t * 0.1);
-        color = mix(color, vec3(0.05, 0.05, 0.1), fog);
+        // Reduced fog effect to keep boxes brighter
+        float fog = 1.0 - exp(-t * 0.05);  // Reduced from 0.1
+        color = mix(color, vec3(0.0, 0.0, 0.0), fog * 0.3);  // Much less fog influence
     }
 
     fragColor = vec4(color, 1.0);
