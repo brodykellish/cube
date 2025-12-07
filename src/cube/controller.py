@@ -191,13 +191,39 @@ class CubeController:
                 # Handle visualization input
                 if self.input_handler.is_exit_requested():
                     self._stop_visualization()
-                elif self.input_handler.is_key_pressed('r', 'reload') and self.current_shader_path:
-                    self._reload_shader()
                 elif self.input_handler.is_key_pressed('i'):
                     # Toggle debug UI
                     self.settings['debug_ui'] = not self.settings.get('debug_ui', False)
                     status = "enabled" if self.settings['debug_ui'] else "disabled"
                     print(f"Debug UI {status}")
+
+                # Brightness controls (b/v)
+                elif self.input_handler.is_key_pressed('v'):
+                    self.settings['brightness'] = max(1.0, self.settings.get('brightness', 60.0) - 5.0)
+                    print(f"Brightness: {self.settings['brightness']:.0f}%")
+                elif self.input_handler.is_key_pressed('b'):
+                    self.settings['brightness'] = min(100.0, self.settings.get('brightness', 60.0) + 5.0)
+                    print(f"Brightness: {self.settings['brightness']:.0f}%")
+
+                # Gamma controls (f/g)
+                elif self.input_handler.is_key_pressed('f'):
+                    self.settings['gamma'] = max(0.5, self.settings.get('gamma', 2.2) - 0.1)
+                    print(f"Gamma: {self.settings['gamma']:.2f}")
+                elif self.input_handler.is_key_pressed('g'):
+                    self.settings['gamma'] = min(3.0, self.settings.get('gamma', 2.2) + 0.1)
+                    print(f"Gamma: {self.settings['gamma']:.2f}")
+
+                # FPS controls (use - and = instead of r/t since r is reload)
+                elif self.input_handler.is_key_pressed('-', '_'):
+                    self.settings['fps_limit'] = max(10, self.settings.get('fps_limit', 60) - 5)
+                    print(f"FPS Limit: {self.settings['fps_limit']}")
+                elif self.input_handler.is_key_pressed('=', '+'):
+                    self.settings['fps_limit'] = min(120, self.settings.get('fps_limit', 60) + 5)
+                    print(f"FPS Limit: {self.settings['fps_limit']}")
+
+                # Reload shader (keep existing binding)
+                elif self.input_handler.is_key_pressed('r') and self.current_shader_path:
+                    self._reload_shader()
                 else:
                     # Route key presses to uniform sources
                     if key:
@@ -333,8 +359,13 @@ class CubeController:
             print("\nGamepad:")
             print("  Left Stick: Rotate camera")
             print("  Right Stick Y: Zoom in/out")
-        print("\n  R: Reload shader")
-        print("  I: Toggle debug info (FPS, camera)")
+        print("\nSettings:")
+        print("  B/V: Brightness -/+")
+        print("  F/G: Gamma -/+")
+        print("  -/=: FPS Limit -/+")
+        print("\nActions:")
+        print("  R: Reload shader")
+        print("  I: Toggle debug info")
         print("  ESC: Return to menu")
         print("\nMIDI Parameters:")
         print("  n/m: CC0 (param0) -/+")

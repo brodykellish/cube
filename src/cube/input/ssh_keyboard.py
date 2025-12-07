@@ -184,6 +184,12 @@ class SSHKeyboard(Keyboard):
         # Letter keys
         elif chars == 'b':
             return 'b'
+        elif chars == 'v':
+            return 'v'
+        elif chars == 'f':
+            return 'f'
+        elif chars == 'g':
+            return 'g'
         elif chars == 'q':
             return 'q'
         elif chars == 'r':
@@ -228,6 +234,16 @@ class SSHKeyboard(Keyboard):
             return ';'
         elif chars == "'":
             return "'"
+
+        # Settings control keys
+        elif chars == '-':
+            return '-'
+        elif chars == '=':
+            return '='
+        elif chars == '_':
+            return '_'
+        elif chars == '+':
+            return '+'
 
         # Number keys
         elif chars in '0123456789':

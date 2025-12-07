@@ -59,12 +59,19 @@ class PygameKeyboard(Keyboard):
             self.pygame.K_e: 'e',
             self.pygame.K_q: 'q',
             self.pygame.K_b: 'b',
+            self.pygame.K_v: 'v',
+            self.pygame.K_f: 'f',
+            self.pygame.K_g: 'g',
             self.pygame.K_c: 'c',
             self.pygame.K_t: 't',
             self.pygame.K_m: 'm',
             self.pygame.K_n: 'n',
             self.pygame.K_z: 'z',
             self.pygame.K_i: 'i',
+
+            # Special characters for FPS control
+            self.pygame.K_MINUS: '-',
+            self.pygame.K_EQUALS: '=',
 
             # MIDI control punctuation keys (for smooth parameter adjustment)
             self.pygame.K_COMMA: ',',
