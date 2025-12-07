@@ -11,6 +11,7 @@ from .keyboard_driver import MIDIKeyboardDriver
 from .uniform_source import MIDIUniformSource
 from .usb_driver import USBMIDIDriver
 from .config_loader import load_midi_config, MIDIConfig, MIDIMapping
+from .tap_tempo import TapTempoDetector
 
 __all__ = [
     'MIDIState',
@@ -19,5 +20,6 @@ __all__ = [
     'USBMIDIDriver',
     'load_midi_config',
     'MIDIConfig',
-    'MIDIMapping'
+    'MIDIMapping',
+    'TapTempoDetector',
 ]

@@ -17,6 +17,7 @@ except ImportError:
 
 from .midi_state import MIDIState
 from .config_loader import MIDIConfig
+from .tap_tempo import TapTempoDetector
 
 
 class USBMIDIDriver:
@@ -26,18 +27,24 @@ class USBMIDIDriver:
     Supports auto-detection or specific device selection via config.
     """
 
-    def __init__(self, midi_state: MIDIState, config: Optional[MIDIConfig] = None):
+    def __init__(self, midi_state: MIDIState, config: Optional[MIDIConfig] = None,
+                 tap_note: int = 43):
         """
         Initialize USB MIDI driver.
 
         Args:
             midi_state: Shared MIDI state to update
             config: MIDI configuration (device name and CC mappings)
+            tap_note: MIDI note number for tap tempo (default: 43 = pad 8 on Minilab3)
         """
         self.midi_state = midi_state
         self.config = config
         self.midi_in = None
         self.connected_device = None
+
+        # Tap tempo detector
+        self.tap_tempo = TapTempoDetector(tempo_window=3.0, hold_to_clear_duration=3.0)
+        self.tap_note = tap_note
 
         if not RTMIDI_AVAILABLE:
             print("USB MIDI driver disabled (python-rtmidi not installed)")
@@ -117,8 +124,30 @@ class USBMIDIDriver:
         data1 = midi_message[1]  # CC number or note
         data2 = midi_message[2]  # CC value or velocity
 
+        # Check if this is a Note On message (0x90-0x9F) for tap tempo
+        if (status & 0xF0) == 0x90:
+            note = data1
+            velocity = data2
+
+            # Check if this is the tap tempo note
+            if note == self.tap_note:
+                if velocity > 0:
+                    # Note pressed
+                    self.tap_tempo.note_on()
+                else:
+                    # Note Off with velocity 0 (some devices use this)
+                    self.tap_tempo.note_off()
+
+        # Check if this is a Note Off message (0x80-0x8F) for tap tempo
+        elif (status & 0xF0) == 0x80:
+            note = data1
+
+            # Check if this is the tap tempo note
+            if note == self.tap_note:
+                self.tap_tempo.note_off()
+
         # Check if this is a Control Change message (0xB0-0xBF)
-        if (status & 0xF0) == 0xB0:
+        elif (status & 0xF0) == 0xB0:
             cc_number = data1
             cc_value = data2
 

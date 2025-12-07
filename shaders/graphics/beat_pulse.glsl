@@ -1,22 +1,32 @@
 // Beat Pulse - BPM-synchronized visualization
-// Demonstrates the BPM detection system
+// Demonstrates the beat trigger system
 // Pulsates and changes color in sync with detected beats
 
 void mainImage(out vec4 fragColor, vec2 fragCoord) {
     vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
     float dist = length(uv);
 
-    // Use beat phase for smooth pulsing (0-1 over the beat cycle)
-    float pulse = sin(iBeatPhase * 6.28318) * 0.5 + 0.5;  // 0-1 sine wave
+    // Use beat trigger (0-1 with ADSR envelope on each beat)
+    float trigger = iBeatTrigger;
 
-    // Use beat pulse for sharp attacks (1.0 on beat, decays to 0)
-    float flash = iBeatPulse;
+    // If no tempo detected, show dark
+    if (trigger == 0.0 && iBPM == 0.0) {
+        fragColor = vec4(0.05, 0.05, 0.1, 1.0);
+        return;
+    }
+
+    // Calculate beat phase from time and BPM (0-1 over beat cycle)
+    float beatDuration = (iBPM > 0.0) ? (60.0 / iBPM) : 1.0;
+    float beatPhase = mod(iTime, beatDuration) / beatDuration;
+
+    // Smooth pulsing based on trigger
+    float pulse = trigger;
 
     // Create concentric rings that expand from center on each beat
-    float rings = fract(dist * 8.0 - iBeatPhase * 2.0);
+    float rings = fract(dist * 8.0 - beatPhase * 2.0);
     rings = smoothstep(0.0, 0.1, rings) * smoothstep(0.3, 0.2, rings);
 
-    // Circle size modulated by beat phase
+    // Circle size modulated by beat trigger
     float circleSize = 0.3 + pulse * 0.2;
     float circle = smoothstep(circleSize + 0.05, circleSize, dist);
 
@@ -26,22 +36,17 @@ void mainImage(out vec4 fragColor, vec2 fragCoord) {
     vec3 color3 = vec3(1.0, 0.8, 0.2);  // Yellow
 
     vec3 color;
-    if (iBeatPhase < 0.5) {
-        color = mix(color1, color2, iBeatPhase * 2.0);
+    if (beatPhase < 0.5) {
+        color = mix(color1, color2, beatPhase * 2.0);
     } else {
-        color = mix(color2, color3, (iBeatPhase - 0.5) * 2.0);
+        color = mix(color2, color3, (beatPhase - 0.5) * 2.0);
     }
 
     // Combine elements
     vec3 col = vec3(0.0);
     col += circle * color * (0.5 + pulse * 0.5);  // Main circle
     col += rings * color * 0.3;  // Expanding rings
-    col += flash * vec3(1.0);  // White flash on beat
-
-    // Add BPM display (small indicator in corner)
-    vec2 cornerPos = fragCoord - vec2(30.0, iResolution.y - 30.0);
-    float indicator = 1.0 - smoothstep(5.0, 10.0, length(cornerPos));
-    col += indicator * color * (0.3 + flash * 0.7);
+    col += trigger * vec3(1.0);  // White flash on beat
 
     // Background gradient
     col += vec3(0.05, 0.05, 0.1) * (1.0 - dist * 0.5);

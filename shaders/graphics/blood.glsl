@@ -20,7 +20,7 @@ vec4 blood(vec2 u) {
             s = min(cos(p.z), 6. - length(p.xy)),
             a = .8; a < 16.; a += a)
             p += cos(t+p.yzx)*.2,
-            s += abs(dot(sin(t+.2*p.z+p * a), .6+p-p)) / a;
+            s += abs(dot(sin(t+.2*p.z+p * a), vec3(.6)+p-p)) / a;
     return o * 2e1;
 }
 
@@ -39,7 +39,8 @@ vec4 fire(vec2 u) {
         p = vec3(u * d, d);
         p += cos(p.z+T+p.yzx*.5) * (.6 * fireTurbulence);
         s = 6.-length(p.xy);
-        p.xy *= mat2(cos(.3*T*fireTurbulence+vec4(0,33,11,0)));
+        float rotAngle = .3*T*fireTurbulence;
+        p.xy *= mat2(cos(rotAngle), sin(rotAngle), -sin(rotAngle), cos(rotAngle));
         for (n = 1.6; n < 32.; n += n )
             s -= abs(dot(sin( p.z + T + p*n ), vec3(1.12))) / n;
         d += s = .01 + abs(s)*.1;
@@ -47,7 +48,7 @@ vec4 fire(vec2 u) {
     }
     
     // Adjust fire color based on temperature parameter
-    vec4 fireColor = vec4(5*fireTemp, 2*fireTemp, 1, 1);
+    vec4 fireColor = vec4(5.*fireTemp, 2.*fireTemp, 1., 1.);
     return fireColor * o * o / d;
 }
 

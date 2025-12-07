@@ -31,10 +31,13 @@ class MIDIMapping:
             'param1': 1,
             'param2': 2,
             'param3': 3,
+            'attack': 4,  # Beat envelope attack time
+            'hold': 5,    # Beat envelope hold time
+            'decay': 6,   # Beat envelope decay time
         }
 
         if target not in target_map:
-            raise ValueError(f"Invalid target '{target}'. Must be param0-3.")
+            raise ValueError(f"Invalid target '{target}'. Must be param0-3, attack, hold, or decay.")
 
         self.target_cc = target_map[target]
 

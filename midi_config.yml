@@ -2,28 +2,47 @@
 # Maps physical MIDI controller CC numbers to shader parameters
 
 # Device name to connect to (or "auto" to use first available)
-device_name: "auto"
+device_name: "Minilab3"
 
 # MIDI CC mappings
 # Each mapping connects a MIDI CC from your controller to a shader parameter
 mappings:
-  # Example: Map your controller's CC 74 to param0 (typically fader 1)
+  # Shader parameters (knobs 1-4)
   - midi_cc: 74
     target: param0
-    min: 0      # Optional: minimum MIDI value to accept (default: 0)
-    max: 127    # Optional: maximum MIDI value to accept (default: 127)
+    min: 0
+    max: 127
 
-  # Example: Map CC 71 to param1 (typically fader 2)
   - midi_cc: 71
     target: param1
+    min: 0
+    max: 127
 
-  # Example: Map CC 76 to param2 (typically knob 1)
   - midi_cc: 76
     target: param2
+    min: 0
+    max: 127
 
-  # Example: Map CC 77 to param3 (typically knob 2)
   - midi_cc: 77
     target: param3
+    min: 0
+    max: 127
+
+  # Beat envelope controls (knobs 6-8)
+  - midi_cc: 18      # Knob 6 -> Attack time
+    target: attack
+    min: 0
+    max: 127
+
+  - midi_cc: 19      # Knob 7 -> Hold time
+    target: hold
+    min: 0
+    max: 127
+
+  - midi_cc: 16      # Knob 8 -> Decay time (assuming CC 16)
+    target: decay
+    min: 0
+    max: 127
 
 # Notes:
 # - Find your controller's CC numbers using a MIDI monitor tool

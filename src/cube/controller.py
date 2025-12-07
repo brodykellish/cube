@@ -97,21 +97,26 @@ class CubeController:
             self.width, self.height, self.settings)
         self._register_menus()
 
-        # MIDI parameter control
-        self.midi_state = MIDIState(num_channels=4)
+        # MIDI parameter control (7 channels: 0-3 for params, 4-6 for envelope)
+        self.midi_state = MIDIState(num_channels=7)
         self.midi_keyboard = MIDIKeyboardDriver(self.midi_state)
-        self.midi_uniform_source = MIDIUniformSource(self.midi_state)
 
         # USB MIDI controller (optional, requires config)
         self.midi_config = load_midi_config()
         self.usb_midi = None
+        self.last_bpm = None  # Track BPM changes for debug output
         if self.midi_config:
-            self.usb_midi = USBMIDIDriver(self.midi_state, self.midi_config)
+            self.usb_midi = USBMIDIDriver(self.midi_state, self.midi_config, tap_note=43)
             if self.usb_midi.is_connected():
                 print(
                     f"USB MIDI controller connected: {self.usb_midi.connected_device}")
+                print(f"  Tap tempo: Pad 8 (Note 43)")
         else:
             print("No MIDI config found (midi_config.yml) - USB MIDI disabled")
+
+        # Create MIDI uniform source with tap tempo (if USB MIDI is available)
+        tap_tempo = self.usb_midi.tap_tempo if self.usb_midi else None
+        self.midi_uniform_source = MIDIUniformSource(self.midi_state, tap_tempo)
 
         # Gamepad input (optional, auto-detected)
         self.gamepad = None
@@ -251,6 +256,16 @@ class CubeController:
                 action = self.menu_navigator.update(dt)
                 if action:
                     running = self._handle_action(action)
+
+            # Debug: Display BPM changes
+            if self.is_visualizing and self.usb_midi:
+                current_bpm = self.usb_midi.tap_tempo.get_bpm()
+                if current_bpm != self.last_bpm:
+                    if current_bpm is not None:
+                        print(f"🎵 Tempo detected: {current_bpm:.1f} BPM")
+                    else:
+                        print("⏸  Tempo timeout")
+                    self.last_bpm = current_bpm
 
             # Render
             if self.is_visualizing:
@@ -514,10 +529,46 @@ class CubeController:
             except Exception as e:
                 print(f"Error reloading shader: {e}")
 
+    def _render_beat_indicator(self):
+        """Render red dot beat indicator in bottom-right corner."""
+        import numpy as np
+
+        # Get beat trigger value
+        beat_trigger = self.usb_midi.tap_tempo.get_beat_trigger()
+
+        if beat_trigger == 0.0:
+            return  # No beat, don't draw anything
+
+        # Get layer dimensions
+        height, width = self.debug_layer.shape[:2]
+
+        # Beat indicator position (bottom-right, 20px from corner)
+        dot_center_x = width - 20
+        dot_center_y = height - 20
+        dot_radius = 8
+
+        # Create circle mask
+        y_coords, x_coords = np.ogrid[:height, :width]
+        dist_from_center = np.sqrt((x_coords - dot_center_x)**2 + (y_coords - dot_center_y)**2)
+
+        # Smooth edge circle
+        circle_mask = np.maximum(0, 1.0 - (dist_from_center - (dot_radius - 2)) / 2.0)
+        circle_mask = np.clip(circle_mask, 0, 1)
+
+        # Red color with beat trigger intensity
+        red_intensity = int(255 * beat_trigger)
+
+        # Apply red dot to debug layer
+        self.debug_layer[:, :, 0] = np.maximum(self.debug_layer[:, :, 0], (circle_mask * red_intensity).astype(np.uint8))
+
     def _render_debug_overlay(self):
         """Render debug information (FPS, camera position, etc.) to debug layer."""
         # Clear debug layer first
         self.debug_layer[:, :, :] = 0
+
+        # Always show beat indicator when visualizing (independent of debug_ui)
+        if self.is_visualizing and self.usb_midi:
+            self._render_beat_indicator()
 
         if not self.settings.get('debug_ui', False):
             return  # Debug UI disabled

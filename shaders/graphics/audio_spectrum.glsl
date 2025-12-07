@@ -125,7 +125,7 @@ void mainImage(out vec4 fragColor, vec2 fragCoord) {
         baseColor *= (0.5 + amplitude * 1.5);
 
         // Add beat pulse highlight
-        baseColor += vec3(1.0, 1.0, 1.0) * iBeatPulse * 0.3 * amplitude;
+        baseColor += vec3(1.0, 1.0, 1.0) * iBeatTrigger * 0.3 * amplitude;
 
         // Apply lighting
         col = baseColor * (ambient + diff * 0.7);
