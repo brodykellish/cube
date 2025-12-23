@@ -20,13 +20,13 @@ class MIDIUniformSource(UniformSource):
     - iParam1 (float): Normalized CC1 value (0.0-1.0)
     - iParam2 (float): Normalized CC2 value (0.0-1.0)
     - iParam3 (float): Normalized CC3 value (0.0-1.0)
-    - iParams (vec4): All params as a vector (param0, param1, param2, param3)
+    - (vec4 aggregation removed; use individual iParam0-3)
     - iBPM (float): Detected BPM from tap tempo (0.0 if no tempo detected)
     - iBeat (float): Beat duration in seconds (0.0 if no tempo)
 
     Example shader usage:
         uniform float iParam0;  // Individual access
-        uniform vec4 iParams;   // Vector access
+        // vec4 aggregate removed; use individual floats
         uniform float iBPM;     // Tap tempo BPM
         uniform float iBeat;    // Beat duration in seconds
 
@@ -65,7 +65,7 @@ class MIDIUniformSource(UniformSource):
         Get current MIDI parameter values as shader uniforms.
 
         Returns:
-            Dictionary with iParam0-3 (floats), iParams (vec4 tuple), and iBeatTrigger
+            Dictionary with iParam0-3 (floats) and iBeatTrigger
         """
         # Get normalized values (0.0-1.0)
         param0 = self.midi_state.get_normalized(0)
@@ -97,7 +97,6 @@ class MIDIUniformSource(UniformSource):
             'iParam1': param1,
             'iParam2': param2,
             'iParam3': param3,
-            'iParams': (param0, param1, param2, param3),
             'iBeatTrigger': beat_trigger,
             'iBPM': bpm,  # For debug display
         }

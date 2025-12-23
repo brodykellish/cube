@@ -7,7 +7,6 @@ Provides keyboard input abstractions for different platforms:
 - InputHandler: Unified interface for processing keyboard input
 - GamepadCameraInput: Xbox controller / gamepad input for camera control
 """
-
 from .keyboard import Keyboard, KeyboardState, KeyEvent
 from .pygame_keyboard import PygameKeyboard
 from .ssh_keyboard import SSHKeyboard
@@ -22,5 +21,5 @@ __all__ = [
     'SSHKeyboard',
     'InputHandler',
     'GamepadCameraInput',
-    'list_gamepads',
+    'list_gamepads'
 ]

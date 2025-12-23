@@ -4,7 +4,6 @@ Camera modes for shader navigation.
 Provides different camera control schemes (spherical, FPS, etc.) with a
 unified interface.
 """
-
 import time
 import math
 from abc import ABC, abstractmethod
@@ -12,24 +11,22 @@ from typing import Tuple, Dict
 
 
 class CameraMode(ABC):
-    """
-    Abstract base class for camera control modes.
+    """Abstract base class for camera control modes.
 
     Each mode handles input and computes camera vectors differently.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize camera mode."""
         self.last_update_time = time.time()
 
     @abstractmethod
-    def update(self, input_state: Dict[str, float], dt: float, shift_pressed: bool = False):
-        """
-        Update camera state based on input.
+    def update(self, input_state: Dict[str, float], dt: float, shift_pressed: bool = False) -> None:
+        """Update camera state based on input.
 
         Args:
             input_state: Dict with keys 'up', 'down', 'left', 'right', 'forward', 'backward'
-                        Values are 0.0 (not pressed) or 1.0 (pressed)
+                         Values are 0.0 (not pressed) or 1.0 (pressed)
             dt: Delta time since last update (seconds)
             shift_pressed: Whether shift modifier is held
         """
@@ -37,8 +34,7 @@ class CameraMode(ABC):
 
     @abstractmethod
     def get_vectors(self) -> Tuple[Tuple[float, float, float], ...]:
-        """
-        Get camera position and orientation vectors.
+        """Get camera position and orientation vectors.
 
         Returns:
             (pos, right, up, forward) where each is a 3-tuple of floats
@@ -46,14 +42,13 @@ class CameraMode(ABC):
         pass
 
     @abstractmethod
-    def reset(self):
+    def reset(self) -> None:
         """Reset camera to default position/orientation."""
         pass
 
 
 class SphericalCamera(CameraMode):
-    """
-    Spherical coordinate camera mode.
+    """Spherical coordinate camera mode.
 
     Camera orbits around the origin using spherical coordinates (yaw, pitch, distance).
     - Left/Right: Rotate yaw (horizontal)
@@ -71,16 +66,15 @@ class SphericalCamera(CameraMode):
     def __init__(
         self,
         distance: float = 12.0,
-        yaw: float = 0.785,  # ~45 degrees
-        pitch: float = 0.6,  # ~34 degrees
+        yaw: float = 0.785,
+        pitch: float = 0.6,
         rotate_speed: float = 1.5,
         zoom_speed: float = 5.0,
         damping: float = 0.9,
         min_distance: float = 1.0,
-        max_distance: float = 50.0
-    ):
-        """
-        Initialize spherical camera.
+        max_distance: float = 50.0,
+    ) -> None:
+        """Initialize spherical camera.
 
         Args:
             distance: Initial distance from origin
@@ -93,141 +87,125 @@ class SphericalCamera(CameraMode):
             max_distance: Maximum distance from origin
         """
         super().__init__()
-
-        # Spherical coordinates
         self.distance = distance
         self.yaw = yaw
         self.pitch = pitch
-        self.roll = 0.0  # Roll around viewing axis (barrel roll)
+        self.roll = 0.0
 
-        # Velocities
         self.distance_vel = 0.0
         self.yaw_vel = 0.0
         self.pitch_vel = 0.0
         self.roll_vel = 0.0
 
-        # Parameters
         self.rotate_speed = rotate_speed
         self.zoom_speed = zoom_speed
         self.damping = damping
         self.min_distance = min_distance
         self.max_distance = max_distance
 
-        # Store initial values for reset
         self.initial_distance = distance
         self.initial_yaw = yaw
         self.initial_pitch = pitch
         self.initial_roll = 0.0
 
-    def update(self, input_state: Dict[str, float], dt: float, shift_pressed: bool = False):
-        """
-        Update camera based on input with smooth acceleration and damping.
+    def update(self, input_state: Dict[str, float], dt: float, shift_pressed: bool = False) -> None:
+        """Update camera based on input with smooth acceleration and damping.
 
         Controls:
         - Left/Right: Yaw (rotate horizontally) OR Roll (with shift)
         - Up/Down: Pitch (rotate vertically) OR Zoom (with shift)
         """
-        # Get input values
-        input_lr = input_state['right'] - input_state['left']
-        input_ud = input_state['up'] - input_state['down']
-        input_fb = input_state['forward'] - input_state['backward']
+        input_lr = input_state["right"] - input_state["left"]
+        input_ud = input_state["up"] - input_state["down"]
+        input_fb = input_state["forward"] - input_state["backward"]
 
-        # Acceleration multiplier (makes controls more responsive)
         accel = 5.0
 
-        # Left/Right behavior depends on shift key
+        # Horizontal: yaw or roll
         if shift_pressed:
-            # Shift + Left/Right: Roll (rotate around view axis)
             self.roll_vel += input_lr * self.rotate_speed * accel * dt
         else:
-            # Left/Right: Rotate yaw (horizontal rotation)
             self.yaw_vel += input_lr * self.rotate_speed * accel * dt
 
-        # Up/Down behavior depends on shift key
+        # Vertical: pitch or zoom
         if shift_pressed:
-            # Shift + Up/Down: Zoom in/out (change distance)
             self.distance_vel -= input_ud * self.zoom_speed * accel * dt
         else:
-            # Up/Down: Rotate pitch (vertical rotation around origin)
             self.pitch_vel += input_ud * self.rotate_speed * accel * dt
 
-        # Forward/Backward: Also zoom in/out
+        # Forward/backward: zoom
         self.distance_vel -= input_fb * self.zoom_speed * accel * dt
 
-        # Apply frame-rate independent damping
+        # Exponential damping (frame-rate independent)
         damping = self.damping ** (dt * 60.0)
         self.yaw_vel *= damping
         self.pitch_vel *= damping
         self.roll_vel *= damping
         self.distance_vel *= damping
 
-        # Update spherical coordinates
+        # Integrate
         self.yaw += self.yaw_vel * dt
         self.pitch += self.pitch_vel * dt
         self.roll += self.roll_vel * dt
         self.distance += self.distance_vel * dt
 
-        # No pitch clamping - allow full 360° rotation!
-
-        # Clamp distance to reasonable range
+        # Clamp distance
         self.distance = max(self.min_distance, min(self.max_distance, self.distance))
 
     def get_vectors(self) -> Tuple[Tuple[float, float, float], ...]:
         """Compute camera position and orientation vectors from spherical coordinates."""
-        # Convert spherical to cartesian for camera position
         x = self.distance * math.cos(self.pitch) * math.sin(self.yaw)
         y = self.distance * math.sin(self.pitch)
         z = self.distance * math.cos(self.pitch) * math.cos(self.yaw)
         pos = (x, y, z)
 
-        # Forward vector: always points toward origin (normalized)
+        # Forward vector points towards origin
         forward = (-x, -y, -z)
-        f_len = math.sqrt(forward[0]**2 + forward[1]**2 + forward[2]**2)
+        f_len = math.sqrt(forward[0] ** 2 + forward[1] ** 2 + forward[2] ** 2)
         if f_len > 0:
-            forward = (forward[0]/f_len, forward[1]/f_len, forward[2]/f_len)
+            forward = (
+                forward[0] / f_len,
+                forward[1] / f_len,
+                forward[2] / f_len,
+            )
         else:
-            forward = (0.0, 0.0, -1.0)  # Fallback
+            forward = (0.0, 0.0, -1.0)
 
-        # Right vector: tangent to circle of latitude (derivative w.r.t. yaw)
+        # Base right/up vectors before roll
         right_base = (math.cos(self.yaw), 0.0, -math.sin(self.yaw))
-
-        # Up vector: tangent to meridian (derivative w.r.t. pitch)
         up_base = (
             -math.sin(self.pitch) * math.sin(self.yaw),
             math.cos(self.pitch),
-            -math.sin(self.pitch) * math.cos(self.yaw)
+            -math.sin(self.pitch) * math.cos(self.yaw),
         )
 
-        # Apply roll rotation around the forward axis
+        # Apply roll around forward axis
         if abs(self.roll) > 0.0001:
             cos_roll = math.cos(self.roll)
             sin_roll = math.sin(self.roll)
-
-            # Rotate right and up vectors around forward axis
-            # right' = right * cos(roll) + up * sin(roll)
-            # up' = -right * sin(roll) + up * cos(roll)
             right = (
                 right_base[0] * cos_roll + up_base[0] * sin_roll,
                 right_base[1] * cos_roll + up_base[1] * sin_roll,
-                right_base[2] * cos_roll + up_base[2] * sin_roll
+                right_base[2] * cos_roll + up_base[2] * sin_roll,
             )
             up = (
                 -right_base[0] * sin_roll + up_base[0] * cos_roll,
                 -right_base[1] * sin_roll + up_base[1] * cos_roll,
-                -right_base[2] * sin_roll + up_base[2] * cos_roll
+                -right_base[2] * sin_roll + up_base[2] * cos_roll,
             )
         else:
             right = right_base
             up = up_base
 
-        return pos, right, up, forward
+        return (pos, right, up, forward)
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset camera to initial position."""
         self.distance = self.initial_distance
         self.yaw = self.initial_yaw
         self.pitch = self.initial_pitch
         self.roll = self.initial_roll
+
         self.distance_vel = 0.0
         self.yaw_vel = 0.0
         self.pitch_vel = 0.0
@@ -235,8 +213,7 @@ class SphericalCamera(CameraMode):
 
 
 class StaticCamera(CameraMode):
-    """
-    Static camera mode with no movement.
+    """Static camera mode with no movement.
 
     Camera stays at a fixed position with fixed orientation.
     Input is ignored (but still passed to shader via iInput uniform).
@@ -250,10 +227,9 @@ class StaticCamera(CameraMode):
     def __init__(
         self,
         position: Tuple[float, float, float] = (0.0, 0.0, -5.0),
-        look_at: Tuple[float, float, float] = (0.0, 0.0, 0.0)
-    ):
-        """
-        Initialize static camera.
+        look_at: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+    ) -> None:
+        """Initialize static camera.
 
         Args:
             position: Camera position
@@ -263,45 +239,48 @@ class StaticCamera(CameraMode):
         self.position = position
         self.look_at = look_at
 
-        # Store for reset
         self.initial_position = position
         self.initial_look_at = look_at
 
-        # Pre-compute vectors
         self._compute_vectors()
 
-    def _compute_vectors(self):
+    def _compute_vectors(self) -> None:
         """Compute camera orientation vectors from position and look_at."""
-        # Forward: from camera to look_at
         forward = (
             self.look_at[0] - self.position[0],
             self.look_at[1] - self.position[1],
-            self.look_at[2] - self.position[2]
+            self.look_at[2] - self.position[2],
         )
-        f_len = math.sqrt(forward[0]**2 + forward[1]**2 + forward[2]**2)
+        f_len = math.sqrt(forward[0] ** 2 + forward[1] ** 2 + forward[2] ** 2)
         if f_len > 0:
-            forward = (forward[0]/f_len, forward[1]/f_len, forward[2]/f_len)
+            forward = (
+                forward[0] / f_len,
+                forward[1] / f_len,
+                forward[2] / f_len,
+            )
         else:
             forward = (0.0, 0.0, -1.0)
 
-        # Right: cross(world_up, forward)
         world_up = (0.0, 1.0, 0.0)
         right = (
             world_up[1] * forward[2] - world_up[2] * forward[1],
             world_up[2] * forward[0] - world_up[0] * forward[2],
-            world_up[0] * forward[1] - world_up[1] * forward[0]
+            world_up[0] * forward[1] - world_up[1] * forward[0],
         )
-        r_len = math.sqrt(right[0]**2 + right[1]**2 + right[2]**2)
+        r_len = math.sqrt(right[0] ** 2 + right[1] ** 2 + right[2] ** 2)
         if r_len > 0:
-            right = (right[0]/r_len, right[1]/r_len, right[2]/r_len)
+            right = (
+                right[0] / r_len,
+                right[1] / r_len,
+                right[2] / r_len,
+            )
         else:
             right = (1.0, 0.0, 0.0)
 
-        # Up: cross(forward, right)
         up = (
             forward[1] * right[2] - forward[2] * right[1],
             forward[2] * right[0] - forward[0] * right[2],
-            forward[0] * right[1] - forward[1] * right[0]
+            forward[0] * right[1] - forward[1] * right[0],
         )
 
         self._pos = self.position
@@ -309,42 +288,17 @@ class StaticCamera(CameraMode):
         self._up = up
         self._forward = forward
 
-    def update(self, input_state: Dict[str, float], dt: float, shift_pressed: bool = False):
+    def update(self, input_state: Dict[str, float], dt: float, shift_pressed: bool = False) -> None:
         """Static camera doesn't move - ignore input."""
-        pass
+        return
 
     def get_vectors(self) -> Tuple[Tuple[float, float, float], ...]:
         """Return pre-computed static vectors."""
-        return self._pos, self._right, self._up, self._forward
+        return (self._pos, self._right, self._up, self._forward)
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset to initial position."""
         self.position = self.initial_position
         self.look_at = self.initial_look_at
         self._compute_vectors()
 
-
-# Future camera modes can be added here:
-#
-# class FPSCamera(CameraMode):
-#     """
-#     First-person shooter style camera.
-#
-#     Camera moves freely in 3D space with ground plane constraint.
-#     - WASD: Move horizontally
-#     - Up/Down: Look up/down
-#     - Left/Right: Turn left/right
-#     - Shift+Space: Move up/down
-#     """
-#     pass
-#
-# class FlyingCamera(CameraMode):
-#     """
-#     Free-flying camera like a bird.
-#
-#     Camera flies above a horizon plane with banking on turns.
-#     - WASD: Move forward/backward/strafe
-#     - Up/Down: Pitch up/down
-#     - Left/Right: Yaw left/right (with banking)
-#     """
-#     pass

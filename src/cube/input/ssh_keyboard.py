@@ -1,9 +1,14 @@
+# Decompiled with PyLingual (https://pylingual.io)
+# Internal filename: /Users/brody/k/nye/cube/src/cube/input/ssh_keyboard.py
+# Bytecode version: 3.12.0rc2 (3531)
+# Source timestamp: 2025-12-23 05:44:34 UTC (1766468674)
+
 """
 SSH keyboard implementation.
 
-Reads keyboard input from terminal over SSH - suitable for remote control of RPi.
+Reads keyboard input from a terminal (typically over SSH) and normalizes it
+into the same key names used by the pygame keyboard implementation.
 """
-
 import sys
 import termios
 import tty
@@ -15,74 +20,70 @@ from .keyboard import Keyboard, KeyboardState
 
 
 class SSHKeyboard(Keyboard):
-    """
-    Keyboard implementation using terminal input (termios).
+    """\n    Keyboard implementation using terminal input (termios).\n\n    This is used for remote SSH sessions where we need to read raw terminal input.\n    Typically used on Raspberry Pi to accept keyboard input from a remote Mac via SSH.\n    """
 
-    This is used for remote SSH sessions where we need to read raw terminal input.
-    Typically used on Raspberry Pi to accept keyboard input from a remote Mac via SSH.
-    """
-
-    def __init__(self, key_hold_duration: float = 0.15):
+    def __init__(self, key_hold_duration: float = 0.15) -> None:
         """
-        Initialize SSH keyboard with terminal in raw/cbreak mode.
+        Initialize SSH keyboard with terminal in cbreak, non‑blocking mode.
 
         Args:
             key_hold_duration: How long (in seconds) to keep keys "held" after press.
-                              This smooths out jittery SSH input by maintaining key state
-                              even if network latency causes gaps. Default 0.15s (150ms).
+                               This smooths out jittery SSH input by maintaining key
+                               state even if network latency causes gaps. Default
+                               0.15s (150ms).
         """
         self.stdin_fd = sys.stdin.fileno()
         self.old_settings = None
         self.old_flags = None
         self._setup_terminal()
-
-        # Track held keys with timestamps (for smooth SSH input)
-        # Keys remain "held" for key_hold_duration after last press
-        self._key_timestamps: Dict[str, float] = {}
+        self._key_timestamps = {}
         self._key_hold_duration = key_hold_duration
-
-        # Track shift state separately (detected via shift+arrow or 'z' key)
         self._shift_held = False
 
-    def _setup_terminal(self):
-        """Set up terminal in cbreak mode for non-blocking character input."""
+    def _setup_terminal(self) -> None:
+        """Set up terminal in cbreak mode for non‑blocking character input."""
         try:
-            # Save old terminal settings
-            self.old_settings = termios.tcgetattr(sys.stdin)
+            # Save original settings and flags so we can restore them in cleanup()
+            self.old_settings = termios.tcgetattr(self.stdin_fd)
             self.old_flags = fcntl.fcntl(self.stdin_fd, fcntl.F_GETFL)
 
-            # Use cbreak mode (allows Ctrl-C) instead of raw mode
+            # Put terminal into cbreak mode (no line buffering, minimal processing)
             tty.setcbreak(self.stdin_fd)
 
-            # Make stdin non-blocking
-            fcntl.fcntl(self.stdin_fd, fcntl.F_SETFL, self.old_flags | os.O_NONBLOCK)
+            # Make stdin non‑blocking so poll() never blocks the render loop
+            fcntl.fcntl(self.stdin_fd, fcntl.F_SETFL,
+                        self.old_flags | os.O_NONBLOCK)
         except Exception as e:
-            print(f"Warning: Could not setup terminal for keyboard input: {e}")
+            print(f'Warning: Could not setup terminal for keyboard input: {e}')
+            self.old_settings = None
+            self.old_flags = None
 
     def _read_terminal_input(self) -> Optional[str]:
         """
-        Read available input from terminal (non-blocking).
+        Read all currently available input from stdin in a non‑blocking way.
 
         Returns:
-            String of all characters read, or None if no input available
+            A string containing all characters read, or None if no input
+            was available.
         """
         chars = ''
-        try:
-            while True:
-                try:
-                    c = sys.stdin.read(1)
-                    if c:
-                        chars += c
-                    else:
-                        break
-                except (IOError, OSError):
-                    break
-        except Exception:
-            pass
 
-        # Debug: Print what we received (uncomment for debugging)
-        # if chars:
-        #     print(f"DEBUG: Received {repr(chars)} (hex: {chars.encode('utf-8').hex()})")
+        while True:
+            try:
+                c = sys.stdin.read(1)
+            except (BlockingIOError, InterruptedError, OSError):
+                # No more data available right now (non‑blocking read)
+                break
+
+            if not c:
+                # EOF or no data
+                break
+
+            chars += c
+
+            # For escape sequences, characters often arrive in a burst; since
+            # we're non‑blocking and looping until the OS says "no more data",
+            # just keep reading until the exceptions/EOF catch us.
 
         return chars if chars else None
 
@@ -91,169 +92,139 @@ class SSHKeyboard(Keyboard):
         Parse raw terminal input into standard key names.
 
         Args:
-            chars: Raw characters from terminal
+            chars: Raw characters from terminal.
 
         Returns:
-            Standard key name, or None if not recognized
+            Standard key name, or None if not recognized.
 
-        Note: Also sets self._shift_held as a side effect when shift is detected
+        Side effects:
+            Updates self._shift_held when a shifted arrow or explicit shift key
+            is detected.
         """
-        # Reset shift state (will be set if detected)
         self._shift_held = False
-
-        # Check for Ctrl-C (clear input buffer in prompt mode)
+        # Ctrl+C (ETX) should be passed through so higher layers can decide
+        # whether to treat it as "quit" or something else.
         if '\x03' in chars:
             return 'ctrl-c'
-
-        # Check for Shift+Arrow escape sequences (terminal sends different codes)
-        # Shift+Up: ESC[1;2A
-        if '\x1b[1;2A' in chars:
+        if '[1;2A' in chars:
             self._shift_held = True
             return 'up'
-        elif '\x1b[1;2B' in chars:
+        if '[1;2B' in chars:
             self._shift_held = True
             return 'down'
-        elif '\x1b[1;2C' in chars:
+        if '[1;2C' in chars:
             self._shift_held = True
             return 'right'
-        elif '\x1b[1;2D' in chars:
+        if '[1;2D' in chars:
             self._shift_held = True
             return 'left'
-
-        # Check for regular arrow key escape sequences
-        # Full escape sequences
-        if '\x1b[A' in chars:
+        if '[A' in chars:
             return 'up'
-        elif '\x1b[B' in chars:
+        if '[B' in chars:
             return 'down'
-        elif '\x1b[C' in chars:
+        if '[C' in chars:
             return 'right'
-        elif '\x1b[D' in chars:
+        if '[D' in chars:
             return 'left'
-
-        # Partial escape sequences (ESC consumed by terminal)
-        elif '[A' in chars:
+        if '[A' in chars:
             return 'up'
-        elif '[B' in chars:
+        if '[B' in chars:
             return 'down'
-        elif '[C' in chars:
+        if '[C' in chars:
             return 'right'
-        elif '[D' in chars:
+        if '[D' in chars:
             return 'left'
-
-        # Single character keys
-        # WASD navigation
         if chars == 'w':
             return 'w'
-        elif chars == 's':
+        if chars == 's':
             return 's'
-        elif chars == 'a':
+        if chars == 'a':
             return 'a'
-        elif chars == 'd':
+        if chars == 'd':
             return 'd'
-
-        # Uppercase WASD (indicates shift is held)
-        elif chars == 'W':
+        if chars == 'W':
             self._shift_held = True
             return 'w'
-        elif chars == 'S':
+        if chars == 'S':
             self._shift_held = True
             return 's'
-        elif chars == 'A':
+        if chars == 'A':
             self._shift_held = True
             return 'a'
-        elif chars == 'D':
+        if chars == 'D':
             self._shift_held = True
             return 'd'
-
-        # Z key - alternate shift modifier for SSH (easier to detect)
-        elif chars == 'z' or chars == 'Z':
+        if chars == 'z' or chars == 'Z':
             self._shift_held = True
-            return 'shift'  # Return 'shift' as the key press
-
-        # Special keys
-        elif chars == '\r' or chars == '\n':
+            return 'shift'
+        if chars == '\r' or chars == '\n':
             return 'enter'
-        elif chars == ' ' or chars == '\x20':  # Space character (ASCII 32)
+        if chars == ' ':
             return 'space'
-        elif chars == '\x1b':  # Bare ESC
+        if chars == '':
             return 'escape'
-        elif chars == '\x7f':  # Backspace
+        if chars == '\x7f':
             return 'backspace'
-
-        # Letter keys
-        elif chars == 'b':
+        if chars == 'b':
             return 'b'
-        elif chars == 'v':
+        if chars == 'v':
             return 'v'
-        elif chars == 'f':
+        if chars == 'f':
             return 'f'
-        elif chars == 'g':
+        if chars == 'g':
             return 'g'
-        elif chars == 'q':
+        if chars == 'q':
             return 'q'
-        elif chars == 'r':
+        if chars == 'r':
             return 'r'
-        elif chars == 'e':
+        if chars == 'e':
             return 'e'
-        elif chars == 'c':
+        if chars == 'c':
             return 'c'
-        elif chars == 't':
+        if chars == 't':
             return 't'
-        elif chars == 'm':
+        if chars == 'm':
             return 'm'
-        elif chars == 'n':
+        if chars == 'n':
             return 'n'
-        elif chars == 'i':
+        if chars == 'i':
             return 'i'
-
-        # Uppercase letter keys (shift held)
-        elif chars == 'E':
+        if chars == 'E':
             self._shift_held = True
             return 'e'
-        elif chars == 'C':
+        if chars == 'C':
             self._shift_held = True
             return 'c'
-        elif chars == 'M':
+        if chars == 'M':
             self._shift_held = True
             return 'm'
-        elif chars == 'N':
+        if chars == 'N':
             self._shift_held = True
             return 'n'
-
-        # MIDI control punctuation keys
-        elif chars == ',':
+        if chars == ',':
             return ','
-        elif chars == '.':
+        if chars == '.':
             return '.'
-        elif chars == '[':
+        if chars == '[':
             return '['
-        elif chars == ']':
+        if chars == ']':
             return ']'
-        elif chars == ';':
+        if chars == ';':
             return ';'
-        elif chars == "'":
-            return "'"
-
-        # Settings control keys
-        elif chars == '-':
+        if chars == '\'':
+            return '\''
+        if chars == '-':
             return '-'
-        elif chars == '=':
+        if chars == '=':
             return '='
-        elif chars == '_':
+        if chars == '_':
             return '_'
-        elif chars == '+':
+        if chars == '+':
             return '+'
-
-        # Number keys
-        elif chars in '0123456789':
+        if chars in '0123456789':
             return chars
-
-        # Catch-all: Pass through any single printable character for text input
-        # (but exclude space since we handle it above as 'space')
-        elif len(chars) == 1 and chars.isprintable() and chars != ' ':
+        if len(chars) == 1 and chars.isprintable() and (chars != ' '):
             return chars
-
         return None
 
     def poll(self) -> KeyboardState:
@@ -261,55 +232,39 @@ class SSHKeyboard(Keyboard):
         Poll terminal for keyboard input.
 
         Returns:
-            KeyboardState with current keyboard state
+            KeyboardState with current keyboard state.
         """
         state = KeyboardState()
         current_time = time.time()
-
-        # Read input from terminal
         chars = self._read_terminal_input()
-
         if chars:
-            # Parse into standard key name (also sets self._shift_held)
             key = self._parse_terminal_input(chars)
-
             if key:
                 state.key_press = key
-
-                # Record/update timestamp for this key
                 self._key_timestamps[key] = current_time
-
-                # If shift was detected, add it to timestamps too
                 if self._shift_held:
                     self._key_timestamps['shift'] = current_time
-
-        # Build held keys list from keys within hold duration
         held_keys = []
         expired_keys = []
-
         for key, timestamp in self._key_timestamps.items():
             if current_time - timestamp <= self._key_hold_duration:
                 held_keys.append(key)
-            else:
+            else:  # inserted
                 expired_keys.append(key)
-
-        # Clean up expired keys
         for key in expired_keys:
             del self._key_timestamps[key]
-
         state.keys_held = held_keys
-
         return state
 
     def cleanup(self):
         """Restore terminal to original settings."""
-        if self.old_settings is not None:
-            try:
-                # Restore stdin flags
-                if self.old_flags is not None:
-                    fcntl.fcntl(self.stdin_fd, fcntl.F_SETFL, self.old_flags)
+        if self.old_settings is None:
+            return
 
-                # Restore terminal settings
-                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
-            except Exception as e:
-                print(f"Warning: Could not restore terminal settings: {e}")
+        try:
+            if self.old_flags is not None:
+                fcntl.fcntl(self.stdin_fd, fcntl.F_SETFL, self.old_flags)
+            termios.tcsetattr(
+                self.stdin_fd, termios.TCSADRAIN, self.old_settings)
+        except Exception as e:
+            print(f'Warning: Could not restore terminal settings: {e}')

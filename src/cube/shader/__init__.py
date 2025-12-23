@@ -24,17 +24,11 @@ Example usage:
     >>> renderer.render()
     >>> pixels = renderer.read_pixels()
 """
-
 from .shader_renderer import ShaderRenderer, create_shader_renderer
-from .uniform_sources import (
-    UniformSource, UniformSourceManager,
-    KeyboardUniformSource, AudioFileUniformSource, MicrophoneUniformSource
-)
+from .uniform_sources import UniformSource, UniformSourceManager, KeyboardUniformSource, AudioFileUniformSource, MicrophoneUniformSource
 from .camera_modes import CameraMode, SphericalCamera, StaticCamera
 from .camera_uniform_source import CameraUniformSource
-from .audio_processor import AudioProcessor
 
-# Aliases for backwards compatibility
 InputSource = UniformSource
 InputManager = UniformSourceManager
 KeyboardInput = KeyboardUniformSource
@@ -42,28 +36,21 @@ AudioFileInput = AudioFileUniformSource
 MicrophoneInput = MicrophoneUniformSource
 
 __all__ = [
-    # Renderer
-    'ShaderRenderer',
-    'create_shader_renderer',
-
-    # Input abstraction
-    'InputSource',
-    'UniformSource',
-    'InputManager',
-    'UniformSourceManager',
-    'KeyboardInput',
-    'KeyboardUniformSource',
-    'AudioFileInput',
-    'AudioFileUniformSource',
-    'MicrophoneInput',
-    'MicrophoneUniformSource',
-    'CameraUniformSource',
-
-    # Camera modes
-    'CameraMode',
-    'SphericalCamera',
-    'StaticCamera',
-
-    # Audio processing
-    'AudioProcessor',
+    "ShaderRenderer",
+    "create_shader_renderer",
+    "InputSource",
+    "UniformSource",
+    "InputManager",
+    "UniformSourceManager",
+    "KeyboardInput",
+    "KeyboardUniformSource",
+    "AudioFileInput",
+    "AudioFileUniformSource",
+    "MicrophoneInput",
+    "MicrophoneUniformSource",
+    "CameraUniformSource",
+    "CameraMode",
+    "SphericalCamera",
+    "StaticCamera",
 ]
+

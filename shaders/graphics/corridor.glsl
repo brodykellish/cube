@@ -232,7 +232,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ){
 	    float atten = min(1./(distlpsp) + 1./(distlpsp2), 1.);
     	
     	// Ambient light.
-	    float ambience = 0.25;
+	    float ambience = 0.35;
     	
     	// Diffuse lighting.
 	    float diff = max( dot(sn, ld), 0.0);
@@ -284,7 +284,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ){
         
         // Drawing the lines on the walls. Comment this out and change the first texture to
         // granite for a granite corridor effect.
-        sceneCol *= clamp(1.-abs(curve(sp, 0.0125)), .0, 1.);        
+        sceneCol *= clamp(1.-abs(curve(sp, 0.0125)), .0, 1.);
+        
+        // Slight brightness boost
+        sceneCol *= 1.3;
 	   
 	
 	}

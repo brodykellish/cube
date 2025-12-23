@@ -81,6 +81,15 @@ class MIDIState:
         """
         return self.cc_values.get(cc_num, 64)
 
+    def get_cc_values(self) -> Dict[int, int]:
+        """
+        Get a snapshot of all CC values.
+
+        Returns:
+            Dict mapping cc_num -> value
+        """
+        return dict(self.cc_values)
+
     def get_normalized(self, cc_num: int) -> float:
         """
         Get CC value normalized to 0.0-1.0 range.

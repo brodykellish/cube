@@ -99,6 +99,14 @@ def main():
     )
 
     parser.add_argument(
+        "--backend",
+        type=str,
+        choices=["auto", "pygame", "pyglet", "piomatter"],
+        default="auto",
+        help="Display backend to use: auto, pygame, pyglet, or piomatter (default: auto)",
+    )
+
+    parser.add_argument(
         "--ssh-key-hold",
         type=float,
         default=0.15,
@@ -147,7 +155,8 @@ def main():
             default_brightness=args.brightness,
             default_gamma=args.gamma,
             scale=args.scale,
-            ssh_key_hold_duration=args.ssh_key_hold_duration
+            ssh_key_hold_duration=args.ssh_key_hold_duration,
+            backend=args.backend,
         )
 
         # Register cleanup as atexit handler (safety net)

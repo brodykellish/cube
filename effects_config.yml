@@ -1,0 +1,120 @@
+# Effect Configuration
+# Defines all effects available in the system
+# Each effect maps a shader to an Action enum entry with a node class and trigger mode
+
+effects:
+  - action: TOGGLE_BLOOM
+    shader: shaders/effects/bloom.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_CONVOLUTION_KERNEL
+    shader: shaders/effects/convolution_kernel.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_DELAY
+    shader: shaders/effects/delay.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_DISCARD_DARK
+    shader: shaders/effects/discard_dark.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_DISPLACEMENT_MAP
+    shader: shaders/effects/displacement_map.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_FLASH
+    shader: shaders/effects/flashing_light.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_FRAME_DIFFERENCING
+    shader: shaders/effects/frame_differencing.glsl
+    node_class: FrameDifferencingEffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_GLITCH
+    shader: shaders/effects/glitch.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_INVERT
+    shader: shaders/effects/invert.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_MIRROR
+    shader: shaders/effects/mirror.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_MOSAIC
+    shader: shaders/effects/mosaic.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_PIXELATE
+    shader: shaders/effects/pixelate.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_PSYCHEDELIC
+    shader: shaders/effects/psychedelic_fbm.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_RGB_SPLIT
+    shader: shaders/effects/rgb_split.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_GRAYSCALE
+    shader: shaders/effects/rgb_to_grayscale.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_RGB_TO_HSB
+    shader: shaders/effects/rgb_to_hsb.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_SINEWAVE_DISTORT
+    shader: shaders/effects/sinewave_distort.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_SINGLE_BLUR
+    shader: shaders/effects/single_pass_blur.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_SLITSCAN
+    shader: shaders/effects/slitscan.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_STRIPES
+    shader: shaders/effects/stripes_from_image.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_THRESHOLD
+    shader: shaders/effects/threshold.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_DOUBLE_BLUR
+    shader: shaders/effects/two_pass_blur.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_VIDEO_FEEDBACK
+    shader: shaders/effects/video_feedback.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+

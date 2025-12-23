@@ -3,7 +3,6 @@ Keyboard input abstraction.
 
 Provides a unified interface for keyboard input across different platforms and input methods.
 """
-
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
@@ -30,12 +29,12 @@ class KeyboardState:
     def __init__(self):
         """Initialize keyboard state."""
         self.quit = False
-        self.key_press: Optional[str] = None  # Single key press this frame
-        self.keys_held: List[str] = []  # All keys currently held down
-        self.paste_text: Optional[str] = None  # Clipboard text pasted this frame (Cmd+V / Ctrl+V)
+        self.key_press = None
+        self.keys_held = []
+        self.paste_text = None
 
     def __repr__(self) -> str:
-        return f"KeyboardState(quit={self.quit}, key_press={self.key_press}, keys_held={self.keys_held}, paste={self.paste_text})"
+        return f'KeyboardState(quit={self.quit}, key_press={self.key_press}, keys_held={self.keys_held}, paste={self.paste_text})'
 
 
 class Keyboard(ABC):

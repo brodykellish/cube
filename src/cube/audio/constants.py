@@ -1,0 +1,10 @@
+"""Audio processing constants and configuration."""
+SAMPLERATE = 48000
+BLOCKSIZE = 2048
+DEVICE = 'Spotify Tap'
+BASS_RANGE = (20, 250)
+MID_RANGE = (250, 2000)
+HIGH_RANGE = (2000, 16000)
+CHART_WIDTH = 50
+CHART_HEIGHT = 8
+SCALE_DECAY = 0.9995

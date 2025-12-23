@@ -5,7 +5,7 @@ Makes the camera a proper uniform source, following the same pattern
 as MIDI, audio, keyboard, etc. This eliminates special-case camera handling.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import time
 from .uniform_sources import UniformSource
 from .camera_modes import CameraMode, SphericalCamera
@@ -24,7 +24,7 @@ class CameraUniformSource(UniformSource):
     The camera updates based on input state set via set_key_state().
     """
 
-    def __init__(self, camera: CameraMode = None):
+    def __init__(self, camera: CameraMode = None, input_manager: Optional[object] = None):
         """
         Initialize camera uniform source.
 
@@ -43,6 +43,8 @@ class CameraUniformSource(UniformSource):
 
         self.camera = camera
         self.last_update_time = time.time()
+        # Optional InputManager for axis-driven camera control.
+        self._input_manager = input_manager
 
         # Input state (updated by controller via set_key_state)
         self.input_state = {
@@ -81,7 +83,37 @@ class CameraUniformSource(UniformSource):
         Args:
             dt: Delta time since last update
         """
-        # Update camera from input state
+        # Derive input state from InputManager axes when available.
+        local_shift = self.shift_pressed
+
+        if self._input_manager is not None:
+            try:
+                from cube.input.actions import Axis  # Local import to avoid cycles
+
+                pitch = self._input_manager.get_axis(Axis.CAMERA_PITCH, 0.0)
+                yaw = self._input_manager.get_axis(Axis.CAMERA_YAW, 0.0)
+                zoom = self._input_manager.get_axis(Axis.CAMERA_ZOOM, 0.0)
+                roll = self._input_manager.get_axis(Axis.CAMERA_ROLL, 0.0)
+
+                # Map axes into the discrete input_state expected by CameraMode.
+                threshold = 0.1
+                self.input_state["up"] = 1.0 if pitch > threshold else 0.0
+                self.input_state["down"] = 1.0 if pitch < -threshold else 0.0
+                self.input_state["right"] = 1.0 if yaw > threshold else 0.0
+                self.input_state["left"] = 1.0 if yaw < -threshold else 0.0
+                self.input_state["forward"] = 1.0 if zoom > threshold else 0.0
+                self.input_state["backward"] = 1.0 if zoom < -threshold else 0.0
+
+                # Roll: treat as shift+left/right so CameraMode routes to roll.
+                if abs(roll) > threshold:
+                    self.input_state["right"] = 1.0 if roll > threshold else 0.0
+                    self.input_state["left"] = 1.0 if roll < -threshold else 0.0
+                    local_shift = True
+            except Exception:
+                # Fall back to existing input_state values if anything goes wrong.
+                pass
+
+        # Update camera from (possibly updated) input_state
         current_time = time.time()
         dt = current_time - self.last_update_time
         self.last_update_time = current_time
@@ -90,7 +122,7 @@ class CameraUniformSource(UniformSource):
         if dt > 0.1:
             dt = 0.1
 
-        self.camera.update(self.input_state, dt, self.shift_pressed)
+        self.camera.update(self.input_state, dt, local_shift)
 
     def get_uniforms(self) -> Dict[str, Any]:
         """

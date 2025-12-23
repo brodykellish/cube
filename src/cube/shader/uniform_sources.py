@@ -9,7 +9,6 @@ Provides a clean interface for different types of real-time inputs:
 
 Each input source updates its own set of shader uniforms independently.
 """
-
 import time
 import numpy as np
 from abc import ABC, abstractmethod
@@ -33,7 +32,7 @@ class UniformSource(ABC):
         Args:
             dt: Delta time since last update (seconds)
         """
-        pass
+        return
 
     @abstractmethod
     def get_uniforms(self) -> Dict[str, Any]:
@@ -44,16 +43,16 @@ class UniformSource(ABC):
             Dictionary mapping uniform name -> value
             Values can be: float, int, tuple (for vectors), numpy arrays
         """
-        pass
+        return
 
     @abstractmethod
     def cleanup(self):
         """Clean up resources (close files, devices, etc.)."""
-        pass
+        return
 
     def reset(self):
         """Reset input source to initial state (optional)."""
-        pass
+        return
 
 
 class KeyboardUniformSource(UniformSource):
@@ -69,14 +68,8 @@ class KeyboardUniformSource(UniformSource):
 
     def __init__(self):
         """Initialize keyboard input source."""
-        self.input_state = {
-            'left': 0.0,
-            'right': 0.0,
-            'up': 0.0,
-            'down': 0.0,
-            'forward': 0.0,
-            'backward': 0.0,
-        }
+        self.input_state = {'left': 0.0, 'right': 0.0, 'up': 0.0,
+                            'down': 0.0, 'forward': 0.0, 'backward': 0.0}
 
     def set_key_state(self, key: str, pressed: bool):
         """
@@ -91,7 +84,7 @@ class KeyboardUniformSource(UniformSource):
 
     def update(self, dt: float):
         """Update keyboard input (no-op, state updated via set_key_state)."""
-        pass
+        return
 
     def get_uniforms(self) -> Dict[str, Any]:
         """
@@ -103,14 +96,11 @@ class KeyboardUniformSource(UniformSource):
         lr = self.input_state['right'] - self.input_state['left']
         ud = self.input_state['up'] - self.input_state['down']
         fb = self.input_state['forward'] - self.input_state['backward']
-
-        return {
-            'iInput': (lr, ud, fb, 0.0)
-        }
+        return {'iInput': (lr, ud, fb, 0.0)}
 
     def cleanup(self):
         """No cleanup needed for keyboard input."""
-        pass
+        return
 
     def reset(self):
         """Reset all keys to unpressed state."""
@@ -141,31 +131,27 @@ class AudioFileUniformSource(UniformSource):
         """
         self.audio_path = Path(audio_path)
         self.manual_bpm = bpm
-
-        # Try to import audio processor
         try:
             from .audio_processor import AudioProcessor
             self.processor = AudioProcessor(str(self.audio_path))
             self.has_audio = True
         except (ImportError, Exception) as e:
-            print(f"Warning: Could not initialize audio processor: {e}")
-            self.processor = None
-            self.has_audio = False
-
-        # Audio state
-        self.start_time = time.time()
-        self.bpm = bpm if bpm else 120.0  # Default BPM
+            pass
+        else:
+            self.start_time = time.time()
+            self.bpm = bpm if bpm else 120.0
         self.beat_phase = 0.0
         self.beat_pulse = 0.0
         self.last_beat_time = 0.0
-
-        # If we have a processor, get actual BPM
         if self.has_audio and self.processor:
             detected_bpm = self.processor.get_bpm()
             if detected_bpm > 0:
                 self.bpm = detected_bpm
             elif self.manual_bpm:
                 self.bpm = self.manual_bpm
+            print(f'Warning: Could not initialize audio processor: {e}')
+            self.processor = None
+            self.has_audio = False
 
     def update(self, dt: float):
         """
@@ -175,20 +161,16 @@ class AudioFileUniformSource(UniformSource):
             dt: Delta time since last update
         """
         elapsed = time.time() - self.start_time
-
         if self.has_audio and self.processor:
-            # Use audio processor for accurate beat detection
             self.beat_phase = self.processor.get_beat_phase(elapsed)
             self.beat_pulse = self.processor.get_beat_pulse(elapsed)
             self.bpm = self.processor.get_bpm()
         else:
-            # Fallback: simple BPM-based beat tracking
             beat_duration = 60.0 / self.bpm
-            self.beat_phase = (elapsed % beat_duration) / beat_duration
-
-            # Simple beat pulse (1.0 at beat, decays over 0.1 seconds)
-            time_since_beat = elapsed - (int(elapsed / beat_duration) * beat_duration)
-            self.beat_pulse = max(0.0, 1.0 - (time_since_beat / 0.1))
+            self.beat_phase = elapsed % beat_duration / beat_duration
+            time_since_beat = elapsed - \
+                int(elapsed / beat_duration) * beat_duration
+            self.beat_pulse = max(0.0, 1.0 - time_since_beat / 0.1)
 
     def get_uniforms(self) -> Dict[str, Any]:
         """
@@ -197,17 +179,12 @@ class AudioFileUniformSource(UniformSource):
         Returns:
             {'iBPM': float, 'iBeatPhase': float, 'iBeatPulse': float}
         """
-        return {
-            'iBPM': self.bpm,
-            'iBeatPhase': self.beat_phase,
-            'iBeatPulse': self.beat_pulse,
-        }
+        return {'iBPM': self.bpm, 'iBeatPhase': self.beat_phase, 'iBeatPulse': self.beat_pulse}
 
     def cleanup(self):
         """Clean up audio processor."""
         if self.processor:
-            # Processor cleanup handled automatically
-            pass
+            return
 
     def reset(self):
         """Reset audio playback to beginning."""
@@ -238,41 +215,30 @@ class MicrophoneUniformSource(UniformSource):
             device_index: Audio device index (None for default)
         """
         self.device_index = device_index
-
-        # Try to import audio libraries
         try:
             import pyaudio
             self.has_audio = True
             self.pyaudio = pyaudio
         except ImportError:
-            print("Warning: pyaudio not installed. Microphone input disabled.")
+            pass
+        else:
+            self.bpm = 120.0
+            self.beat_phase = 0.0
+            self.beat_pulse = 0.0
+            self.audio_level = 0.0
+            self.spectrum = (0.0, 0.0, 0.0, 0.0)
+            if self.has_audio:
+                print(
+                    'Note: MicrophoneInput is a stub. Real-time audio analysis not yet implemented.')
+            print('Warning: pyaudio not installed. Microphone input disabled.')
             self.has_audio = False
             self.pyaudio = None
 
-        # Audio state
-        self.bpm = 120.0
-        self.beat_phase = 0.0
-        self.beat_pulse = 0.0
-        self.audio_level = 0.0
-        self.spectrum = (0.0, 0.0, 0.0, 0.0)
-
-        # TODO: Initialize pyaudio stream for real-time capture
-        # This would require:
-        # 1. Open audio stream with callback
-        # 2. Perform FFT analysis in callback
-        # 3. Detect beats from low-frequency energy
-        # 4. Update uniforms based on analysis
-
-        if self.has_audio:
-            print("Note: MicrophoneInput is a stub. Real-time audio analysis not yet implemented.")
-
     def update(self, dt: float):
         """Update microphone analysis (stub)."""
-        # TODO: Process audio buffer and update uniforms
-        # For now, provide dummy values
         import math
         t = time.time()
-        self.beat_phase = (t % 0.5) / 0.5
+        self.beat_phase = t % 0.5 / 0.5
         self.beat_pulse = 1.0 if self.beat_phase < 0.1 else 0.0
         self.audio_level = (math.sin(t * 2) + 1) / 2
 
@@ -283,18 +249,11 @@ class MicrophoneUniformSource(UniformSource):
         Returns:
             Dictionary with audio-related uniforms
         """
-        return {
-            'iBPM': self.bpm,
-            'iBeatPhase': self.beat_phase,
-            'iBeatPulse': self.beat_pulse,
-            'iAudioLevel': self.audio_level,
-            'iAudioSpectrum': self.spectrum,
-        }
+        return {'iBPM': self.bpm, 'iBeatPhase': self.beat_phase, 'iBeatPulse': self.beat_pulse, 'iAudioLevel': self.audio_level, 'iAudioSpectrum': self.spectrum}
 
     def cleanup(self):
         """Clean up audio stream."""
-        # TODO: Close pyaudio stream
-        pass
+        return
 
     def reset(self):
         """Reset microphone input state."""
@@ -321,11 +280,11 @@ class CameraUniformSource(UniformSource):
             device_index: Camera device index
         """
         self.device_index = device_index
-        print("Note: CameraInput not yet implemented. This is a placeholder.")
+        print('Note: CameraInput not yet implemented. This is a placeholder.')
 
     def update(self, dt: float):
         """Update camera frame (stub)."""
-        pass
+        return
 
     def get_uniforms(self) -> Dict[str, Any]:
         """Get camera uniforms (stub)."""
@@ -333,7 +292,7 @@ class CameraUniformSource(UniformSource):
 
     def cleanup(self):
         """Clean up camera capture."""
-        pass
+        return
 
 
 class UniformSourceManager:

@@ -3,7 +3,7 @@ Platform-aware shader renderer factory.
 
 This module automatically detects the platform and imports the appropriate
 shader renderer implementation:
-- MacOS: GLUTShaderRenderer (offscreen rendering)
+- MacOS: PygletShaderRendererFBO (modern OpenGL, offscreen via FBO)
 - Linux/Raspberry Pi: EGLShaderRenderer (headless rendering)
 
 Both implementations provide offscreen rendering suitable for compositing
@@ -36,19 +36,21 @@ def create_shader_renderer(width: int, height: int, **kwargs):
     system = platform.system()
     
     if system == 'Darwin':
-        from .shader_renderer_glut import GLUTShaderRenderer
-        print(f"Detected MacOS - using GLUT renderer (offscreen)")
-        return GLUTShaderRenderer(width, height)
+        # Use modern pyglet-based FBO renderer on macOS.
+        from .shader_renderer_pyglet_fbo import PygletShaderRendererFBO
+
+        print("Detected MacOS - using Pyglet FBO renderer (modern OpenGL)")
+        return PygletShaderRendererFBO(width, height)
     
-    elif system == 'Linux':
+    if system == 'Linux':
         from .shader_renderer_egl import EGLShaderRenderer
-        print(f"Detected Linux - using EGL renderer (headless)")
+
+        print("Detected Linux - using EGL renderer (headless)")
         return EGLShaderRenderer(width, height)
     
-    else:
         raise RuntimeError(
             f"Unsupported platform: {system}. "
-            "Shader renderer only supports MacOS (GLUT) and Linux (EGL)."
+        "Shader renderer only supports MacOS (pyglet FBO) and Linux (EGL)."
         )
 
 

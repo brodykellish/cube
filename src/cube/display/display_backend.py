@@ -1,12 +1,19 @@
+# Decompiled with PyLingual (https://pylingual.io)
+# Internal filename: /Users/brody/k/nye/cube/src/cube/display/display_backend.py
+# Bytecode version: 3.12.0rc2 (3531)
+# Source timestamp: 2025-12-23 05:44:34 UTC (1766468674)
+
 """
 Display backend abstraction for menu rendering.
+
 Supports both pygame (development) and piomatter (LED cube).
 """
-
 import numpy as np
 import platform
 from abc import ABC, abstractmethod
 from typing import List
+
+from .backend import create_backend
 
 
 class DisplayBackend(ABC):
@@ -32,24 +39,15 @@ class DisplayBackend(ABC):
         """
         if len(layers) == 0:
             return np.zeros((self.height, self.width, 3), dtype=np.uint8)
-
         if len(layers) == 1:
             return layers[0].copy()
-
-        # Start with bottom layer
         result = layers[0].copy()
-
-        # Overlay each subsequent layer
         for layer in layers[1:]:
-            # Create mask: True where layer is non-black (has content)
             mask = np.any(layer != 0, axis=2, keepdims=True)
-
-            # Apply layer pixels where mask is True
             result = np.where(mask, layer, result)
-
         return result
 
-    def apply_corrections(self, framebuffer: np.ndarray, brightness: float = 100.0, gamma: float = 1.0) -> np.ndarray:
+    def apply_corrections(self, framebuffer: np.ndarray, brightness: float=100.0, gamma: float=1.0) -> np.ndarray:
         """
         Apply brightness and gamma corrections to framebuffer.
 
@@ -61,20 +59,12 @@ class DisplayBackend(ABC):
         Returns:
             Corrected framebuffer
         """
-        # Convert to float for processing
         result = framebuffer.astype(np.float32)
-
-        # Apply gamma correction
         if gamma != 1.0:
             result = np.power(result / 255.0, gamma) * 255.0
-
-        # Apply brightness scaling
         if brightness != 100.0:
             result = result * (brightness / 100.0)
-
-        # Clamp to valid range and convert back to uint8
         result = np.clip(result, 0, 255).astype(np.uint8)
-
         return result
 
     @abstractmethod
@@ -90,7 +80,7 @@ class DisplayBackend(ABC):
         Args:
             framebuffer: Complete framebuffer to display (any size)
         """
-        pass
+        return
 
     @abstractmethod
     def handle_events(self) -> dict:
@@ -100,15 +90,41 @@ class DisplayBackend(ABC):
         Returns:
             dict with keys: 'quit' (bool), 'key' (str or None)
         """
-        pass
+        return
 
     @abstractmethod
     def cleanup(self):
         """Clean up resources."""
-        pass
+        return
 
 
-def create_display_backend(width: int, height: int, preview: bool = False, **kwargs) -> DisplayBackend:
+class PygletDisplayBackend(DisplayBackend):
+    """
+    Adapter that wraps the legacy pyglet backend so it can be used
+    with the higher-level Display interface.
+    """
+
+    def __init__(self, width: int, height: int, scale: int = 1, **kwargs):
+        backend = create_backend("pyglet", width, height, scale=scale, **kwargs)
+        super().__init__(backend.width, backend.height)
+        # Underlying legacy backend (provides window + keyboard, etc.)
+        self._backend = backend
+        # Expose keyboard driver for higher-level input wiring.
+        self.keyboard = getattr(backend, "keyboard", None)
+
+    def show_framebuffer(self, framebuffer: np.ndarray):
+        """Display a complete framebuffer via pyglet backend."""
+        self._backend.display(framebuffer)
+
+    def handle_events(self) -> dict:
+        """Delegate to pyglet backend event polling."""
+        return self._backend.poll()
+
+    def cleanup(self):
+        """Clean up pyglet backend resources."""
+        self._backend.close()
+
+def create_display_backend(width: int, height: int, preview: bool=False, **kwargs) -> DisplayBackend:
     """
     Factory function to create appropriate display backend.
 
@@ -121,22 +137,15 @@ def create_display_backend(width: int, height: int, preview: bool = False, **kwa
     Returns:
         DisplayBackend instance
     """
-    # Determine which backend to use
     is_dev_platform = platform.system() in ('Darwin', 'Windows')
     use_preview = preview or is_dev_platform
-
-    # Check for DRM device on Linux (indicates GPU available)
     has_drm = False
-    if platform.system() == 'Linux' and not preview:
+    if platform.system() == 'Linux' and (not preview):
         import os
         has_drm = os.path.exists('/dev/dri/card0')
-
-    if use_preview or not has_drm:
-        # Use pygame for development
+    if not use_preview and (not has_drm):
         from .pygame_backend import PygameBackend
         scale = kwargs.get('scale', 1)
         return PygameBackend(width, height, scale=scale)
-    else:
-        # Use piomatter for LED cube
-        from .piomatter_backend import PiomatterBackend
-        return PiomatterBackend(width, height, **kwargs)
+    from .piomatter_backend import PiomatterBackend
+    return PiomatterBackend(width, height, **kwargs)
