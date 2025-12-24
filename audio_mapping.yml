@@ -2,7 +2,7 @@ mappings:
   iParam0: u_audio_rms
   iParam1: u_audio_bass
   iParam2: u_audio_mid
-  iParam3: u_audio_high
+  iParam3: u_audio_flux
   iParam4: null
   iParam5: null
   iParam6: null

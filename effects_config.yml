@@ -3,10 +3,6 @@
 # Each effect maps a shader to an Action enum entry with a node class and trigger mode
 
 effects:
-  - action: TOGGLE_BLOOM
-    shader: shaders/effects/bloom.glsl
-    node_class: EffectNode
-    trigger_mode: toggle
 
   - action: TOGGLE_DISPLACEMENT_MAP
     shader: shaders/effects/displacement_map.glsl
@@ -35,6 +31,11 @@ effects:
 
   - action: TOGGLE_INVERT
     shader: shaders/effects/invert.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_KALEIDOSCOPE
+    shader: shaders/effects/kaleidoscope.glsl
     node_class: EffectNode
     trigger_mode: toggle
 
@@ -113,3 +114,7 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
+  - action: TOGGLE_VHS
+    shader: shaders/effects/vhs_distortion.glsl
+    node_class: EffectNode
+    trigger_mode: toggle

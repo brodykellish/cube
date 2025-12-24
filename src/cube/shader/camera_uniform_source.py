@@ -58,7 +58,7 @@ class CameraUniformSource(UniformSource):
 
         self.shift_pressed = False
 
-        # Temporary override for multi-pass rendering (e.g., cube faces)
+        # Temporary override for cube face rendering
         self._override_vectors = None
 
     def set_key_state(self, key: str, pressed: bool):
@@ -131,7 +131,7 @@ class CameraUniformSource(UniformSource):
         Returns:
             Dictionary with camera uniforms
         """
-        # Use override vectors if set (for multi-pass rendering)
+        # Use override vectors if set (for cube face rendering)
         if self._override_vectors is not None:
             pos, right, up, forward = self._override_vectors
         else:
@@ -146,7 +146,7 @@ class CameraUniformSource(UniformSource):
 
     def set_override_vectors(self, vectors):
         """
-        Temporarily override camera vectors for multi-pass rendering.
+        Temporarily override camera vectors for cube face rendering.
 
         Args:
             vectors: (pos, right, up, forward) tuple or None to clear override

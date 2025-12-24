@@ -8,6 +8,7 @@
 //                    instead of int(mod(n/exp2(p.x + 5.0*p.y), 2.0))
 // update 2023-04-21: added characters A-Z and 0-9 and some others
 //                    black/white mode does not use gray value anymore
+// iParam4: ASCII character density (0.0-1.0 -> 8.0-1.0 pixel cell size)
 
 float character(int n, vec2 p)
 {
@@ -26,7 +27,7 @@ float character(int n, vec2 p)
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
 	vec2 uv = fragCoord / iResolution.xy;
-	vec2 pix = floor(uv * iResolution.xy / 8.0) * 8.0 / iResolution.xy;
+	vec2 pix = floor(uv * iResolution.xy) / iResolution.xy;
 	vec3 col = texture(iChannel0, pix).rgb;	
 	
 	float gray = 0.3 * col.r + 0.59 * col.g + 0.11 * col.b;
@@ -43,7 +44,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 	if (gray > 0.8) n = 11512810; // #
     
     // full character set including A-Z and 0-9
-    /*
     if (gray > 0.0233) n = 4096;
     if (gray > 0.0465) n = 131200;
     if (gray > 0.0698) n = 4329476;
@@ -86,10 +86,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     if (gray > 0.9302) n = 32045630;
     if (gray > 0.9535) n = 33061407;
     if (gray > 0.9767) n = 11512810;
-	*/
     
 	vec2 pixCoord = fragCoord.xy;
-	vec2 p = mod(pixCoord/4.0, 2.0) - vec2(1.0);
+	float cellSize = mix(8.0, 1.0, clamp(iParam4, 0.0, 1.0));
+	vec2 p = mod(pixCoord/cellSize, 2.0) - vec2(1.0);
     
 	if (iMouse.z > 0.5)	col = vec3(character(n, p));
 	else col = col*character(n, p);

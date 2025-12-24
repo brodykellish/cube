@@ -52,7 +52,6 @@ class Action(Enum):
     # Edge detection and blur
     TOGGLE_EDGE_DETECTION = auto()
     TOGGLE_BLUR = auto()
-    TOGGLE_BLOOM = auto()
     
     # Distortion effects
     TOGGLE_PIXELATE = auto()

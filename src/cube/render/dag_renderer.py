@@ -23,7 +23,7 @@ from cube.render.effect_config_loader import load_effect_config
 from cube.input.actions import Action
 from cube.utils.gl_utils import create_fullscreen_quad
 from cube.utils.texture_utils import read_texture_to_numpy
-from .pixel_mappers import PixelMapper
+from .pixel_mappers import PixelMapper, RenderSpec
 
 
 class DAGRenderer:
@@ -83,7 +83,7 @@ class DAGRenderer:
         # Create DAG
         self.dag = DAG()
         
-        # Store nodes for each render spec (for cube mode multi-pass)
+        # Store nodes for each render spec
         self.source_nodes: List[SourceNode] = []
         self.current_shader_program = None
         self.shader_path = None
@@ -167,8 +167,9 @@ class DAGRenderer:
         # Ensure context is current
         self.make_context_current()
         
-        # Load shader program
         glsl_version = self._get_glsl_version()
+        
+        # Load shader program
         self.current_shader_program = load_shader_program(
             shader_path,
             name="main",
@@ -385,7 +386,7 @@ class DAGRenderer:
         
         # For volumetric/cube mode, temporarily reposition camera for each face
         for i, spec in enumerate(render_specs):
-            # If multi-pass rendering, reposition the camera to view from this face
+            # Reposition the camera to view from this face
             if len(render_specs) > 1 and hasattr(self.pixel_mapper, 'reposition_camera_for_face'):
                 self.pixel_mapper.reposition_camera_for_face(i, self.camera_source)
                 # Update uniforms again with new camera
@@ -409,17 +410,27 @@ class DAGRenderer:
                         output_texture = fx.output_texture
                 
                 # Read texture to numpy array
-                if output_texture.color_texture:
+                if output_texture and output_texture.color_texture:
                     pixels = read_texture_to_numpy(
                         output_texture.color_texture,
                         spec.width,
                         spec.height
                     )
                     renders.append(pixels)
+                else:
+                    # Create a black frame if texture is missing
+                    print(f"Warning: No output texture for render spec {i}, creating black frame")
+                    renders.append(np.zeros((spec.height, spec.width, 3), dtype=np.uint8))
         
         # Clear camera override after all faces rendered
         if len(render_specs) > 1:
             self.camera_source.set_override_vectors(None)
+        
+        # Safety check: ensure we have at least one render
+        if not renders:
+            print("Error: No renders produced, creating default black frame")
+            default_spec = render_specs[0] if render_specs else RenderSpec(512, 256, None)
+            renders.append(np.zeros((default_spec.height, default_spec.width, 3), dtype=np.uint8))
         
         # Layout all renders into final framebuffer
         return self.pixel_mapper.layout_renders(renders)
