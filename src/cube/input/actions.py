@@ -48,15 +48,10 @@ class Action(Enum):
     TOGGLE_INVERT = auto()
     TOGGLE_GRAYSCALE = auto()
     TOGGLE_THRESHOLD = auto()
-    TOGGLE_POSTERIZE = auto()
-    TOGGLE_BRIGHTNESS = auto()
-    TOGGLE_CONTRAST = auto()
-    TOGGLE_SEPIA = auto()
     
     # Edge detection and blur
     TOGGLE_EDGE_DETECTION = auto()
-    TOGGLE_SINGLE_BLUR = auto()
-    TOGGLE_DOUBLE_BLUR = auto()
+    TOGGLE_BLUR = auto()
     TOGGLE_BLOOM = auto()
     
     # Distortion effects
@@ -69,15 +64,12 @@ class Action(Enum):
     TOGGLE_DISPLACEMENT_MAP = auto()
     
     # Post-processing effects
-    TOGGLE_VIGNETTE = auto()
-    TOGGLE_CHROMATIC_ABERRATION = auto()
     TOGGLE_NOISE = auto()
     TOGGLE_SCANLINES = auto()
     
     # Stylization effects
-    TOGGLE_EMBOSS = auto()
-    TOGGLE_TOON = auto()
     TOGGLE_GLITCH = auto()
+    TOGGLE_ASCII = auto()
     
     # Special effects
     TOGGLE_MIRROR = auto()
@@ -86,7 +78,6 @@ class Action(Enum):
     TOGGLE_FRAME_DIFFERENCING = auto()
     TOGGLE_MOSAIC = auto()
     TOGGLE_SLITSCAN = auto()
-    TOGGLE_DISCARD_DARK = auto()
     TOGGLE_VIDEO_FEEDBACK = auto()
 
     # Parameter increment/decrement (keyboard control)

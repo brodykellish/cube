@@ -8,11 +8,6 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
-  - action: TOGGLE_DISCARD_DARK
-    shader: shaders/effects/discard_dark.glsl
-    node_class: EffectNode
-    trigger_mode: toggle
-
   - action: TOGGLE_DISPLACEMENT_MAP
     shader: shaders/effects/displacement_map.glsl
     node_class: EffectNode
@@ -88,7 +83,7 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
-  - action: TOGGLE_SINGLE_BLUR
+  - action: TOGGLE_BLUR
     shader: shaders/effects/single_pass_blur.glsl
     node_class: EffectNode
     trigger_mode: toggle
@@ -108,13 +103,13 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
-  - action: TOGGLE_DOUBLE_BLUR
-    shader: shaders/effects/two_pass_blur.glsl
+  - action: TOGGLE_VIDEO_FEEDBACK
+    shader: shaders/effects/video_feedback.glsl
     node_class: EffectNode
     trigger_mode: toggle
 
-  - action: TOGGLE_VIDEO_FEEDBACK
-    shader: shaders/effects/video_feedback.glsl
+  - action: TOGGLE_ASCII
+    shader: shaders/effects/ascii.glsl
     node_class: EffectNode
     trigger_mode: toggle
 
