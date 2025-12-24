@@ -38,13 +38,15 @@ void mainImage( out vec4 C, in vec2 U )
           i = 0., d = i, s, r;
     
     vec2 R = iResolution.xy,
-         m = (iMouse.z > 0.) ?  // clicking?
+         uv = (U - R/2.) / R.y;
+    
+    vec3 o = iCameraPos * 2.5;
+    vec3 u = normalize(uv.x * iCameraRight + uv.y * iCameraUp + iCameraForward);
+    vec3 c = vec3(0), p;
+    
+    vec2 m = (iMouse.z > 0.) ?  // clicking?
                (iMouse.xy - R/2.)/R.y:  // coords from mouse
                vec2(cos(iTime/4. - vec2(0, 1.5708)))*.2;  // coords from time
-    
-    vec3 o = vec3(0, -10.*sqrt(1.-abs(m.y*2.)), -90./(m.y+1.)),  // camera
-         u = normalize(vec3(U - R/2., R.y)),  // 3d coords
-         c = vec3(0), p;
     
     mat2 h = A(m.x/2.), // rotate horizontal
          v = A((m.y+.5)/2.);   // vertical

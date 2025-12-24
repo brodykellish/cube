@@ -105,6 +105,8 @@ class BindingMap:
 
         # Load defaults
         self._load_defaults()
+        # Load effect bindings (overrides defaults)
+        self._load_effect_bindings()
 
     def add_binding(self, context: InputContext,
                     target: Union[Action, Axis],
@@ -509,3 +511,33 @@ class BindingMap:
         # ===== PROMPT CONTEXT =====
         # (Similar to menu for now)
         self.add_binding(InputContext.PROMPT, Action.CANCEL, ('key:escape',))
+    
+    def _load_effect_bindings(self):
+        """Load effect bindings from effect_bindings.yml if it exists."""
+        from cube.input.effect_bindings_loader import load_effect_bindings
+        
+        try:
+            _, bindings = load_effect_bindings()
+            
+            for binding in bindings:
+                for inp in binding.inputs:
+                    # Convert input to tuple format if needed
+                    if isinstance(inp, str):
+                        raw_input = (inp,)
+                    elif isinstance(inp, tuple):
+                        raw_input = inp
+                    else:
+                        raw_input = (str(inp),)
+                    
+                    # Add binding (will override defaults if same action/input exists)
+                    self.add_binding(
+                        InputContext.VISUALIZATION,
+                        binding.action,
+                        raw_input
+                    )
+            
+            if bindings:
+                print(f"[BindingMap] Loaded {len(bindings)} effect bindings from effect_bindings.yml")
+        except Exception as e:
+            # Silently fail if config doesn't exist or is invalid
+            pass

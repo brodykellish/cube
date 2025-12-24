@@ -283,6 +283,11 @@ class DAGRenderer:
         all_uniforms['iFrame'] = self.frame_count
         all_uniforms['iTimeDelta'] = 0.016
         
+        # Mouse uniform from gpu_renderer
+        if hasattr(self.gpu_renderer, 'mouse_source'):
+            mouse_uniforms = self.gpu_renderer.mouse_source.get_uniforms()
+            all_uniforms.update(mouse_uniforms)
+        
         # Debug axes
         all_uniforms['iDebugAxes'] = 1.0 if self.settings.get('debug_axes', False) else 0.0
         
@@ -354,59 +359,6 @@ class DAGRenderer:
             import traceback
             traceback.print_exc()
 
-    # ------------------------------------------------------------------
-    # Effects
-    # ------------------------------------------------------------------
-    def _build_flash_effect_nodes(self, shader_path: str = "shaders/effects/flashing_light.glsl"):
-        """(Re)build flash effect nodes for each source node."""
-        if not self.source_nodes:
-            self.flash_effect_nodes = []
-            return
-        if self.flash_shader_program is None:
-            glsl_version = self._get_glsl_version()
-            try:
-                self.flash_shader_program = load_shader_program(
-                    shader_path, name="flash_effect", glsl_version=glsl_version, vao=self.vao
-                )
-            except Exception as exc:
-                print(f"[DAGRenderer] Failed to load flash effect shader: {exc}")
-                self.flash_effect_enabled = False
-                self.flash_effect_nodes = []
-                return
-        nodes: List[EffectNode] = []
-        for i, src in enumerate(self.source_nodes):
-            fx = EffectNode(
-                name=f"flash_{i}",
-                shader=self.flash_shader_program,
-                input_texture=src.output_texture,
-                width=src.width,
-                height=src.height,
-                vao=self.vao,
-            )
-            nodes.append(fx)
-        self.flash_effect_nodes = nodes
-
-    def toggle_flash_effect(self, enabled: Optional[bool] = None):
-        """Enable/disable flashing-light post effect."""
-        new_state = not self.flash_effect_enabled if enabled is None else bool(enabled)
-        if new_state == self.flash_effect_enabled:
-            print(f"[DAGRenderer] Flash effect already {'on' if new_state else 'off'}")
-            return
-        if new_state:
-            self.flash_effect_enabled = True
-            self._build_flash_effect_nodes()
-            if self.flash_effect_enabled:
-                print("[DAGRenderer] Flash effect enabled")
-        else:
-            self.flash_effect_enabled = False
-            for fx in self.flash_effect_nodes:
-                try:
-                    fx.cleanup()
-                except Exception:
-                    pass
-            self.flash_effect_nodes = []
-            print("[DAGRenderer] Flash effect disabled")
-    
     def render(self) -> np.ndarray:
         """
         Render using current pixel mapping strategy.
@@ -499,3 +451,15 @@ class DAGRenderer:
         
         # Clean up GPU renderer
         self.gpu_renderer.cleanup()
+    
+    def update_mouse(self, x: float, y: float, button_pressed: bool = False):
+        """
+        Update mouse state for shader uniforms.
+        
+        Args:
+            x: Mouse x position in pixels
+            y: Mouse y position in pixels
+            button_pressed: True if mouse button is pressed
+        """
+        if hasattr(self.gpu_renderer, 'update_mouse'):
+            self.gpu_renderer.update_mouse(x, y, button_pressed)

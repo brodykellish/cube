@@ -1,0 +1,5 @@
+preset_name: null
+bindings:
+- action: TOGGLE_BLOOM
+  inputs:
+  - key:1

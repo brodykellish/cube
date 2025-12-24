@@ -61,6 +61,40 @@ class PygletBackend(Backend):
                 self._resize_pending = True
                 self._handle_resize(width, height)
         
+        self.mouse_x = 0.0
+        self.mouse_y = 0.0
+        self.mouse_button_pressed = False
+        
+        @self.window.event
+        def on_mouse_motion(x, y, dx, dy):
+            scale_x = self._width / self.window_width if self.window_width > 0 else 1.0
+            scale_y = self._height / self.window_height if self.window_height > 0 else 1.0
+            self.mouse_x = float(x * scale_x)
+            self.mouse_y = float((self.window.height - y) * scale_y)
+        
+        @self.window.event
+        def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+            scale_x = self._width / self.window_width if self.window_width > 0 else 1.0
+            scale_y = self._height / self.window_height if self.window_height > 0 else 1.0
+            self.mouse_x = float(x * scale_x)
+            self.mouse_y = float((self.window.height - y) * scale_y)
+        
+        @self.window.event
+        def on_mouse_press(x, y, button, modifiers):
+            scale_x = self._width / self.window_width if self.window_width > 0 else 1.0
+            scale_y = self._height / self.window_height if self.window_height > 0 else 1.0
+            self.mouse_x = float(x * scale_x)
+            self.mouse_y = float((self.window.height - y) * scale_y)
+            self.mouse_button_pressed = True
+        
+        @self.window.event
+        def on_mouse_release(x, y, button, modifiers):
+            scale_x = self._width / self.window_width if self.window_width > 0 else 1.0
+            scale_y = self._height / self.window_height if self.window_height > 0 else 1.0
+            self.mouse_x = float(x * scale_x)
+            self.mouse_y = float((self.window.height - y) * scale_y)
+            self.mouse_button_pressed = False
+        
         self.keyboard = PygletKeyboard(self.window)
         self.texture = None
         self.vao = None
@@ -206,7 +240,12 @@ class PygletBackend(Backend):
             'quit': keyboard_state.quit,
             'key': keyboard_state.key_press,
             'keys': keyboard_state.keys_held,
-            'paste': keyboard_state.paste_text
+            'paste': keyboard_state.paste_text,
+            'mouse': {
+                'x': self.mouse_x,
+                'y': self.mouse_y,
+                'button_pressed': self.mouse_button_pressed
+            }
         }
         return result
 

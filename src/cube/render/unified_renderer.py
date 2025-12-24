@@ -76,6 +76,18 @@ class UnifiedRenderer:
     def remove_input_source(self, source: UniformSource) -> None:
         """Remove input source."""
         self.gpu_renderer.remove_uniform_source(source)
+    
+    def update_mouse(self, x: float, y: float, button_pressed: bool = False):
+        """
+        Update mouse state for shader uniforms.
+        
+        Args:
+            x: Mouse x position in pixels
+            y: Mouse y position in pixels
+            button_pressed: True if mouse button is pressed
+        """
+        if hasattr(self.gpu_renderer, 'update_mouse'):
+            self.gpu_renderer.update_mouse(x, y, button_pressed)
 
     def render(self) -> np.ndarray:
         """

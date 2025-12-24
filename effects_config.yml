@@ -8,16 +8,6 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
-  - action: TOGGLE_CONVOLUTION_KERNEL
-    shader: shaders/effects/convolution_kernel.glsl
-    node_class: EffectNode
-    trigger_mode: toggle
-
-  - action: TOGGLE_DELAY
-    shader: shaders/effects/delay.glsl
-    node_class: EffectNode
-    trigger_mode: toggle
-
   - action: TOGGLE_DISCARD_DARK
     shader: shaders/effects/discard_dark.glsl
     node_class: EffectNode
@@ -43,6 +33,11 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
+  - action: TRIGGER_IMAGE_FLASH
+    shader: shaders/effects/image_flash.glsl
+    node_class: ImageFlashEffectNode
+    trigger_mode: momentary
+
   - action: TOGGLE_INVERT
     shader: shaders/effects/invert.glsl
     node_class: EffectNode
@@ -50,6 +45,11 @@ effects:
 
   - action: TOGGLE_MIRROR
     shader: shaders/effects/mirror.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_MATRIX
+    shader: shaders/graphics/matrix_rain.glsl
     node_class: EffectNode
     trigger_mode: toggle
 

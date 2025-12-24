@@ -98,7 +98,11 @@ def load_effect_config(config_path: Optional[Path] = None) -> List[EffectDefinit
                 trigger_mode = TriggerMode.TOGGLE
 
             # Validate node class name
-            valid_node_classes = ['EffectNode', 'FrameDifferencingEffectNode', 'ImageFlashEffectNode']
+            # Dynamically gather all subclasses of EffectNode
+            from cube.dag.effect_node import EffectNode
+
+            valid_node_classes = [cls.__name__ for cls in EffectNode.__subclasses__()]
+            valid_node_classes.append('EffectNode')  # Include base class if user wants it
             if node_class not in valid_node_classes:
                 print(f"Warning: Invalid node_class '{node_class}' for effect {action_name}. Using 'EffectNode'.")
                 node_class = 'EffectNode'

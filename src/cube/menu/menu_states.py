@@ -165,6 +165,7 @@ class ShaderBrowser(MenuState):
 
         # Available shader directories
         self.directories = [
+            ("directory", "PODIUM", "podium"),
             ("directory", "PRIMITIVES", "primitives"),
             ("directory", "GRAPHICS", "graphics"),
             ("directory", "GENERATED", "generated"),

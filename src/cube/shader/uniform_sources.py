@@ -108,6 +108,94 @@ class KeyboardUniformSource(UniformSource):
             self.input_state[key] = 0.0
 
 
+class MouseUniformSource(UniformSource):
+    """
+    Mouse input source.
+    
+    Provides iMouse uniform (vec4) following Shadertoy format:
+    - iMouse.xy: Current mouse position in pixels
+    - iMouse.zw: Mouse position when button was clicked (or 0 if not clicked)
+    """
+    
+    def __init__(self, width: int = 1, height: int = 1):
+        """
+        Initialize mouse input source.
+        
+        Args:
+            width: Render width (for coordinate normalization)
+            height: Render height (for coordinate normalization)
+        """
+        self.width = width
+        self.height = height
+        self.mouse_x = 0.0
+        self.mouse_y = 0.0
+        self.click_x = 0.0
+        self.click_y = 0.0
+        self.button_pressed = False
+    
+    def set_mouse_position(self, x: float, y: float):
+        """
+        Update current mouse position.
+        
+        Args:
+            x: Mouse x position in pixels
+            y: Mouse y position in pixels
+        """
+        self.mouse_x = x
+        self.mouse_y = y
+    
+    def set_mouse_button(self, pressed: bool):
+        """
+        Update mouse button state.
+        
+        Args:
+            pressed: True if button is pressed, False if released
+        """
+        if pressed and not self.button_pressed:
+            self.click_x = self.mouse_x
+            self.click_y = self.mouse_y
+        elif not pressed:
+            self.click_x = 0.0
+            self.click_y = 0.0
+        self.button_pressed = pressed
+    
+    def set_resolution(self, width: int, height: int):
+        """
+        Update render resolution (for coordinate scaling if needed).
+        
+        Args:
+            width: Render width
+            height: Render height
+        """
+        self.width = width
+        self.height = height
+    
+    def update(self, dt: float):
+        """Update mouse input (no-op, state updated via set_mouse_position/set_mouse_button)."""
+        return
+    
+    def get_uniforms(self) -> Dict[str, Any]:
+        """
+        Get mouse input as iMouse uniform.
+        
+        Returns:
+            {'iMouse': (x, y, click_x, click_y)}
+        """
+        return {'iMouse': (self.mouse_x, self.mouse_y, self.click_x, self.click_y)}
+    
+    def cleanup(self):
+        """No cleanup needed for mouse input."""
+        return
+    
+    def reset(self):
+        """Reset mouse state to initial position."""
+        self.mouse_x = 0.0
+        self.mouse_y = 0.0
+        self.click_x = 0.0
+        self.click_y = 0.0
+        self.button_pressed = False
+
+
 class AudioFileUniformSource(UniformSource):
     """
     Audio file input source with beat detection.

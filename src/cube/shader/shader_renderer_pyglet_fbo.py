@@ -7,8 +7,12 @@ More efficient and avoids multi-window issues.
 from OpenGL.GL import *  # type: ignore[import-untyped]
 from .shader_renderer_base import ShaderRendererBase
 
+
 class PygletShaderRendererFBO(ShaderRendererBase):
-    """\n    Pyglet-based offscreen shader renderer using FBO.\n\n    Uses a shared pyglet context and framebuffer objects for offscreen rendering.\n    """
+    """
+    Pyglet-based offscreen shader renderer using FBO.
+    Uses a shared pyglet context and framebuffer objects for offscreen rendering.
+    """
     _shared_window = None
     _window_refcount = 0
 
@@ -25,7 +29,8 @@ class PygletShaderRendererFBO(ShaderRendererBase):
         self.depth_buffer = None
         print(f'Initializing Pyglet FBO shader renderer: {width}×{height}')
         super().__init__(width, height, scale=1)
-        print(f'Pyglet FBO shader renderer initialized: {width}×{height} (offscreen)')
+        print(
+            f'Pyglet FBO shader renderer initialized: {width}×{height} (offscreen)')
 
     def make_context_current(self) -> bool:
         """Make the shared pyglet context current."""
@@ -62,8 +67,10 @@ class PygletShaderRendererFBO(ShaderRendererBase):
             gl_version = glGetString(GL_VERSION)
             glsl_version = glGetString(GL_SHADING_LANGUAGE_VERSION)
             print("Created shared OpenGL context via Pyglet")
-            print(f"OpenGL Version: {(gl_version.decode() if gl_version else 'Unknown')}")
-            print(f"GLSL Version: {(glsl_version.decode() if glsl_version else 'Unknown')}")
+            print(
+                f"OpenGL Version: {(gl_version.decode() if gl_version else 'Unknown')}")
+            print(
+                f"GLSL Version: {(glsl_version.decode() if glsl_version else 'Unknown')}")
 
         PygletShaderRendererFBO._window_refcount += 1
         PygletShaderRendererFBO._shared_window.switch_to()
@@ -75,16 +82,20 @@ class PygletShaderRendererFBO(ShaderRendererBase):
         glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
         self.color_texture = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.color_texture)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.width, self.height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.width,
+                     self.height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.color_texture, 0)
+        glFramebufferTexture2D(
+            GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.color_texture, 0)
         self.depth_buffer = glGenRenderbuffers(1)
         glBindRenderbuffer(GL_RENDERBUFFER, self.depth_buffer)
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, self.width, self.height)
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.depth_buffer)
+        glRenderbufferStorage(
+            GL_RENDERBUFFER, GL_DEPTH_COMPONENT, self.width, self.height)
+        glFramebufferRenderbuffer(
+            GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.depth_buffer)
         status = glCheckFramebufferStatus(GL_FRAMEBUFFER)
-        if status!= GL_FRAMEBUFFER_COMPLETE:
+        if status != GL_FRAMEBUFFER_COMPLETE:
             raise RuntimeError(f'Framebuffer incomplete: {status}')
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 

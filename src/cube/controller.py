@@ -138,6 +138,15 @@ class CubeController:
         # Debug waveform history for beat visualization
         self._beat_history: list[tuple[float, float]] = []
 
+        # Learn mode and config watching
+        self.project_root = self._find_project_root()
+        self.learn_mode_flag = self.project_root / '.learn_mode'
+        self._learn_mode_active = False
+        self._learn_mode_check_accumulator = 0.0
+        self._effect_bindings_config_path = self.project_root / 'effect_bindings.yml'
+        self._effect_bindings_last_mtime: Optional[float] = None
+        self._effect_bindings_check_accumulator = 0.0
+
         # Action handlers for visualization settings/effects
         self._action_handlers: Dict[Action, Callable[[], None]] = {}
         self._register_action_handlers()
@@ -238,6 +247,31 @@ class CubeController:
             Action.UNDO_EFFECT: undo_effect,
             Action.REDO_EFFECT: redo_effect,
         }
+    
+    def _find_project_root(self) -> Path:
+        """Find the project root directory by looking for marker files."""
+        # Start from this file's directory
+        current = Path(__file__).parent
+        
+        # Look for common project root markers
+        markers = ['pyproject.toml', 'setup.py', 'requirements.txt', 'effects_config.yml', '.git']
+        
+        # Walk up the directory tree
+        for _ in range(10):  # Limit to 10 levels up
+            # Check if any marker exists
+            for marker in markers:
+                if (current / marker).exists():
+                    return current
+            # Move up one level
+            parent = current.parent
+            if parent == current:  # Reached filesystem root
+                break
+            current = parent
+        
+        # Fallback: use current working directory
+        cwd = Path.cwd()
+        print(f"[Controller] [WARNING] Could not find project root, using CWD: {cwd}")
+        return cwd
 
     def _register_menus(self):
         """Register all menu states with the navigator."""
@@ -269,6 +303,15 @@ class CubeController:
             # need quit/paste from events here. InputManager gets full state
             # from its InputSource wrappers.
             self.input_manager.poll()
+            
+            # Update mouse state in renderer if available
+            if self.renderer and 'mouse' in events:
+                mouse = events['mouse']
+                self.renderer.update_mouse(
+                    mouse.get('x', 0.0),
+                    mouse.get('y', 0.0),
+                    mouse.get('button_pressed', False)
+                )
             
             if self.input_manager.is_quit_requested() or events.get("quit"):
                 running = False
@@ -359,9 +402,111 @@ class CubeController:
 
         return True
 
+    def _check_learn_mode(self, dt: float):
+        """Check for learn mode flag file."""
+        self._learn_mode_check_accumulator = getattr(self, '_learn_mode_check_accumulator', 0.0) + dt
+        if self._learn_mode_check_accumulator < 0.1:
+            return
+        self._learn_mode_check_accumulator = 0.0
+        
+        was_active = self._learn_mode_active
+        self._learn_mode_active = self.learn_mode_flag.exists()
+        
+        if was_active != self._learn_mode_active:
+            if self._learn_mode_active:
+                print("[Controller] Learn mode active - effect processing disabled")
+            else:
+                print("[Controller] Learn mode inactive - effect processing enabled")
+    
+    def _check_effect_bindings_config(self, dt: float):
+        """Check for changes to effect_bindings.yml and reload if changed."""
+        self._effect_bindings_check_accumulator += dt
+        if self._effect_bindings_check_accumulator < 0.5:
+            return
+        self._effect_bindings_check_accumulator = 0.0
+        
+        # Check if file exists
+        if not self._effect_bindings_config_path.exists():
+            if self._effect_bindings_last_mtime is not None:
+                self._effect_bindings_last_mtime = None
+            return
+        
+        # Get current mtime
+        try:
+            current_mtime = self._effect_bindings_config_path.stat().st_mtime
+        except Exception as e:
+            return
+        
+        # First time - initialize and load
+        if self._effect_bindings_last_mtime is None:
+            self._effect_bindings_last_mtime = current_mtime
+            self._reload_effect_bindings()
+            return
+        
+        # Check if mtime changed
+        if current_mtime != self._effect_bindings_last_mtime:
+            self._effect_bindings_last_mtime = current_mtime
+            print("[Controller] Effect bindings config changed, reloading...")
+            self._reload_effect_bindings()
+    
+    def _reload_effect_bindings(self):
+        """Reload effect bindings from config file."""
+        from cube.input.effect_bindings_loader import load_effect_bindings
+        from cube.render.effect_config_loader import load_effect_config
+        
+        try:
+            _, bindings = load_effect_bindings()
+            
+            # Get all effect actions to identify which bindings to remove
+            effect_definitions = load_effect_config()
+            effect_actions = {ef.action for ef in effect_definitions}
+            
+            # Remove all existing bindings for effect actions in VISUALIZATION context
+            if InputContext.VISUALIZATION in self.input_manager.bindings.reverse:
+                reverse_dict = self.input_manager.bindings.reverse[InputContext.VISUALIZATION]
+                for action in list(effect_actions):
+                    if action in reverse_dict:
+                        # Get all raw_inputs bound to this action (it's a list of tuples)
+                        raw_inputs = reverse_dict[action]
+                        # Remove each binding (make a copy to avoid modification during iteration)
+                        for raw_input in list(raw_inputs):
+                            self.input_manager.bindings.remove_binding(
+                                InputContext.VISUALIZATION,
+                                action,
+                                raw_input
+                            )
+            
+            # Apply new bindings
+            for binding in bindings:
+                for inp in binding.inputs:
+                    # Convert input to tuple format if needed
+                    if isinstance(inp, str):
+                        raw_input = (inp,)
+                    elif isinstance(inp, tuple):
+                        raw_input = inp
+                    else:
+                        raw_input = (str(inp),)
+                    
+                    # Add binding
+                    self.input_manager.bindings.add_binding(
+                        InputContext.VISUALIZATION,
+                        binding.action,
+                        raw_input
+                    )
+            
+            print(f"[Controller] Reloaded {len(bindings)} effect bindings")
+        except Exception as e:
+            print(f"[Controller] Error reloading effect bindings: {e}")
+            import traceback
+            traceback.print_exc()
+
     def _update_visualization(self, dt: float) -> bool:
         """Process input and actions while a visualization is running."""
         self.input_manager.set_context(InputContext.VISUALIZATION)
+        
+        # Check for learn mode and config changes
+        self._check_learn_mode(dt)
+        self._check_effect_bindings_config(dt)
 
         # Exit visualization on CANCEL/BACK
         if self.input_manager.is_action_pressed(Action.CANCEL) or self.input_manager.is_action_pressed(
@@ -379,8 +524,8 @@ class CubeController:
             if handler:
                 handler()
         
-        # Effects via manager (toggle and momentary)
-        if self.renderer and hasattr(self.renderer, "effect_manager"):
+        # Effects via manager (toggle and momentary) - skip if in learn mode
+        if self.renderer and hasattr(self.renderer, "effect_manager") and not self._learn_mode_active:
             try:
                 self.renderer.effect_manager.process_inputs(pressed_actions, held_actions)
             except Exception as exc:
@@ -590,7 +735,20 @@ class CubeController:
             except Exception:
                 pass
         
-        # Line 3: Parameters iParam0-7 from renderer state
+        # Line 3: Mouse position (if available)
+        if self.is_visualizing and self.renderer:
+            try:
+                if hasattr(self.renderer, 'gpu_renderer') and hasattr(self.renderer.gpu_renderer, 'mouse_source'):
+                    mouse_uniforms = self.renderer.gpu_renderer.mouse_source.get_uniforms()
+                    mouse = mouse_uniforms.get('iMouse', (0.0, 0.0, 0.0, 0.0))
+                    mouse_text = f'Mouse: ({mouse[0]:.0f},{mouse[1]:.0f})'
+                    if mouse[2] > 0.0 or mouse[3] > 0.0:
+                        mouse_text += f' click:({mouse[2]:.0f},{mouse[3]:.0f})'
+                    lines.append(mouse_text)
+            except Exception:
+                pass
+        
+        # Line 4: Parameters iParam0-7 from renderer state
         params = None
         beat_phase = 0.0
         beat_pulse = 0.0
@@ -622,6 +780,8 @@ class CubeController:
                 color = (0, 255, 0)
             elif line.startswith('Cam:'):
                 color = (100, 200, 255)
+            elif line.startswith('Mouse:'):
+                color = (255, 150, 100)
             elif param_line_start is not None and i >= param_line_start:
                 color = (255, 255, 0)  # brighter yellow for params
             else:

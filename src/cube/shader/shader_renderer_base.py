@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 from .camera_modes import CameraMode, SphericalCamera
-from .uniform_sources import UniformSourceManager, KeyboardUniformSource, UniformSource
+from .uniform_sources import UniformSourceManager, KeyboardUniformSource, MouseUniformSource, UniformSource
 from .shader_compiler import wrap_shadertoy_shader
 
 class ShaderRendererBase(ABC):
@@ -34,6 +34,8 @@ class ShaderRendererBase(ABC):
         self.fps = 0.0
         self.fps_frames = 0
         self.uniform_manager = UniformSourceManager()
+        self.mouse_source = MouseUniformSource(width, height)
+        self.uniform_manager.add_source(self.mouse_source)
         self.program = None
         self.vao = None
         self.vbo = None
@@ -203,8 +205,7 @@ class ShaderRendererBase(ABC):
         print(f'Registered {len(self.uniform_locs)} shader uniforms: {list(self.uniform_locs.keys())}')
         if 'iResolution' in self.uniform_locs:
             glUniform3f(self.uniform_locs['iResolution'], float(self.width), float(self.height), 1.0)
-        if 'iMouse' in self.uniform_locs:
-            glUniform4f(self.uniform_locs['iMouse'], 0.0, 0.0, 0.0, 0.0)
+        self.mouse_source.set_resolution(self.width, self.height)
         for i in range(4):
             channel_name = f'iChannel{i}'
             if channel_name in self.uniform_locs:
@@ -228,6 +229,10 @@ class ShaderRendererBase(ABC):
                 return source
         else:  # inserted
             return
+    
+    def get_mouse_source(self):
+        """Get the mouse uniform source."""
+        return self.mouse_source
 
     def set_camera_mode(self, camera: CameraMode):
         """Set camera mode via camera uniform source."""  # inserted
@@ -241,6 +246,18 @@ class ShaderRendererBase(ABC):
         camera_source = self.get_camera_source()
         if camera_source:
             camera_source.reset_camera()
+    
+    def update_mouse(self, x: float, y: float, button_pressed: bool = False):
+        """
+        Update mouse state.
+        
+        Args:
+            x: Mouse x position in pixels
+            y: Mouse y position in pixels
+            button_pressed: True if mouse button is pressed
+        """
+        self.mouse_source.set_mouse_position(x, y)
+        self.mouse_source.set_mouse_button(button_pressed)
 
     def render(self):
         """Render one frame of the shader."""  # inserted

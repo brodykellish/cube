@@ -12,6 +12,7 @@ from OpenGL.GL import *
 from PIL import Image
 from .node import Node
 from ..shader.program import ShaderProgram
+from ..shader.shader_loader import load_shader_program
 from ..render.texture import Texture
 from ..utils.gl_utils import draw_fullscreen_quad
 

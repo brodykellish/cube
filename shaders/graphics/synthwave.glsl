@@ -318,8 +318,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoords) {
 
     // lightPos.z = sin(iTime/3.)*100.;
 
-    mouse.x = 0.5;
-    mouse.y = 0.;
+    // mouse.x = 0.5;
+    // mouse.y = 0.;
 
     vec3 col = vec3(0.);
 

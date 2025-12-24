@@ -1,0 +1,11 @@
+preset_name: null
+bindings:
+- action: TOGGLE_DISPLACEMENT_MAP
+  inputs:
+  - key:2
+- action: TOGGLE_FLASH
+  inputs:
+  - key:3
+- action: TOGGLE_GRAYSCALE
+  inputs:
+  - key:4

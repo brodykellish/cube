@@ -42,6 +42,9 @@ class PygameBackend(DisplayBackend):
 
         # Initialize keyboard input handler
         self.keyboard = PygameKeyboard(pygame)
+        self.mouse_x = 0.0
+        self.mouse_y = 0.0
+        self.mouse_button_pressed = False
 
     def show_framebuffer(self, framebuffer: np.ndarray):
         """
@@ -72,13 +75,27 @@ class PygameBackend(DisplayBackend):
         """Handle pygame events using keyboard abstraction."""
         # Poll keyboard for input
         keyboard_state = self.keyboard.poll()
+        
+        # Get mouse state
+        mouse_pos = self.pygame.mouse.get_pos()
+        mouse_buttons = self.pygame.mouse.get_pressed()
+        scale_x = self.width / self.window_width if self.window_width > 0 else 1.0
+        scale_y = self.height / self.window_height if self.window_height > 0 else 1.0
+        self.mouse_x = float(mouse_pos[0] * scale_x)
+        self.mouse_y = float((self.window_height - mouse_pos[1]) * scale_y)
+        self.mouse_button_pressed = mouse_buttons[0] or mouse_buttons[1] or mouse_buttons[2]
 
         # Convert KeyboardState to dict format
         result = {
             'quit': keyboard_state.quit,
             'key': keyboard_state.key_press,
             'keys': keyboard_state.keys_held,
-            'paste': keyboard_state.paste_text  # Paste text from Cmd+V / Ctrl+V
+            'paste': keyboard_state.paste_text,
+            'mouse': {
+                'x': self.mouse_x,
+                'y': self.mouse_y,
+                'button_pressed': self.mouse_button_pressed
+            }
         }
 
         return result

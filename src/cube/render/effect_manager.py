@@ -9,7 +9,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
-from cube.dag.effect_node import EffectNode, FrameDifferencingEffectNode, ImageFlashEffectNode
+from cube.dag.effect_node import (
+    EffectNode,
+    FrameDifferencingEffectNode,
+    ImageFlashEffectNode,
+)
 from cube.shader.shader_loader import load_shader_program
 from cube.input.actions import Action
 
@@ -80,8 +84,9 @@ class EffectManager:
         }
 
         node_class = node_class_map.get(reg.node_class, EffectNode)
-        if reg.node_class not in node_class_map:
+        if node_class == EffectNode and reg.node_class != "EffectNode":
             print(f"[EffectManager] Warning: Unknown node_class '{reg.node_class}' for effect '{reg.action.name}'. Using EffectNode.")
+            print(f"[EffectManager] Available node classes: {list(node_class_map.keys())}")
 
         nodes: List[EffectNode] = []
         for i, src in enumerate(self.renderer.source_nodes):
@@ -102,6 +107,12 @@ class EffectManager:
             return
         nodes = self._build_nodes(reg)
         if nodes and len(nodes) == len(self.renderer.source_nodes):
+            # If this is an ImageFlashEffectNode, refresh the image on activation
+            from cube.dag.effect_node import ImageFlashEffectNode
+            for node in nodes:
+                if isinstance(node, ImageFlashEffectNode):
+                    node.refresh_flash_image()
+            
             self._active[action] = nodes
             if action not in self._order:
                 self._order.append(action)
@@ -229,34 +240,4 @@ class EffectManager:
         return True
 
 
-# -----------------------------------------------------------
-# Built-in effect builders
-# -----------------------------------------------------------
-
-def build_flash_effect(renderer, shader_path: str = "shaders/effects/flashing_light.glsl") -> List[EffectNode]:
-    """
-    Build flash EffectNodes for each source node using a shared shader program.
-    """
-    if not renderer.source_nodes:
-        return []
-
-    glsl_version = renderer._get_glsl_version()
-    try:
-        shader_program = load_shader_program(shader_path, name="flash_effect", glsl_version=glsl_version, vao=renderer.vao)
-    except Exception as exc:
-        print(f"[EffectManager] Failed to load flash effect shader: {exc}")
-        return []
-
-    nodes: List[EffectNode] = []
-    for i, src in enumerate(renderer.source_nodes):
-        fx = EffectNode(
-            name=f"flash_{i}",
-            shader=shader_program,
-            input_texture=src.output_texture,
-            width=src.width,
-            height=src.height,
-            vao=renderer.vao,
-        )
-        nodes.append(fx)
-    return nodes
 

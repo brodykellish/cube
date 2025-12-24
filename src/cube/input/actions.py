@@ -86,8 +86,6 @@ class Action(Enum):
     TOGGLE_FRAME_DIFFERENCING = auto()
     TOGGLE_MOSAIC = auto()
     TOGGLE_SLITSCAN = auto()
-    TOGGLE_DELAY = auto()
-    TOGGLE_CONVOLUTION_KERNEL = auto()
     TOGGLE_DISCARD_DARK = auto()
     TOGGLE_VIDEO_FEEDBACK = auto()
 
