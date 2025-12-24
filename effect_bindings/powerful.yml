@@ -1,0 +1,35 @@
+preset_name: null
+bindings:
+- action: TOGGLE_PSYCHEDELIC
+  inputs:
+  - key:1
+- action: TOGGLE_SINEWAVE_DISTORT
+  inputs:
+  - key:3
+- action: TOGGLE_MIRROR
+  inputs:
+  - key:4
+- action: TOGGLE_INVERT
+  inputs:
+  - key:5
+- action: TOGGLE_SLITSCAN
+  inputs:
+  - key:2
+- action: TOGGLE_FRAME_DIFFERENCING
+  inputs:
+  - key:3
+- action: TOGGLE_MOSAIC
+  inputs:
+  - key:2
+- action: TOGGLE_GLITCH
+  inputs:
+  - key:1
+- action: TOGGLE_BLOOM
+  inputs:
+  - key:6
+- action: TOGGLE_VIDEO_FEEDBACK
+  inputs:
+  - key:7
+- action: TOGGLE_THRESHOLD
+  inputs:
+  - key:8

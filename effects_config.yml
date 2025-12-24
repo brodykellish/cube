@@ -36,7 +36,7 @@ effects:
   - action: TRIGGER_IMAGE_FLASH
     shader: shaders/effects/image_flash.glsl
     node_class: ImageFlashEffectNode
-    trigger_mode: momentary
+    trigger_mode: toggle
 
   - action: TOGGLE_INVERT
     shader: shaders/effects/invert.glsl

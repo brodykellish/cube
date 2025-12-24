@@ -1,58 +1,58 @@
-preset_name: initial
+preset_name: null
 bindings:
-- action: TOGGLE_RGB_SPLIT
-  inputs:
-  - key:2
-- action: TOGGLE_VIDEO_FEEDBACK
-  inputs:
-  - key:3
 - action: TOGGLE_GLITCH
   inputs:
+  - key:1
+- action: TOGGLE_SINGLE_BLUR
+  inputs:
+  - key:2
+- action: TOGGLE_DISPLACEMENT_MAP
+  inputs:
+  - key:3
+- action: TOGGLE_PIXELATE
+  inputs:
   - key:4
-- action: TOGGLE_THRESHOLD
-  inputs:
-  - key:5
-- action: TOGGLE_FRAME_DIFFERENCING
-  inputs:
-  - key:8
 - action: TOGGLE_MIRROR
   inputs:
+  - key:5
+- action: TOGGLE_MOSAIC
+  inputs:
+  - key:6
+- action: TOGGLE_SINEWAVE_DISTORT
+  inputs:
   - key:7
+- action: TOGGLE_SLITSCAN
+  inputs:
+  - key:8
 - action: TOGGLE_PSYCHEDELIC
   inputs:
   - - key:shift
-    - key:3
-- action: TOGGLE_MOSAIC
+    - key:1
+- action: TOGGLE_FRAME_DIFFERENCING
   inputs:
   - - key:shift
-    - key:1
-- action: TOGGLE_PIXELATE
+    - key:3
+- action: TOGGLE_RGB_SPLIT
   inputs:
   - - key:shift
     - key:2
 - action: TOGGLE_RGB_TO_HSB
   inputs:
   - - key:shift
-    - key:8
-- action: TOGGLE_DISPLACEMENT_MAP
-  inputs:
-  - - key:shift
     - key:4
-- action: TOGGLE_MATRIX
-  inputs:
-  - key:6
-- action: TOGGLE_SLITSCAN
+- action: TOGGLE_INVERT
   inputs:
   - - key:shift
     - key:5
-- action: TOGGLE_SINEWAVE_DISTORT
+- action: TOGGLE_VIDEO_FEEDBACK
   inputs:
   - - key:shift
     - key:6
-- action: TOGGLE_STRIPES
+- action: TOGGLE_THRESHOLD
   inputs:
   - - key:shift
     - key:7
 - action: TRIGGER_IMAGE_FLASH
   inputs:
-  - key:1
+  - - key:shift
+    - key:8

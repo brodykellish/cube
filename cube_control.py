@@ -72,21 +72,21 @@ def main():
     parser.add_argument(
         "--num-panels",
         type=int,
-        default=6,
+        default=4,
         help="Number of cube panels/faces (1-6, default: 6)"
     )
 
     parser.add_argument(
         "--brightness",
         type=float,
-        default=60.0,
+        default=80.0,
         help="Default brightness percentage (1-90, default: 60)"
     )
 
     parser.add_argument(
         "--gamma",
         type=float,
-        default=2.2,
+        default=1.0,
         help="Default gamma correction value (0.5-3.0, default: 2.2)"
     )
 
