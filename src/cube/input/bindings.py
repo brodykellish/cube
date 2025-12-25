@@ -7,6 +7,7 @@ Supports temporary overlays for modes like envelope editor.
 
 from dataclasses import dataclass
 from typing import Dict, List, Set, Union, Callable, Optional
+from pathlib import Path
 from .actions import Action, Axis, InputContext, ActionState
 from .input_source import InputState
 
@@ -102,6 +103,13 @@ class BindingMap:
 
         # Track previous CC values for direction detection (e.g., CC 114 navigation)
         self._last_cc_values: Dict[str, float] = {}
+
+        # File watching for effect bindings
+        self._effect_bindings_config_path: Optional[Path] = None
+        self._last_config_mtime: Optional[float] = None
+        self._config_check_accumulator: float = 0.0
+        # Track which actions are effect bindings (loaded from config file)
+        self._effect_binding_actions: Set[Action] = set()
 
         # Load defaults
         self._load_defaults()
@@ -518,10 +526,28 @@ class BindingMap:
         """Load effect bindings from effect_bindings.yml if it exists."""
         from cube.input.effect_bindings_loader import load_effect_bindings
         
+        # Determine config path
+        if self._effect_bindings_config_path is None:
+            self._effect_bindings_config_path = Path(__file__).parent.parent.parent.parent / 'effect_bindings.yml'
+        
         try:
-            _, bindings = load_effect_bindings()
+            _, bindings = load_effect_bindings(self._effect_bindings_config_path)
             
+            # Remove existing effect bindings for VISUALIZATION context
+            # (only remove bindings that were previously loaded from effect_bindings.yml)
+            for action in self._effect_binding_actions:
+                raw_inputs = self.reverse.get(InputContext.VISUALIZATION, {}).get(action, [])
+                for raw_input in raw_inputs[:]:  # Copy list to avoid modification during iteration
+                    self.remove_binding(InputContext.VISUALIZATION, action, raw_input)
+            
+            # Clear the tracked effect binding actions
+            self._effect_binding_actions.clear()
+            
+            # Add new bindings
             for binding in bindings:
+                # Track this action as an effect binding
+                self._effect_binding_actions.add(binding.action)
+                
                 for inp in binding.inputs:
                     # Convert input to tuple format if needed
                     if isinstance(inp, str):
@@ -539,7 +565,63 @@ class BindingMap:
                     )
             
             if bindings:
-                print(f"[BindingMap] Loaded {len(bindings)} effect bindings from effect_bindings.yml")
+                print(f"[BindingMap] Loaded {len(bindings)} effect bindings from {self._effect_bindings_config_path}")
+            
+            # Update mtime cache
+            self._update_config_mtime()
         except Exception as e:
             # Silently fail if config doesn't exist or is invalid
             pass
+    
+    def _update_config_mtime(self) -> None:
+        """Cache current effect bindings config mtime (if file exists)."""
+        if self._effect_bindings_config_path is None:
+            return
+        try:
+            self._last_config_mtime = self._effect_bindings_config_path.stat().st_mtime
+        except FileNotFoundError:
+            self._last_config_mtime = None
+    
+    def _maybe_reload_effect_bindings(self, dt: float) -> None:
+        """Periodically check for changes to the effect bindings config on disk.
+        
+        This allows live-updating effect bindings from the remap tool without
+        restarting the visualization process.
+        
+        Args:
+            dt: Delta time since last check
+        """
+        if self._effect_bindings_config_path is None:
+            return
+        
+        self._config_check_accumulator += dt
+        if self._config_check_accumulator < 0.5:
+            return
+        
+        self._config_check_accumulator = 0.0
+        
+        try:
+            mtime = self._effect_bindings_config_path.stat().st_mtime
+        except FileNotFoundError:
+            # Config deleted; nothing to reload
+            return
+        
+        if self._last_config_mtime is None:
+            self._last_config_mtime = mtime
+            return
+        
+        if mtime != self._last_config_mtime:
+            self._last_config_mtime = mtime
+            print(f"[BindingMap] Effect bindings config changed, reloading...")
+            self._load_effect_bindings()
+    
+    def update(self, dt: float) -> None:
+        """Update binding map (check for config file changes).
+        
+        Call this periodically (e.g., once per frame) to enable live reloading
+        of effect bindings.
+        
+        Args:
+            dt: Delta time since last update
+        """
+        self._maybe_reload_effect_bindings(dt)

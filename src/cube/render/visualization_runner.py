@@ -194,6 +194,13 @@ class VisualizationRunner:
                     self._process_actions()
                 # else: Window not focused, skip input processing
                 
+                # Update binding map to check for effect bindings config changes
+                # (works even when window is not focused, to allow live remapping)
+                if self._viz_input_manager:
+                    dt = frame_time  # Approximate delta time
+                    if hasattr(self._viz_input_manager.bindings, 'update'):
+                        self._viz_input_manager.bindings.update(dt)
+                
                 # Check pipeline deployment queue
                 try:
                     config = self._pipeline_queue.get_nowait()

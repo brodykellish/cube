@@ -54,14 +54,3 @@ bindings:
   inputs:
   - - key:shift
     - key:7
-- action: TOGGLE_KALEIDOSCOPE
-  inputs:
-  - - key:shift
-    - key:5
-- action: TOGGLE_DISPLACEMENT_MAP
-  inputs:
-  - key:6
-- action: TOGGLE_MONITOR
-  inputs:
-  - - key:shift
-    - key:8
