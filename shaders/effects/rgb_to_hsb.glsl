@@ -1,8 +1,8 @@
 // Hue-spin via RGB->HSB conversion
 // iChannel0: source frame
-// iParam0: hue speed (0..1 -> 0..2 pi per second)
 // iParam1: saturation scale (0..1 -> 0..2)
 // iParam2: brightness scale (0..1 -> 0..2)
+// iParam3: hue speed (0..1 -> 0..2 pi per second)
 
 vec3 rgb2hsb(vec3 c){
     vec4 K = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0);
@@ -23,7 +23,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     vec3 tex = texture(iChannel0, uv).rgb;
     vec3 hsb = rgb2hsb(tex);
-    float speed = mix(0.0, 6.2831853, clamp(iParam0, 0.0, 1.0));
+    float speed = mix(0.0, 6.2831853, clamp(iParam3, 0.0, 1.0));
     hsb.x = fract(hsb.x + iTime * speed / (2.0 * 3.14159265));
     hsb.y *= mix(1.0, 2.0, clamp(iParam1, 0.0, 1.0));
     hsb.z *= mix(1.0, 2.0, clamp(iParam2, 0.0, 1.0));

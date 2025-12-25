@@ -66,6 +66,6 @@ void mainImage(out vec4 o, in vec2 u) {
     o = tanh(o / 5e5);
     
     // Global intensity control based on average of all params
-    float globalIntensity = 0.7 + dot(iParams, vec4(0.25)) * 0.6;
+    float globalIntensity = 0.7 + (iParam0 + iParam1 + iParam2 + iParam3) * 0.15;
     o *= globalIntensity;
 }

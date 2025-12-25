@@ -415,7 +415,7 @@ class BindingMap:
         return result
 
     def _load_defaults(self):
-        """Load default bindings for all contexts"""
+        print("""Load default bindings for all contexts""")
         # ===== MENU CONTEXT =====
         self.add_binding(InputContext.MENU, Action.NAVIGATE_UP, ('key:up',))
         self.add_binding(InputContext.MENU, Action.NAVIGATE_UP, ('key:w',))
@@ -493,6 +493,8 @@ class BindingMap:
 
         # Settings (discrete actions)
         self.add_binding(InputContext.MENU, Action.TOGGLE_DEBUG, ('key:i',))
+        self.add_binding(InputContext.MENU, Action.TOGGLE_PREVIEW, ('key:p',))
+
         self.add_binding(InputContext.VISUALIZATION, Action.TOGGLE_DEBUG, ('key:i',))
         self.add_binding(InputContext.VISUALIZATION, Action.RELOAD_SHADER, ('key:r',))
         self.add_binding(InputContext.VISUALIZATION, Action.INCREASE_BRIGHTNESS, ('key:b',))

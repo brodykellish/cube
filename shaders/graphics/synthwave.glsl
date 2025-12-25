@@ -314,26 +314,19 @@ void mainImage(out vec4 fragColor, in vec2 fragCoords) {
     uv -= .5;
     uv.x *= iResolution.x / iResolution.y;
 
-    vec2 mouse = iMouse.xy / iResolution.xy;
-
-    // lightPos.z = sin(iTime/3.)*100.;
-
-    // mouse.x = 0.5;
-    // mouse.y = 0.;
-
     vec3 col = vec3(0.);
 
     vec3 ro = vec3(0., .5, -.4);
-    vec3 lookat = vec3(mouse.x*2.-1., 1. - mouse.y - .6, 0.);
+    
     float zoom = .4;
-
-
-    vec3 f = normalize(lookat - ro);
-    vec3 r = normalize(cross(vec3(0., 1., 0), f));
-    vec3 u = cross(f, r);
-    vec3 c = ro + f * zoom;
-    vec3 i = c + uv.x * r + uv.y * u;
-
+    
+    vec3 right = iCameraRight;
+    vec3 up = iCameraUp;
+    vec3 forward = iCameraForward;
+    
+    vec3 c = ro + forward * zoom;
+    vec3 i = c + uv.x * right + uv.y * up;
+    
     vec3 rd = normalize(i - ro);
 
     vec3 p = vec3(0.);

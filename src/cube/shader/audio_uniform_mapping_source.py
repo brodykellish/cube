@@ -60,15 +60,20 @@ class AudioUniformMappingSource(UniformSource):
         """
         self.audio_state_reader = audio_state_reader
         self.mapping_config_path = Path(mapping_config_path)
-        # Ensure shared memory is attached up front; fall back gracefully.
+        # Try to attach to shared memory with short timeout (non-blocking)
+        # If audio process isn't running, we'll use cached/empty values
         self._reader_ready = False
+        self._init_attempted = False
         try:
-            self._reader_ready = self.audio_state_reader.initialize()
+            self._reader_ready = self.audio_state_reader.initialize(timeout=2.0)
+            self._init_attempted = True
             if not self._reader_ready:
-                print("[AudioUniformMappingSource] AudioStateReader initialize() failed; will retry on update")
+                # Silent failure - we'll use cached/empty values
+                pass
         except Exception as e:
-            print(f"[AudioUniformMappingSource] Failed to initialize AudioStateReader: {e}")
             self._reader_ready = False
+            self._init_attempted = True
+            # Silent failure - we'll use cached/empty values
 
         self._last_config_mtime: Optional[float] = None
         self._config_check_accumulator: float = 0.0
@@ -78,6 +83,10 @@ class AudioUniformMappingSource(UniformSource):
 
         # Latest raw audio values from shared state
         self._audio_values: Dict[str, float] = {}
+        
+        # Periodic retry for shared memory (check every ~2 seconds)
+        self._retry_accumulator: float = 0.0
+        self._retry_interval: float = 2.0  # Retry every 2 seconds
 
         self.load_mappings()
         self._update_config_mtime()
@@ -195,16 +204,41 @@ class AudioUniformMappingSource(UniformSource):
         Args:
             dt: Delta time since last update.
         """
-        if not self._reader_ready:
+        # Try to read from shared memory if connected
+        if self._reader_ready:
             try:
-                self._reader_ready = self.audio_state_reader.initialize()
-            except Exception as e:
-                print(f"[AudioUniformMappingSource] initialize retry failed: {e}")
+                new_values = self.audio_state_reader.read()
+                if new_values:
+                    self._audio_values = new_values
+                # If read returns None/empty, keep using cached values
+            except Exception:
+                # Read failed - connection might be broken, reset for retry
                 self._reader_ready = False
+                try:
+                    self.audio_state_reader.close()
+                except Exception:
+                    pass
+        
+        # Periodically try to connect/reconnect (non-blocking)
+        # This automatically picks up when audio process starts or restarts
+        self._retry_accumulator += dt
+        if self._retry_accumulator >= self._retry_interval:
+            self._retry_accumulator = 0.0
+            if not self._reader_ready:
+                try:
+                    # Very short timeout (0.05s) - just check if shared memory exists
+                    # Fast enough to not block the render loop
+                    self._reader_ready = self.audio_state_reader.initialize(timeout=0.05)
+                    if self._reader_ready:
+                        # Successfully connected - read fresh values immediately
+                        try:
+                            self._audio_values = self.audio_state_reader.read() or {}
+                        except Exception:
+                            pass
+                except Exception:
+                    self._reader_ready = False
+        
         self._maybe_reload_config(dt)
-        self._audio_values = self.audio_state_reader.read() or {}
-        if not self._reader_ready:
-            print("[AudioUniformMappingSource] reader not ready; using cached/empty audio values")
 
     def get_uniforms(self) -> Dict[str, Any]:
         """Get mapped uniform values.

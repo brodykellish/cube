@@ -115,3 +115,95 @@ class DAG:
         """Clean up all nodes."""
         for node in self.nodes:
             node.cleanup()
+
+    def print_node_tree(self, node, prefix="", is_last=True, visited_nodes=None):
+        """Recursively print node tree with ASCII art."""
+        if visited_nodes is None:
+            visited_nodes = set()
+        
+        if node in visited_nodes:
+            print(f"{prefix}└─ {node.name} (CYCLE DETECTED)")
+            return
+        
+        visited_nodes.add(node)
+        
+        connector = "└─ " if is_last else "├─ "
+        status = "✓" if getattr(node, 'enabled', True) else "✗"
+        node_type = type(node).__name__
+        print(f"{prefix}{connector}{status} {node.name} ({node_type})")
+        
+        # Get dependents (nodes that depend on this one)
+        dependents = []
+        for other_node in self.nodes:
+            if node in self._dependencies.get(other_node, set()):
+                dependents.append(other_node)
+        
+        if dependents:
+            new_prefix = prefix + ("   " if is_last else "│  ")
+            for i, dep in enumerate(sorted(dependents, key=lambda n: n.name)):
+                is_last_dep = (i == len(dependents) - 1)
+                self.print_node_tree(dep, new_prefix, is_last_dep, visited_nodes.copy())
+        
+    def print_structure(self):
+        """
+        Print a visual representation of the DAG structure showing:
+        - All nodes and their status
+        - Dependency connections
+        - Dependency chains
+        - Topological sort order
+        """
+        if not self.nodes:
+            print("DAG is empty (no nodes)")
+            return
+
+        print("\n" + "=" * 80)
+        print("DAG STRUCTURE")
+        print("=" * 80)
+
+        # Get nodes with no dependencies (roots)
+        roots = [node for node in self.nodes if not self._dependencies.get(node, set())]
+        
+        # Get nodes with no dependents (leaves)
+        all_dependents = set()
+        for deps in self._dependencies.values():
+            all_dependents.update(deps)
+        leaves = [node for node in self.nodes if node not in all_dependents]
+
+        print(f"\nTotal nodes: {len(self.nodes)}")
+        print(f"Root nodes (no dependencies): {len(roots)}")
+        print(f"Leaf nodes (no dependents): {len(leaves)}")
+
+        # Print dependency chains (tree view)
+        print("\n" + "-" * 80)
+        print("DEPENDENCY CHAINS (Tree View)")
+        print("-" * 80)
+        
+        # Print from root nodes
+        if roots:
+            for i, root in enumerate(sorted(roots, key=lambda n: n.name)):
+                is_last_root = (i == len(roots) - 1)
+                self.print_node_tree(root, "", is_last_root)
+        else:
+            # If no clear roots, print all nodes (might indicate cycles or disconnected graph)
+            print("(No clear root nodes - printing all nodes)")
+            for i, node in enumerate(self.nodes):
+                is_last = (i == len(self.nodes) - 1)
+                self.print_node_tree(node, "", is_last)
+
+        # Print topological sort order
+        print("\n" + "-" * 80)
+        print("TOPOLOGICAL SORT ORDER (Rendering Order)")
+        print("-" * 80)
+        try:
+            sorted_nodes = self.topological_sort()
+            for i, node in enumerate(sorted_nodes):
+                status = "✓" if getattr(node, 'enabled', True) else "✗"
+                node_type = type(node).__name__
+                deps = self._dependencies.get(node, set())
+                deps_str = ", ".join(d.name for d in sorted(deps, key=lambda n: n.name)) if deps else "none"
+                print(f"  {i+1}. {status} {node.name} ({node_type}) [depends on: {deps_str}]")
+        except RuntimeError as e:
+            print(f"  ERROR: {e}")
+            print("  (Cannot determine sort order due to cycle)")
+
+        print("\n" + "=" * 80 + "\n")

@@ -13,10 +13,8 @@ import threading
 from .menu_states import MenuState, ShaderBrowser
 from .menu_context import MenuContext
 from .text_box import TextBox, wrap_text
-from .actions import MenuAction, LaunchVisualizationAction, ShaderSelectionAction
+from .actions import MenuAction, LaunchVisualizationAction
 from cube.ai import ShaderAgent, ShaderGenerationResult
-from cube.render import UnifiedRenderer, SurfacePixelMapper
-from cube.shader import SphericalCamera
 
 
 class PromptMenuState(MenuState):
@@ -49,29 +47,10 @@ class PromptMenuState(MenuState):
         generated_dir = shaders_dir / 'generated'
         generated_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create a minimal validation renderer for shader compilation testing
-        # This is only used for validation, not actual rendering
-        try:
-            validation_mapper = SurfacePixelMapper(
-                width=64,  # Minimal size
-                height=64,
-                camera=SphericalCamera()
-            )
-            self.validation_renderer = UnifiedRenderer(
-                pixel_mapper=validation_mapper,
-                settings={},
-                uniform_sources=[]
-            )
-            print("✓ Created validation renderer for shader testing")
-        except Exception as e:
-            print(f"⚠ Could not create validation renderer: {e}")
-            print("  Shader validation will be disabled")
-            self.validation_renderer = None
-
+        # Using direct compilation testing - test_shader_compilation() handles context management automatically
         self.agent = ShaderAgent(
             shaders_dir=generated_dir,  # Direct path, no extra nesting
-            examples_root=shaders_dir,  # Root directory with primitives/ and graphics/
-            validation_renderer=self.validation_renderer  # Pass renderer for validation
+            examples_root=shaders_dir  # Root directory with primitives/ and graphics/
         )
 
         # Text box for conversation history
@@ -223,8 +202,8 @@ class PromptMenuState(MenuState):
         if self.browser_active:
             action = self.shader_browser.handle_input(key, context)
 
-            if isinstance(action, ShaderSelectionAction):
-                # User selected a shader - enter editing mode
+            if isinstance(action, LaunchVisualizationAction):
+                # User selected a shader - enter editing mode (pixel_mapper is None or ignored)
                 self.browser_active = False
                 self.enter_editing_mode(action.shader_path)
                 return None
@@ -365,10 +344,14 @@ class PromptMenuState(MenuState):
             # Visualize current shader
             if self.current_shader_path:
                 self.text_box.append_text(f"cube: Visualizing {self.current_shader_name}...")
-                return LaunchVisualizationAction(
-                    shader_path=self.current_shader_path,
-                    pixel_mapper='surface'  # Default to surface
-                )
+                # Store in pending_action to ensure it's only returned once
+                # Only set if not already set (prevents duplicate actions)
+                if self.pending_action is None:
+                    self.pending_action = LaunchVisualizationAction(
+                        shader_path=self.current_shader_path,
+                        pixel_mapper='surface'  # Default to surface
+                    )
+                return None
             else:
                 self.text_box.append_text(f"user: {command_input}")
                 self.text_box.append_text(f"cube: ERROR - No shader loaded")
@@ -706,15 +689,23 @@ class PromptMenuState(MenuState):
                 self.text_box.append_text(f"cube: Press ESC to return for refinements.")
                 self.status_message = f"Iteration {self.iteration_count} - Shader generated!"
 
-                # Return launch action
-                return LaunchVisualizationAction(
-                    shader_path=result.shader_path,
-                    pixel_mapper='surface'  # Default to surface mode
-                )
+                # Store launch action in pending_action only if not already set
+                # (prevents setting it multiple times if this code path runs multiple times)
+                if self.pending_action is None:
+                    self.pending_action = LaunchVisualizationAction(
+                        shader_path=result.shader_path,
+                        pixel_mapper='surface'  # Default to surface mode
+                    )
             else:
                 # Generation failed
                 self.text_box.append_text(f"cube: ERROR - {result.error}")
                 self.status_message = "Generation failed. Try again."
+
+        # Return pending action once, then clear it
+        if self.pending_action:
+            action = self.pending_action
+            self.pending_action = None
+            return action
 
         return None
 

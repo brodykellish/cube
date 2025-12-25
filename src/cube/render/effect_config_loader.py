@@ -13,7 +13,7 @@ from cube.render.effect_manager import TriggerMode
 class EffectDefinition:
     """Single effect definition from config."""
 
-    def __init__(self, action: Action, shader_path: str, node_class: str, trigger_mode: TriggerMode):
+    def __init__(self, action: Action, shader_path: str, node_class: str, trigger_mode: TriggerMode, priority: int = 100):
         """
         Initialize effect definition.
 
@@ -22,14 +22,16 @@ class EffectDefinition:
             shader_path: Path to shader file
             node_class: Name of effect node class ("EffectNode", "FrameDifferencingEffectNode", or "ImageFlashEffectNode")
             trigger_mode: Trigger mode (toggle or momentary)
+            priority: Priority level (lower values come first in chain, default: 100)
         """
         self.action = action
         self.shader_path = shader_path
         self.node_class = node_class
         self.trigger_mode = trigger_mode
+        self.priority = priority
 
     def __repr__(self):
-        return f"EffectDefinition(action={self.action.name}, shader={self.shader_path}, node_class={self.node_class}, trigger_mode={self.trigger_mode.value})"
+        return f"EffectDefinition(action={self.action.name}, shader={self.shader_path}, node_class={self.node_class}, trigger_mode={self.trigger_mode.value}, priority={self.priority})"
 
 
 def load_effect_config(config_path: Optional[Path] = None) -> List[EffectDefinition]:
@@ -71,6 +73,7 @@ def load_effect_config(config_path: Optional[Path] = None) -> List[EffectDefinit
             shader_path = effect_data['shader']
             node_class = effect_data.get('node_class', 'EffectNode')
             trigger_mode_str = effect_data.get('trigger_mode', 'toggle')
+            priority = effect_data.get('priority', 100)
 
             # Validate Action enum exists
             try:
@@ -107,11 +110,19 @@ def load_effect_config(config_path: Optional[Path] = None) -> List[EffectDefinit
                 print(f"Warning: Invalid node_class '{node_class}' for effect {action_name}. Using 'EffectNode'.")
                 node_class = 'EffectNode'
 
+            # Validate priority is an integer
+            try:
+                priority = int(priority)
+            except (ValueError, TypeError):
+                print(f"Warning: Invalid priority '{priority}' for effect {action_name}. Using default 100.")
+                priority = 100
+
             definition = EffectDefinition(
                 action=action,
                 shader_path=shader_path,  # Keep original path string for EffectManager
                 node_class=node_class,
-                trigger_mode=trigger_mode
+                trigger_mode=trigger_mode,
+                priority=priority
             )
             definitions.append(definition)
 

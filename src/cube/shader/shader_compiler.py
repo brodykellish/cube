@@ -164,6 +164,50 @@ def _has_active_context() -> bool:
     return bool(version)
 
 
+def _ensure_validation_context() -> bool:
+    """
+    Ensure an OpenGL context is current for validation.
+    
+    Tries to use the shared pyglet window from PygletShaderRendererFBO if available,
+    otherwise creates a minimal context.
+    
+    Returns True if context is current, False otherwise.
+    """
+    if not OPENGL_AVAILABLE:
+        return False
+    
+    # Check if we already have an active context
+    if _has_active_context():
+        return True
+    
+    # Try to use shared pyglet window if available
+    try:
+        from cube.shader.shader_renderer_pyglet_fbo import PygletShaderRendererFBO
+        if PygletShaderRendererFBO._shared_window:
+            PygletShaderRendererFBO._shared_window.switch_to()
+            return True
+    except Exception:
+        pass
+    
+    # Try to create a minimal validation context
+    try:
+        import pyglet
+        # Create a minimal hidden window for validation
+        # This will be cleaned up when the process exits
+        if not hasattr(_ensure_validation_context, '_validation_window'):
+            _ensure_validation_context._validation_window = pyglet.window.Window(
+                width=64,
+                height=64,
+                caption="Shader Validation Context",
+                visible=False,
+            )
+        _ensure_validation_context._validation_window.switch_to()
+        # Verify context is now active
+        return _has_active_context()
+    except Exception:
+        return False
+
+
 def test_shader_compilation(
     shader_path: Path,
     glsl_version: str = "120",
@@ -176,14 +220,15 @@ def test_shader_compilation(
     - ``has_errors`` is True when compilation failed
     - ``output`` contains an informational or error message
 
-    If OpenGL is not available or no context is current, validation is skipped
+    If OpenGL is not available or no context can be made current, validation is skipped
     and ``has_errors`` is False so callers can treat it as non-fatal.
     """
     if not OPENGL_AVAILABLE:
         return False, "OpenGL not available - skipping validation"
 
-    if not _has_active_context():
-        return False, "No active OpenGL context - skipping validation"
+    # Ensure we have a context for compilation
+    if not _ensure_validation_context():
+        return False, "No OpenGL context available - skipping validation"
 
     try:
         fragment_source = shader_path.read_text()

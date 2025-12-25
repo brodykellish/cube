@@ -1,58 +1,67 @@
-preset_name: empty
+preset_name: powerful
 bindings:
+- action: TOGGLE_PSYCHEDELIC
+  inputs:
+  - key:1
+- action: TOGGLE_SINEWAVE_DISTORT
+  inputs:
+  - key:3
+- action: TOGGLE_MIRROR
+  inputs:
+  - key:4
+- action: TOGGLE_INVERT
+  inputs:
+  - key:5
+- action: TOGGLE_SLITSCAN
+  inputs:
+  - key:2
+- action: TOGGLE_FRAME_DIFFERENCING
+  inputs:
+  - key:3
+- action: TOGGLE_MOSAIC
+  inputs:
+  - key:2
 - action: TOGGLE_GLITCH
   inputs:
   - key:1
-- action: TOGGLE_VHS
-  inputs:
-  - key:2
-- action: TOGGLE_DISPLACEMENT_MAP
-  inputs:
-  - key:3
-- action: TOGGLE_ASCII
-  inputs:
-  - key:4
-- action: TOGGLE_BLUR
-  inputs:
-  - key:5
-- action: TOGGLE_MOSAIC
-  inputs:
-  - key:6
-- action: TOGGLE_MIRROR
+- action: TOGGLE_VIDEO_FEEDBACK
   inputs:
   - key:7
-- action: TOGGLE_SINEWAVE_DISTORT
+- action: TOGGLE_THRESHOLD
   inputs:
   - key:8
-- action: TOGGLE_RGB_SPLIT
+- action: TRIGGER_IMAGE_FLASH
   inputs:
   - - key:shift
     - key:1
-- action: TOGGLE_PSYCHEDELIC
-  inputs:
-  - - key:shift
-    - key:3
-- action: TOGGLE_VIDEO_FEEDBACK
+- action: TOGGLE_ASCII
   inputs:
   - - key:shift
     - key:2
-- action: TOGGLE_FRAME_DIFFERENCING
+- action: TOGGLE_RGB_SPLIT
   inputs:
   - - key:shift
-    - key:4
+    - key:3
 - action: TOGGLE_RGB_TO_HSB
   inputs:
   - - key:shift
-    - key:5
-- action: TOGGLE_INVERT
+    - key:4
+- action: TOGGLE_FLASH
   inputs:
   - - key:shift
     - key:6
-- action: TOGGLE_PIXELATE
+- action: TOGGLE_MATRIX
   inputs:
   - - key:shift
     - key:7
 - action: TOGGLE_KALEIDOSCOPE
+  inputs:
+  - - key:shift
+    - key:5
+- action: TOGGLE_DISPLACEMENT_MAP
+  inputs:
+  - key:6
+- action: TOGGLE_MONITOR
   inputs:
   - - key:shift
     - key:8

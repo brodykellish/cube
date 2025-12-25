@@ -49,6 +49,11 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
+  - action: TOGGLE_MONITOR
+    shader: shaders/effects/monitor.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
   - action: TOGGLE_MOSAIC
     shader: shaders/effects/mosaic.glsl
     node_class: EffectNode

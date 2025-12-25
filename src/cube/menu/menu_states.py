@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple
 from abc import ABC, abstractmethod
 from .actions import (
     MenuAction, NavigateAction, BackAction, QuitAction,
-    LaunchVisualizationAction, PromptAction, ShaderSelectionAction
+    LaunchVisualizationAction, PromptAction
 )
 from .menu_context import MenuContext
 from .menu_renderer import MenuRenderer
@@ -166,8 +166,10 @@ class ShaderBrowser(MenuState):
         # Available shader directories
         self.directories = [
             ("directory", "PODIUM", "podium"),
-            ("directory", "PRIMITIVES", "primitives"),
             ("directory", "GRAPHICS", "graphics"),
+            ("directory", "REALISM", "realism"),
+            ("directory", "PRIMITIVES", "primitives"),
+            ("directory", "CHRISTMAS", "christmas"),
             ("directory", "GENERATED", "generated"),
             ("action", "BACK", None)
         ]
@@ -310,8 +312,8 @@ class ShaderBrowser(MenuState):
                 elif self.browsing_mode == "shader":
                     # Shader selection mode
                     if item_type == "shader":
-                        # Return shader selection (not launch directly)
-                        return ShaderSelectionAction(
+                        # Return launch action (pixel_mapper may be None for editing contexts)
+                        return LaunchVisualizationAction(
                             shader_path=data,
                             pixel_mapper=self.selected_pixel_mapper or self.pixel_mapper
                         )

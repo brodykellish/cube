@@ -27,11 +27,12 @@ class TriggerMode(Enum):
 
 
 class EffectRegistration:
-    def __init__(self, action: Action, shader_path: str, trigger_mode: TriggerMode, node_class: str = "EffectNode"):
+    def __init__(self, action: Action, shader_path: str, trigger_mode: TriggerMode, node_class: str = "EffectNode", priority: int = 100):
         self.action = action
         self.shader_path = shader_path
         self.trigger_mode = trigger_mode
         self.node_class = node_class
+        self.priority = priority
 
 
 class EffectManager:
@@ -40,7 +41,6 @@ class EffectManager:
 
     - Register effects with a builder callable that creates EffectNodes when invoked.
     - Toggle effects on/off by name.
-    - Rebuild active effects when source nodes change (e.g., shader reload).
     - Cleanup all effects on shutdown.
     """
 
@@ -55,9 +55,9 @@ class EffectManager:
         self._momentary_active: Set[Action] = set()
         self._held_active: Set[Action] = set()
 
-    def add_effect(self, action: Action, shader_path: str, trigger_mode: TriggerMode, node_class: str = "EffectNode"):
+    def add_effect(self, action: Action, shader_path: str, trigger_mode: TriggerMode, node_class: str = "EffectNode", priority: int = 100):
         """Register an effect associated with an input action."""
-        self._registry[action] = EffectRegistration(action, shader_path, trigger_mode, node_class)
+        self._registry[action] = EffectRegistration(action, shader_path, trigger_mode, node_class, priority)
 
     def _ensure_shader(self, shader_path: str):
         if shader_path in self._shader_cache:
@@ -101,43 +101,106 @@ class EffectManager:
             nodes.append(fx)
         return nodes
 
+    def _rebuild_effect_chain(self):
+        """
+        Rebuild effect chain connections based on priority order.
+        
+        Effects are sorted by priority (ascending), then by activation order for ties.
+        Low priority effects come first (after source), high priority come last.
+        """
+        if not self._active:
+            return
+        
+        # Get all active effects sorted by priority, then by activation order
+        sorted_actions = sorted(
+            self._active.keys(),
+            key=lambda a: (
+                self._registry[a].priority,
+                self._order.index(a) if a in self._order else len(self._order)
+            )
+        )
+        
+        # For each source node, rebuild the chain
+        for i in range(len(self.renderer.source_nodes)):
+            source_node = self.renderer.source_nodes[i]
+            
+            # First, disconnect all effect nodes from this source chain
+            # We'll rebuild connections below
+            for action in sorted_actions:
+                nodes = self._active.get(action, [])
+                if i < len(nodes):
+                    fx_node = nodes[i]
+                    if fx_node in self.renderer.dag.nodes:
+                        # Remove all dependencies for this node
+                        deps = list(self.renderer.dag.get_dependencies(fx_node))
+                        for dep in deps:
+                            self.renderer.dag._dependencies[fx_node].discard(dep)
+            
+            # Now rebuild connections in priority order
+            last_node = source_node
+            for action in sorted_actions:
+                nodes = self._active.get(action, [])
+                if i < len(nodes):
+                    fx_node = nodes[i]
+                    if fx_node in self.renderer.dag.nodes:
+                        # Connect: last_node -> fx_node
+                        if last_node not in self.renderer.dag.get_dependencies(fx_node):
+                            self.renderer.dag.connect(last_node, fx_node)
+                        last_node = fx_node
+
     def _enable(self, action: Action):
         reg = self._registry.get(action)
         if not reg:
             return
         nodes = self._build_nodes(reg)
         if nodes and len(nodes) == len(self.renderer.source_nodes):
-            # If this is an ImageFlashEffectNode, refresh the image on activation
-            from cube.dag.effect_node import ImageFlashEffectNode
-            for node in nodes:
-                if isinstance(node, ImageFlashEffectNode):
-                    node.refresh_flash_image()
+            # Add effect nodes to DAG
+            for fx_node in nodes:
+                self.renderer.dag.add_node(fx_node)
             
             self._active[action] = nodes
             if action not in self._order:
                 self._order.append(action)
             if action in self._redo_stack:
                 self._redo_stack.remove(action)
-            print(f"[EffectManager] Enabled effect '{action.name}'")
+            
+            # Rebuild effect chain based on priority order
+            self._rebuild_effect_chain()
+            
+            print(f"[EffectManager] Enabled effect '{action.name}' (priority: {reg.priority})")
+            self.renderer.dag.print_structure()    
         else:
             print(f"[EffectManager] Effect '{action.name}' not enabled (node count mismatch or empty)")
 
     def _disable(self, action: Action):
         if action in self._active:
             self._cleanup_effect(action)
+            # Rebuild effect chain based on priority order after removal
+            self._rebuild_effect_chain()
             print(f"[EffectManager] Disabled effect '{action.name}'")
+            self.renderer.dag.print_structure()
 
     def get_active_chains(self, num_sources: int) -> List[List[EffectNode]]:
         """
-        Get active effects grouped per source index.
+        Get active effects grouped per source index, sorted by priority.
 
         Returns:
             List of length num_sources, each containing the chain of EffectNodes
-            to apply for that source.
+            to apply for that source, sorted by priority (low to high).
         """
         chains: List[List[EffectNode]] = [[] for _ in range(num_sources)]
-        for name in self._order:
-            nodes = self._active.get(name) or []
+        
+        # Sort active effects by priority, then by activation order for ties
+        sorted_actions = sorted(
+            self._active.keys(),
+            key=lambda a: (
+                self._registry[a].priority,
+                self._order.index(a) if a in self._order else len(self._order)
+            )
+        )
+        
+        for action in sorted_actions:
+            nodes = self._active.get(action, [])
             if len(nodes) != num_sources:
                 continue
             for i in range(num_sources):
@@ -149,15 +212,6 @@ class EffectManager:
         Return active effects in activation order.
         """
         return list(self._order)
-
-    def rebuild_active(self):
-        """Rebuild all active effects (call after source nodes change)."""
-        active_names = list(self._order)
-        for action in active_names:
-            self._cleanup_effect(action)
-            self._enable(action)
-        if active_names:
-            print(f"[EffectManager] Rebuilt effects: {', '.join(a.name for a in active_names)}")
 
     def process_inputs(self, pressed_actions, held_actions):
         """
@@ -201,7 +255,13 @@ class EffectManager:
     # Internal helpers
     def _cleanup_effect(self, action: Action):
         nodes = self._active.pop(action, [])
+        
+        # Remove nodes from DAG
         for node in nodes:
+            try:
+                self.renderer.dag.remove_node(node)
+            except (KeyError, ValueError):
+                pass
             try:
                 node.cleanup()
             except Exception:

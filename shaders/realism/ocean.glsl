@@ -158,15 +158,27 @@ float heightMapTracing(vec3 ori, vec3 dir, out vec3 p) {
 }
 
 vec3 getPixel(in vec2 coord, float time) {    
-    vec2 uv = coord / iResolution.xy;
-    uv = uv * 2.0 - 1.0;
-    uv.x *= iResolution.x / iResolution.y;    
+    vec2 uv = (coord - 0.5 * iResolution.xy) / iResolution.y;
         
-    // ray
-    vec3 ang = vec3(sin(time*3.0)*0.1,sin(time)*0.2+0.3,time);    
+    // Camera position follows the path automatically
     vec3 ori = vec3(0.0,3.5,time*5.0);
-    vec3 dir = normalize(vec3(uv.xy,-2.0)); dir.z += length(uv) * 0.14;
-    dir = normalize(dir) * fromEuler(ang);
+    
+    // Gentle automatic camera motion - adjusted to look at horizon
+    vec3 ang = vec3(sin(time*3.0)*0.1, sin(time)*0.05 + 0.1, time);
+    mat3 autoRot = fromEuler(ang);
+    
+    // Use camera uniforms for controllable orientation
+    vec3 right = iCameraRight;
+    vec3 up = iCameraUp;
+    vec3 forward = iCameraForward;
+    
+    // Apply gentle motion on top of user-controlled orientation
+    right = normalize(autoRot * right);
+    up = normalize(autoRot * up);
+    forward = normalize(autoRot * forward);
+    
+    // Construct ray direction from camera basis
+    vec3 dir = normalize(uv.x * right + uv.y * up + forward);
     
     // tracing
     vec3 p;

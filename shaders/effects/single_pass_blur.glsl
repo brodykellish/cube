@@ -7,7 +7,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float spread = mix(0.0, 5.0, clamp(iParam1, 0.0, 1.0));
     vec2 o = texel * spread;
     vec4 sum = texture(iChannel0, uv);
-    sum += texture(iChannel1, uv + vec2(-o.x, -o.y));
+    sum += texture(iChannel0, uv + vec2(-o.x, -o.y));
     sum += texture(iChannel0, uv + vec2(0.0, -o.y));
     sum += texture(iChannel0, uv + vec2(o.x, -o.y));
     sum += texture(iChannel0, uv + vec2(-o.x, 0.0));

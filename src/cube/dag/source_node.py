@@ -46,6 +46,8 @@ class SourceNode(Node):
             return
         
         self.output_texture.bind()
+        # Ensure clear color is black (not white from other contexts)
+        glClearColor(0.0, 0.0, 0.0, 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         self.shader.use()
         

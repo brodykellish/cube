@@ -100,29 +100,48 @@ class AudioStateReader:
         self.state = None
         self._cache = {}
 
-    def initialize(self, timeout=5.0):
+    def initialize(self, timeout=0.1):
         """
         Attach to existing shared memory.
         
         Args:
-            timeout: How long to wait for shared memory to exist
+            timeout: How long to wait for shared memory to exist (default 0.1s for non-blocking)
         
         Returns:
             True if successful, False otherwise
         """
-        start = time.time()
-        while time.time() - start < timeout:
+        # If already initialized, return success
+        if self.state is not None:
+            return True
+        
+        # Try once immediately (most common case - audio process is running)
+        try:
+            self.shm = shared_memory.SharedMemory(name=SHARED_MEMORY_NAME)
             try:
-                self.shm = shared_memory.SharedMemory(name=SHARED_MEMORY_NAME)
+                from multiprocessing import resource_tracker
+                resource_tracker.unregister(self.shm._name, 'shared_memory')
+            except Exception:
+                pass
+            self.state = AudioState.from_buffer(self.shm.buf)
+            return True
+        except FileNotFoundError:
+            # If not found and timeout is very short, don't wait
+            if timeout < 0.2:
+                return False
+            # Otherwise, try a few times with small sleep
+            start = time.time()
+            while time.time() - start < timeout:
                 try:
-                    from multiprocessing import resource_tracker
-                    resource_tracker.unregister(self.shm._name, 'shared_memory')
-                except Exception:
-                    pass
-                self.state = AudioState.from_buffer(self.shm.buf)
-                return True
-            except FileNotFoundError:
-                time.sleep(0.1)
+                    self.shm = shared_memory.SharedMemory(name=SHARED_MEMORY_NAME)
+                    try:
+                        from multiprocessing import resource_tracker
+                        resource_tracker.unregister(self.shm._name, 'shared_memory')
+                    except Exception:
+                        pass
+                    self.state = AudioState.from_buffer(self.shm.buf)
+                    return True
+                except FileNotFoundError:
+                    time.sleep(0.05)  # Shorter sleep interval
         return False
 
     def read(self) -> dict:

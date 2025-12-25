@@ -14,8 +14,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float exposure = mix(1.0, 12.0, flash);          // up to ~12x
     vec3 boosted = base * exposure;
 
-    // Soft clip (Reinhard)
-    boosted = boosted / (boosted + vec3(1.0));
+    // Soft clip (Reinhard) - only apply when exposure is boosted
+    if (flash > 0.0) {
+        boosted = boosted / (boosted + vec3(1.0));
+    }
 
     fragColor = vec4(boosted, 1.0);
 }

@@ -12,7 +12,7 @@
 
 float character(int n, vec2 p)
 {
-	p = floor(p*vec2(-4.0, 4.0) + 2.5);
+	p = floor(p*vec2(-4.0, 4.0) + 2.0);
     if (clamp(p.x, 0.0, 4.0) == p.x)
 	{
         if (clamp(p.y, 0.0, 4.0) == p.y)	
@@ -88,7 +88,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     if (gray > 0.9767) n = 11512810;
     
 	vec2 pixCoord = fragCoord.xy;
-	float cellSize = mix(8.0, 1.0, clamp(iParam4, 0.0, 1.0));
+	float cellSize = mix(1.5, 16.0, clamp(iParam4, 0.0, 1.0));
 	vec2 p = mod(pixCoord/cellSize, 2.0) - vec2(1.0);
     
 	if (iMouse.z > 0.5)	col = vec3(character(n, p));

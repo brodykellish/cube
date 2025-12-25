@@ -26,6 +26,7 @@ class Action(Enum):
 
     # Settings
     TOGGLE_DEBUG = auto()
+    TOGGLE_PREVIEW = auto()
     INCREASE_BRIGHTNESS = auto()
     DECREASE_BRIGHTNESS = auto()
     INCREASE_GAMMA = auto()
@@ -78,6 +79,7 @@ class Action(Enum):
     TOGGLE_MOSAIC = auto()
     TOGGLE_SLITSCAN = auto()
     TOGGLE_VIDEO_FEEDBACK = auto()
+    TOGGLE_MONITOR = auto()
 
     # Parameter increment/decrement (keyboard control)
     INC_PARAM0 = auto()

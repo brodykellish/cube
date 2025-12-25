@@ -93,7 +93,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     hsb.y = min(1.0, hsb.y * satBoost);
     
     // Apply brightness/intensity
-    hsb.z *= mix(0.5, 2.0, brightness);
+    hsb.z *= mix(1.0, 2.0, brightness);
     
     // Convert back to RGB
     vec3 color = hsb2rgb(hsb);

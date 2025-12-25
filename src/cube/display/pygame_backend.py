@@ -21,6 +21,7 @@ class PygameBackend(DisplayBackend):
                    scale=2 means render at width/2 × height/2 and scale up to fit window
             **kwargs: Additional arguments (ignored, for cross-backend compatibility)
         """
+        print("Creating pygame backend")
         # Internal rendering resolution (scaled down)
         internal_width = width // scale
         internal_height = height // scale
@@ -33,10 +34,11 @@ class PygameBackend(DisplayBackend):
         self.scale = scale
         self.window_width = width
         self.window_height = height
+        self.aspect_ratio = width / height if height > 0 else 1.0
 
-        # Create window
-        self.screen = pygame.display.set_mode((self.window_width, self.window_height))
-        print(f"Pygame backend initialized: {self.window_width}×{self.window_height} window, {internal_width}×{internal_height} render (scale {scale}x)")
+        # Create resizable window
+        self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
+        print(f"Pygame backend initialized: {self.window_width}×{self.window_height} window (resizable), {internal_width}×{internal_height} render (scale {scale}x)")
 
         pygame.display.set_caption("Cube Control")
 
@@ -73,8 +75,63 @@ class PygameBackend(DisplayBackend):
 
     def handle_events(self) -> dict:
         """Handle pygame events using keyboard abstraction."""
-        # Poll keyboard for input
-        keyboard_state = self.keyboard.poll()
+        # Get all events and filter resize events before keyboard processing
+        all_events = self.pygame.event.get()
+        resize_events = []
+        other_events = []
+        
+        for event in all_events:
+            if event.type == self.pygame.VIDEORESIZE:
+                resize_events.append(event)
+            else:
+                other_events.append(event)
+        
+        # Handle resize events first
+        for event in resize_events:
+            new_width = event.w
+            new_height = event.h
+            
+            # Calculate which dimension changed more (relative to current size)
+            width_change = abs(new_width - self.window_width) / max(self.window_width, 1)
+            height_change = abs(new_height - self.window_height) / max(self.window_height, 1)
+            
+            # Maintain aspect ratio by using the dimension that changed more as primary
+            if width_change >= height_change:
+                # Width changed more, calculate height from width
+                constrained_height = int(new_width / self.aspect_ratio)
+                self.window_width = new_width
+                self.window_height = constrained_height
+            else:
+                # Height changed more, calculate width from height
+                constrained_width = int(new_height * self.aspect_ratio)
+                self.window_width = constrained_width
+                self.window_height = new_height
+            
+            # Recreate screen surface with constrained size
+            self.screen = self.pygame.display.set_mode((self.window_width, self.window_height), self.pygame.RESIZABLE)
+            print(f"[Pygame] Window resized to {self.window_width}×{self.window_height} (aspect ratio locked)")
+        
+        # Process remaining events for keyboard input
+        # Since pygame.event.get() consumes events, we need to manually process them
+        # Create a temporary event queue by monkey-patching event.get()
+        original_event_get = self.pygame.event.get
+        event_list = list(other_events)  # Make a copy
+        
+        def mock_event_get():
+            """Mock event.get() that returns our filtered events."""
+            nonlocal event_list
+            result = event_list
+            event_list = []  # Clear after first call
+            return result
+        
+        self.pygame.event.get = mock_event_get
+        
+        try:
+            # Poll keyboard for input (will process the non-resize events)
+            keyboard_state = self.keyboard.poll()
+        finally:
+            # Restore original event.get()
+            self.pygame.event.get = original_event_get
         
         # Get mouse state
         mouse_pos = self.pygame.mouse.get_pos()

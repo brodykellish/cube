@@ -35,9 +35,13 @@ class QuitAction(MenuAction):
 
 @dataclass
 class LaunchVisualizationAction(MenuAction):
-    """Launch a visualization with specified configuration."""
+    """Launch a visualization with specified configuration.
+    
+    pixel_mapper is optional - if None, the action may be used for editing
+    rather than visualization (e.g., in prompt menu /list command).
+    """
     shader_path: Path
-    pixel_mapper: Literal['surface', 'cube']
+    pixel_mapper: Optional[Literal['surface', 'cube']] = None
 
 
 @dataclass
@@ -51,10 +55,3 @@ class MixerAction(MenuAction):
 class PromptAction(MenuAction):
     """Enter AI prompt interface for shader generation."""
     pass
-
-
-@dataclass
-class ShaderSelectionAction(MenuAction):
-    """Shader selected from browser (may or may not include pixel mapper)."""
-    shader_path: Path
-    pixel_mapper: Optional[Literal['surface', 'cube']] = None

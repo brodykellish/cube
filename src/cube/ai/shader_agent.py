@@ -49,15 +49,13 @@ class ShaderAgent:
     from natural language descriptions.
     """
 
-    def __init__(self, shaders_dir: Path, examples_root: Optional[Path] = None,
-                 validation_renderer=None):
+    def __init__(self, shaders_dir: Path, examples_root: Optional[Path] = None):
         """
         Initialize shader agent.
 
         Args:
             shaders_dir: Root shaders directory (agent can only write here)
             examples_root: Root directory containing shader examples (optional)
-            validation_renderer: Optional UnifiedRenderer for shader compilation testing
         """
         self.shaders_dir = shaders_dir
         self.shaders_dir.mkdir(parents=True, exist_ok=True)
@@ -65,12 +63,7 @@ class ShaderAgent:
         # Examples directory (parent of shaders_dir typically)
         self.examples_root = examples_root or shaders_dir.parent
 
-        # Validation renderer for compilation testing
-        self.validation_renderer = validation_renderer
-        if self.validation_renderer:
-            print("✓ Shader validation enabled (using validation renderer)")
-        else:
-            print("⚠ Shader validation disabled (no validation renderer)")
+        print("✓ Shader validation enabled (using direct compilation testing)")
 
         # Initialize Anthropic client
         api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -427,11 +420,9 @@ class ShaderAgent:
 
     def _test_shader_compilation(self, shader_path: Path) -> Tuple[bool, str]:
         """
-        Test shader compilation using the validation renderer.
-
-        This uses a dedicated UnifiedRenderer instance that was created on the
-        main thread. We must make its OpenGL context current before using it
-        from the background thread.
+        Test shader compilation using direct compilation testing.
+        
+        Uses test_shader_compilation() which automatically manages OpenGL context.
 
         Args:
             shader_path: Path to shader file to test
@@ -440,34 +431,8 @@ class ShaderAgent:
             Tuple of (has_errors: bool, output: str)
             has_errors is True if compilation errors detected, False otherwise
         """
-        if not self.validation_renderer:
-            print("Warning: No validation renderer - skipping validation")
-            return False, "No validation renderer - skipping validation"
-
-        try:
-            # CRITICAL: Make the validation renderer's context current
-            # This is required when calling from a different thread
-            if not self.validation_renderer.make_context_current():
-                print(
-                    "Warning: Could not make validation context current - skipping validation")
-                return False, "Could not make validation context current"
-
-            # Try to load shader using the validation renderer
-            # This will compile the shader and raise an exception if it fails
-            self.validation_renderer.load_shader(str(shader_path))
-
-            # Success - shader compiled
-            return False, "Shader compiled successfully"
-
-        except Exception as e:
-            # Compilation failed - capture full error with traceback
-            error_output = (
-                f"Shader compilation failed:\n"
-                f"{str(e)}\n\n"
-                f"Full traceback:\n"
-                f"{traceback.format_exc()}"
-            )
-            return True, error_output
+        from cube.shader.shader_compiler import test_shader_compilation
+        return test_shader_compilation(shader_path)
 
     def refine_shader(self, refinement_request: str) -> ShaderGenerationResult:
         """

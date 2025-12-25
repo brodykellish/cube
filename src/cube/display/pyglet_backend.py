@@ -32,12 +32,15 @@ class PygletBackend(Backend):
         self.scale = scale
         self._resize_pending = False
         
+        # Create window initially invisible to prevent it from stealing focus
+        # It will be made visible when rendering starts
         self.window = pyglet.window.Window(
             width=self.window_width,
             height=self.window_height,
             caption=title,
             resizable=resizable,
             vsync=False,  # disable vsync so FPS is not clamped to display refresh
+            visible=False,  # Start invisible to avoid stealing focus from menu
         )
         print(f'Pyglet window created: {self.window_width}×{self.window_height}')
         
@@ -217,6 +220,8 @@ class PygletBackend(Backend):
             framebuffer: RGB framebuffer (H, W, 3)
         """
         flipped = np.flip(framebuffer, axis=0)
+        fb_height, fb_width = flipped.shape[:2]
+        
         self.window.switch_to()
         # Ensure viewport covers the full framebuffer each frame. Other parts
         # of the system (e.g. FBO rendering) may have changed the viewport.
@@ -225,7 +230,22 @@ class PygletBackend(Backend):
         glUseProgram(self.program)
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, self.texture)
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, flipped.shape[1], flipped.shape[0], GL_RGB, GL_UNSIGNED_BYTE, flipped)
+        
+        # Check if texture needs to be resized
+        if fb_width != self._width or fb_height != self._height:
+            # Recreate texture with new dimensions
+            glDeleteTextures([self.texture])
+            self.texture = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.texture)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, fb_width, fb_height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+            self._width = fb_width
+            self._height = fb_height
+        
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, fb_width, fb_height, GL_RGB, GL_UNSIGNED_BYTE, flipped)
         glBindVertexArray(self.vao)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
         glBindVertexArray(0)

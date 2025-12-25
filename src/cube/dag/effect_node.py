@@ -54,6 +54,8 @@ class EffectNode(Node):
             return
         
         self.output_texture.bind()
+        # Ensure clear color is black (not white from other contexts)
+        glClearColor(0.0, 0.0, 0.0, 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         self.shader.use()
 
@@ -73,6 +75,15 @@ class EffectNode(Node):
         draw_fullscreen_quad(self.vao)
         glUseProgram(0)
         self.output_texture.unbind()
+
+    def update_input_texture(self, input_texture: Texture):
+        """
+        Update the input texture reference without recreating the node.
+        
+        Args:
+            input_texture: New input texture to use
+        """
+        self.input_texture = input_texture
 
     def cleanup(self):
         """Clean up additional textures."""

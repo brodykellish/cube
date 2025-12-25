@@ -125,13 +125,13 @@ class SphericalCamera(CameraMode):
         if shift_pressed:
             self.roll_vel += input_lr * self.rotate_speed * accel * dt
         else:
-            self.yaw_vel += input_lr * self.rotate_speed * accel * dt
+            self.yaw_vel -= input_lr * self.rotate_speed * accel * dt
 
         # Vertical: pitch or zoom
         if shift_pressed:
             self.distance_vel -= input_ud * self.zoom_speed * accel * dt
         else:
-            self.pitch_vel += input_ud * self.rotate_speed * accel * dt
+            self.pitch_vel -= input_ud * self.rotate_speed * accel * dt
 
         # Forward/backward: zoom
         self.distance_vel -= input_fb * self.zoom_speed * accel * dt

@@ -1,8 +1,8 @@
 """
 DAG-based renderer for cube.
 
-Replaces UnifiedRenderer with DAG-based rendering pipeline while maintaining
-the same public API for compatibility.
+Provides a directed acyclic graph (DAG) based rendering pipeline for shaders
+with support for effects, multi-pass rendering, and flexible pixel mapping.
 """
 
 import numpy as np
@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from OpenGL.GL import *
 
-from cube.shader import ShaderRenderer, UniformSource
+from cube.shader import UniformSource
 from cube.shader.camera_uniform_source import CameraUniformSource
 from cube.shader.parameter_uniform_source import ParameterUniformSource
+from cube.shader.uniform_sources import MouseUniformSource
 from cube.shader.shader_loader import load_shader_program
 from cube.dag.dag import DAG
 from cube.dag.effect_node import EffectNode
@@ -24,53 +25,72 @@ from cube.input.actions import Action
 from cube.utils.gl_utils import create_fullscreen_quad
 from cube.utils.texture_utils import read_texture_to_numpy
 from .pixel_mappers import PixelMapper, RenderSpec
+from typing import Optional, Callable
 
 
 class DAGRenderer:
     """
     DAG-based shader renderer with pluggable pixel mapping.
     
-    Maintains the same public API as UnifiedRenderer for compatibility.
+    Provides a flexible rendering pipeline with effect support.
     Uses DAG-based rendering pipeline internally.
     """
     
-    def __init__(self, pixel_mapper: PixelMapper, input_manager,
+    def __init__(self, pixel_mapper: PixelMapper, input_manager=None,
                  settings: dict = None, uniform_sources: list = None,
-                 audio_mapping_source=None):
+                 audio_mapping_source=None,
+                 make_context_current: Optional[Callable[[], bool]] = None):
         """
         Initialize DAG renderer.
         
         Args:
             pixel_mapper: Strategy for mapping renders to output
-            input_manager: InputManager for camera and parameter control
+            input_manager: Optional InputManager for camera and parameter control (required for rendering, optional for validation)
             settings: Optional settings dictionary for debug flags, etc.
             uniform_sources: Optional list of additional uniform sources (audio, etc.)
             audio_mapping_source: Optional AudioUniformMappingSource for audio→uniform mappings
+            make_context_current: Optional callable to make OpenGL context current (e.g., window.switch_to)
         """
         self.pixel_mapper = pixel_mapper
         self.settings = settings or {}
         self.input_manager = input_manager
+        self._make_context_current_fn = make_context_current
         
         # Determine max dimensions we'll need
         specs = pixel_mapper.get_render_specs()
         max_width = max(spec.width for spec in specs)
         max_height = max(spec.height for spec in specs)
         
-        # Create GPU renderer for context management
-        self.gpu_renderer = ShaderRenderer(max_width, max_height)
         self.current_width = max_width
         self.current_height = max_height
         
-        # Ensure context is current
-        self.gpu_renderer.make_context_current()
+        # Make context current (use provided function or fallback to ShaderRenderer)
+        if self._make_context_current_fn:
+            # Use provided context (e.g., visualization window)
+            if not self._make_context_current_fn():
+                raise RuntimeError("Failed to make OpenGL context current")
+        else:
+            # Fallback: create ShaderRenderer for context (legacy support)
+            from cube.shader import ShaderRenderer
+            self.gpu_renderer = ShaderRenderer(max_width, max_height)
+            if not self.gpu_renderer.make_context_current():
+                raise RuntimeError("Failed to make OpenGL context current")
+        
+        # Create mouse uniform source (needed for iMouse uniform)
+        self.mouse_source = MouseUniformSource(max_width, max_height)
         
         # Create VAO for fullscreen quad
         self.vao, self.vbo = create_fullscreen_quad()
         
-        # Create uniform sources (same as UnifiedRenderer)
+        # Create uniform sources (only if input_manager provided)
         mapper_camera = getattr(pixel_mapper, 'camera', None)
-        self.camera_source = CameraUniformSource(mapper_camera, input_manager)
-        self.param_source = ParameterUniformSource(input_manager, audio_mapping_source)
+        if input_manager is not None:
+            self.camera_source = CameraUniformSource(mapper_camera, input_manager)
+            self.param_source = ParameterUniformSource(input_manager, audio_mapping_source)
+        else:
+            # For validation-only renderers, create minimal sources
+            self.camera_source = None
+            self.param_source = None
         
         # Store additional uniform sources
         self.uniform_sources = uniform_sources or []
@@ -101,7 +121,8 @@ class DAGRenderer:
                 effect_def.action,
                 effect_def.shader_path,
                 effect_def.trigger_mode,
-                effect_def.node_class
+                effect_def.node_class,
+                effect_def.priority
             )
         
         # Track time
@@ -112,6 +133,10 @@ class DAGRenderer:
         """Get the camera uniform source."""
         return self.camera_source
     
+    def get_mouse_source(self):
+        """Get the mouse uniform source."""
+        return self.mouse_source
+    
     def make_context_current(self) -> bool:
         """
         Make this renderer's OpenGL context current for the calling thread.
@@ -119,7 +144,12 @@ class DAGRenderer:
         Returns:
             True if context was made current, False otherwise
         """
-        return self.gpu_renderer.make_context_current()
+        if self._make_context_current_fn:
+            return self._make_context_current_fn()
+        elif hasattr(self, 'gpu_renderer'):
+            return self.gpu_renderer.make_context_current()
+        else:
+            return False
     
     def _load_texture(self, image_path: str) -> Optional[int]:
         """Load an image file and create an OpenGL texture."""
@@ -141,6 +171,20 @@ class DAGRenderer:
             print(f'[DAGRenderer] Warning: Failed to load texture {image_path}: {e}')
             return None
 
+    def _create_default_black_texture(self, width: int = 256, height: int = 256) -> int:
+        """Create a default black texture for shaders that need iChannel0 but don't have one."""
+        texture_id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, texture_id)
+        # Create a 1x1 black pixel and upload it
+        black_pixel = np.zeros((1, 1, 3), dtype=np.uint8)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, black_pixel)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        return texture_id
+
     def _load_shader_textures(self, shader_path: str):
         """Load textures for a shader based on naming convention."""
         # Clean up old textures
@@ -159,6 +203,12 @@ class DAGRenderer:
                     if texture_id is not None:
                         self.shader_textures[channel] = texture_id
                     break
+        
+        # If shader uses iChannel0 but no texture is provided, create a default black texture
+        # This prevents the "texture unloadable" error and white screen
+        if 0 not in self.shader_textures:
+            default_texture = self._create_default_black_texture()
+            self.shader_textures[0] = default_texture
 
     def load_shader(self, shader_path: str):
         """Load shader file."""
@@ -203,17 +253,57 @@ class DAGRenderer:
         return "120"
     
     def _recreate_source_nodes(self):
-        """Recreate source nodes for current render specs."""
+        """Recreate source nodes for current render specs, preserving effect chain."""
         if not self.current_shader_program:
             return
         
-        # Clean up old nodes
+        # Identify first-layer effect nodes and map them to source indices
+        # First-layer effects are those that depend directly on source nodes
+        source_to_first_layer_effects = {}
+        for i, source_node in enumerate(self.source_nodes):
+            source_to_first_layer_effects[i] = []
+            for node in self.dag.nodes:
+                if isinstance(node, EffectNode):
+                    deps = self.dag.get_dependencies(node)
+                    # Check if this effect depends on this specific source node
+                    if source_node in deps:
+                        source_to_first_layer_effects[i].append(node)
+        
+        # Preserve all effect nodes and their inter-effect dependencies
+        effect_nodes_to_preserve = [node for node in self.dag.nodes if isinstance(node, EffectNode)]
+        effect_dependencies = {}
+        for fx_node in effect_nodes_to_preserve:
+            deps = self.dag.get_dependencies(fx_node)
+            # Only preserve dependencies on other effect nodes (not source nodes)
+            effect_deps = [dep for dep in deps if isinstance(dep, EffectNode)]
+            if effect_deps:
+                effect_dependencies[fx_node] = effect_deps
+        
+        # Disconnect first-layer effects from source nodes in the DAG
+        for source_index, fx_nodes in source_to_first_layer_effects.items():
+            source_node = self.source_nodes[source_index]
+            for fx_node in fx_nodes:
+                if source_node in self.dag.get_dependencies(fx_node):
+                    self.dag._dependencies[fx_node].discard(source_node)
+        
+        # Clean up old source nodes
         for node in self.source_nodes:
             node.cleanup()
         self.source_nodes.clear()
+        
+        # Create new DAG (this removes all nodes, but we'll re-add effect nodes)
         self.dag = DAG()
         
-        # Create source nodes for each render spec
+        # Re-add all effect nodes to the new DAG
+        for fx_node in effect_nodes_to_preserve:
+            self.dag.add_node(fx_node)
+        
+        # Restore effect-to-effect dependencies
+        for fx_node, deps in effect_dependencies.items():
+            for dep in deps:
+                self.dag.connect(dep, fx_node)
+        
+        # Create new source nodes for each render spec
         render_specs = self.pixel_mapper.get_render_specs()
         for i, spec in enumerate(render_specs):
             node_name = f"source_{i}"
@@ -227,8 +317,15 @@ class DAGRenderer:
             self.source_nodes.append(node)
             self.dag.add_node(node)
         
-        # Rebuild active effects
-        self.effect_manager.rebuild_active()
+        # Update first-layer effect nodes' input_texture and reconnect
+        for source_index, fx_nodes in source_to_first_layer_effects.items():
+            if source_index < len(self.source_nodes):
+                new_source_node = self.source_nodes[source_index]
+                for fx_node in fx_nodes:
+                    # Update input texture reference
+                    fx_node.update_input_texture(new_source_node.output_texture)
+                    # Reconnect in DAG
+                    self.dag.connect(new_source_node, fx_node)
     
     def add_input_source(self, source: UniformSource):
         """Add input source (audio, MIDI, etc.)."""
@@ -243,8 +340,10 @@ class DAGRenderer:
         """Update uniforms in all source nodes from uniform sources."""
         # Update uniform sources
         dt = 0.016  # Approximate delta time
-        self.camera_source.update(dt)
-        self.param_source.update(dt)
+        if self.camera_source:
+            self.camera_source.update(dt)
+        if self.param_source:
+            self.param_source.update(dt)
         
         for source in self.uniform_sources:
             if hasattr(source, 'update'):
@@ -254,15 +353,18 @@ class DAGRenderer:
         all_uniforms = {}
         
         # Camera uniforms
-        camera_uniforms = self.camera_source.get_uniforms()
-        all_uniforms.update(camera_uniforms)
+        if self.camera_source:
+            camera_uniforms = self.camera_source.get_uniforms()
+            all_uniforms.update(camera_uniforms)
         
         # Parameter uniforms
-        param_uniforms = self.param_source.get_uniforms()
-        all_uniforms.update(param_uniforms)
+        if self.param_source:
+            param_uniforms = self.param_source.get_uniforms()
+            all_uniforms.update(param_uniforms)
+        
         # Stash debug snapshot for overlay
         self._debug_state = {
-            'params': self.param_source.get_param_values(),
+            'params': self.param_source.get_param_values() if self.param_source else [0.0] * 8,
             'beat_phase': float(all_uniforms.get('iBeatPhase', 0.0)),
             'beat_pulse': float(all_uniforms.get('iBeatPulse', 0.0)),
         }
@@ -284,10 +386,9 @@ class DAGRenderer:
         all_uniforms['iFrame'] = self.frame_count
         all_uniforms['iTimeDelta'] = 0.016
         
-        # Mouse uniform from gpu_renderer
-        if hasattr(self.gpu_renderer, 'mouse_source'):
-            mouse_uniforms = self.gpu_renderer.mouse_source.get_uniforms()
-            all_uniforms.update(mouse_uniforms)
+        # Mouse uniform from mouse_source
+        mouse_uniforms = self.mouse_source.get_uniforms()
+        all_uniforms.update(mouse_uniforms)
         
         # Debug axes
         all_uniforms['iDebugAxes'] = 1.0 if self.settings.get('debug_axes', False) else 0.0
@@ -387,7 +488,7 @@ class DAGRenderer:
         # For volumetric/cube mode, temporarily reposition camera for each face
         for i, spec in enumerate(render_specs):
             # Reposition the camera to view from this face
-            if len(render_specs) > 1 and hasattr(self.pixel_mapper, 'reposition_camera_for_face'):
+            if len(render_specs) > 1 and hasattr(self.pixel_mapper, 'reposition_camera_for_face') and self.camera_source:
                 self.pixel_mapper.reposition_camera_for_face(i, self.camera_source)
                 # Update uniforms again with new camera
                 uniforms = self._update_uniforms_in_nodes(elapsed)
@@ -423,7 +524,7 @@ class DAGRenderer:
                     renders.append(np.zeros((spec.height, spec.width, 3), dtype=np.uint8))
         
         # Clear camera override after all faces rendered
-        if len(render_specs) > 1:
+        if len(render_specs) > 1 and self.camera_source:
             self.camera_source.set_override_vectors(None)
         
         # Safety check: ensure we have at least one render
@@ -461,7 +562,9 @@ class DAGRenderer:
             glDeleteBuffers(1, [self.vbo])
         
         # Clean up GPU renderer
-        self.gpu_renderer.cleanup()
+        # Cleanup GPU renderer if it exists (legacy fallback)
+        if hasattr(self, 'gpu_renderer'):
+            self.gpu_renderer.cleanup()
     
     def update_mouse(self, x: float, y: float, button_pressed: bool = False):
         """
@@ -472,5 +575,6 @@ class DAGRenderer:
             y: Mouse y position in pixels
             button_pressed: True if mouse button is pressed
         """
-        if hasattr(self.gpu_renderer, 'update_mouse'):
-            self.gpu_renderer.update_mouse(x, y, button_pressed)
+        # Update mouse source
+        self.mouse_source.set_mouse_position(x, y)
+        self.mouse_source.set_mouse_button(button_pressed)

@@ -54,20 +54,8 @@ class PygameKeyboard(Keyboard):
             self.pygame.K_TAB: 'tab',
             self.pygame.K_SPACE: 'space',
 
-            # Common letter keys (for various controls)
-            self.pygame.K_r: 'r',
-            self.pygame.K_e: 'e',
-            self.pygame.K_q: 'q',
-            self.pygame.K_b: 'b',
-            self.pygame.K_v: 'v',
-            self.pygame.K_f: 'f',
-            self.pygame.K_g: 'g',
-            self.pygame.K_c: 'c',
-            self.pygame.K_t: 't',
-            self.pygame.K_m: 'm',
-            self.pygame.K_n: 'n',
-            self.pygame.K_z: 'z',
-            self.pygame.K_i: 'i',
+            # Common letter keys (a-z) for various controls
+            **{getattr(self.pygame, f'K_{chr(c)}'): chr(c) for c in range(ord('a'), ord('z') + 1)},
 
             # Special characters for FPS control
             self.pygame.K_MINUS: '-',

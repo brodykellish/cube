@@ -122,7 +122,7 @@ float df(in vec3 p) {
     p.y += doorSize.y/3.;
     
     float dap = abs(Pz - c.z + div/2.);
-    float door = door(p, doorSize, P*.35*(cos(clamp( (dap*dap*dap)*.0125 ,-3.14,3.14))*.5 + .5));
+    float doorDist = door(p, doorSize, P*.35*(cos(clamp( (dap*dap*dap)*.0125 ,-3.14,3.14))*.5 + .5));
     
     float endwall = abs(p.z) - .01;
 
@@ -133,9 +133,9 @@ float df(in vec3 p) {
         
     float plaintes = max(-wall, p.y + 1.02) - .025;
     
-    float d = min(min(walls, door), plaintes);
+    float d = min(min(walls, doorDist), plaintes);
     
-    matid = d == plaintesFond || d == doorShapeExtr ? 3 : d == door ? 1 : d == walls  ? 2 : 3;
+    matid = d == plaintesFond || d == doorShapeExtr ? 3 : d == doorDist ? 1 : d == walls  ? 2 : 3;
     
     return d;
 }
@@ -144,14 +144,14 @@ float df(in vec3 p) {
 #define MAX_D 20.
 #define MAX_IT 50
 struct rmRes { vec3 pos; int it; bool hit; };
-rmRes rm(in vec3 c, in vec3 r) {
-    vec3 p = c;
+rmRes rm(in vec3 camPos, in vec3 r) {
+    vec3 p = camPos;
     int it;
     bool hit = false;
     for(int i = 0; i < MAX_IT; i++) {
         float d = df(p);
         if(d < LIM) { hit = true; break; }
-        if(distance(c,p) > MAX_D) break;
+        if(distance(camPos,p) > MAX_D) break;
         p += d*r;
         it = i;
     }
@@ -200,7 +200,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     }  
  
     vec3 color = c2;
-    if(res.hit)
+    if(res.hit) {
         if(matid == 1) color = doorpart == 1 ? c2/palette(pattern(st)) : c1;
         else if(matid == 2) color = c2;
         else {
@@ -213,6 +213,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     color = c2/palette(pattern(st));//*palette(snd*2.);
             } else color = c1;//*palette(snd*2.);
         }
+    }
     
     float l = length(st);
     fragColor = vec4(color - l*l*.5,1.0);

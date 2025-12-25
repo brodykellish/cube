@@ -18,7 +18,7 @@ class Display:
     and delegates final rendering to the appropriate backend.
     """
 
-    def __init__(self, width: int, height: int, num_layers: int=1, backend: str='auto', **kwargs):
+    def __init__(self, width: int, height: int, num_layers: int=1, backend=None, backend_type: str='auto', **kwargs):
         """
         Initialize display.
 
@@ -26,18 +26,25 @@ class Display:
             width: Display width in pixels
             height: Display height in pixels
             num_layers: Number of framebuffer layers (default 1)
-            backend: Backend type ('auto', 'pygame', 'piomatter')
-            **kwargs: Additional backend-specific arguments
+            backend: Optional backend instance to reuse (if None, creates one)
+            backend_type: Backend type ('auto', 'pygame', 'piomatter') - only used if backend is None
+            **kwargs: Additional backend-specific arguments (only used if backend is None)
         """
         self.window_width = width
         self.window_height = height
         self.num_layers = num_layers
         
-        if backend == 'auto':
-            backend = self._detect_backend(**kwargs)
-        
-        self.backend_type = backend
-        self.backend = self._create_backend(backend, width, height, **kwargs)
+        if backend is not None:
+            # Reuse provided backend instance
+            self.backend = backend
+            self.backend_type = getattr(backend, 'backend_type', 'unknown')
+        else:
+            # Create new backend (for Pi mode or standalone usage)
+            if backend_type == 'auto':
+                backend_type = self._detect_backend(**kwargs)
+            
+            self.backend_type = backend_type
+            self.backend = self._create_backend(backend_type, width, height, **kwargs)
 
         # Use backend's actual framebuffer dimensions (may be scaled)
         self.width = self.backend.width

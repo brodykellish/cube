@@ -1,48 +1,40 @@
 """
-Refactored LED Cube Controller with clean menu navigation and visualization management.
+Refactored LED Cube Controller - Thread Coordination Only.
 
-This demonstrates a cleaner architecture that:
-- Separates menu navigation from visualization configuration
-- Uses structured actions instead of string parsing
-- Eliminates special cases and legacy redirects
+The controller's primary purpose is to coordinate between threads:
+- Menu thread (main thread)
+- Visualization thread (separate thread)
+
+It handles:
+- Pipeline deployment (cross-thread communication)
+- Thread lifecycle management
+- Window creation on main thread (macOS requirement)
 """
 import time
+import queue
 from pathlib import Path
-from typing import Optional, Callable, Dict
-import tempfile
+from typing import Optional
+import numpy as np
 
-from cube.display import Display
-from cube.menu.menu_renderer import MenuRenderer
-from cube.menu.navigation import MenuNavigator
+from cube.display.menu_window import MenuWindow
+from cube.display.visualization_window import VisualizationWindow
+from cube.render.visualization_runner import VisualizationRunner
+from cube.ui.dev_menu import DevMenuUI
+from cube.ui.display_coordinator import DisplayCoordinator
+from cube.midi.midi_manager import MIDIManager
+from cube.utils.app_setup import setup_debug_logging, restore_stdout, find_project_root
 from cube.menu.actions import (
     MenuAction,
     QuitAction,
     LaunchVisualizationAction,
-    MixerAction,
-    PromptAction,
-    ShaderSelectionAction,
 )
-from cube.menu.menu_states import MainMenu, VisualizationModeSelect, ShaderBrowser, SettingsMenu
-from cube.menu.prompt_menu import PromptMenuState
-from cube.render import SurfacePixelMapper, CubePixelMapper
-from cube.render.dag_renderer import DAGRenderer
-from cube.shader import SphericalCamera
-from cube.midi import MIDIState, MIDIKeyboardDriver, MIDIUniformSource, USBMIDIDriver, load_midi_config
-from cube.input.input_manager import InputManager
-from cube.input.keyboard_source import KeyboardInputSource
-from cube.input.midi_source import MIDIInputSource
-from cube.input.actions import Action, InputContext
-from cube.shader.audio_uniform_mapping_source import AudioUniformMappingSource
 
 
 class CubeController:
     """
-    Main controller with clean separation of concerns.
-
-    The controller handles:
-    - Menu navigation (delegated to MenuNavigator)
-    - Visualization launching based on structured actions
-    - Main run loop
+    Main controller - coordinates between menu and visualization threads.
+    
+    Primary responsibility: Cross-thread coordination and pipeline deployment.
     """
 
     def __init__(
@@ -57,232 +49,78 @@ class CubeController:
         **kwargs,
     ):
         """Initialize the controller."""
+        # Set up debug logging FIRST (before any threads)
+        self.log_lines, self.log_lock, self.stdout_capture, self.original_stdout = setup_debug_logging()
+
         self.window_width = width
         self.window_height = height
         self.fps = fps
         self.frame_time = 1.0 / fps
         self.num_panels = num_panels
-        self.default_brightness = default_brightness
-        self.default_gamma = default_gamma
-        self.display = Display(width, height, num_layers=3, scale=scale, **kwargs)
-        self.width = self.display.width
-        self.height = self.display.height
+        self.scale = scale
+
+        # Create MenuWindow
+        self.menu_window = MenuWindow(width, height, scale=scale, **kwargs)
+        self.width = self.menu_window.backend.width
+        self.height = self.menu_window.backend.height
+
+        # Create layers
+        self.menu_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        self.shader_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        self.debug_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        self.preview_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
         
-        if self.num_panels == 1:
-            self.panel_width = self.width
-            self.panel_height = self.height
-        else:
-            self.panel_width = self.width // self.num_panels
-            self.panel_height = self.height
-        
-        self.menu_layer = self.display.get_layer(0)
-        self.shader_layer = self.display.get_layer(1)
-        self.debug_layer = self.display.get_layer(2)
+        # Settings (shared between menu and visualization)
         self.settings = {
-            "debug_ui": False,
+            "menu_debug_ui": False,
+            "viz_debug_ui": False,
             "debug_axes": False,
+            "preview_mode": False,
             "brightness": default_brightness,
             "gamma": default_gamma,
             "fps_limit": fps,
         }
 
-        # Unified input manager (keyboard + MIDI → actions/axes)
-        self.input_manager = InputManager()
+        # Initialize MIDI subsystem
+        self.midi_manager = MIDIManager(num_channels=7)
 
-        # MIDI subsystem (must be initialized before wiring input sources)
-        self.midi_state = MIDIState(num_channels=7)
-        self.midi_keyboard = MIDIKeyboardDriver(self.midi_state)
-        self.midi_config = load_midi_config()
-        self.usb_midi = None
-        self.last_bpm = None
-        
-        if self.midi_config:
-            self.usb_midi = USBMIDIDriver(self.midi_state, self.midi_config, tap_note=43)
-            if self.usb_midi.is_connected():
-                print(f'USB MIDI controller connected: {self.usb_midi.connected_device}')
-                print('  Tap tempo: Pad 8 (Note 43)')
-        else:
-            print('No MIDI config found (midi_config.yml) - USB MIDI disabled')
-        
-        tap_tempo = self.usb_midi.tap_tempo if self.usb_midi else None
-        self.midi_uniform_source = MIDIUniformSource(self.midi_state, tap_tempo)
+        # MenuWindow owns its own InputManager
+        self.menu_input_manager = self.menu_window.input_manager
+        self.input_manager = self.menu_input_manager  # Alias for backwards compatibility
 
-        # Now that MIDI state exists, wire input sources into InputManager
-        self._configure_input_sources()
-        self.input_manager.set_context(InputContext.MENU)
+        # Visualization window and runner (created lazily)
+        self.viz_window: Optional[VisualizationWindow] = None
+        self.visualization_runner: Optional[VisualizationRunner] = None
+        
+        # Queue for receiving rendered framebuffers from visualization thread
+        # Max size 1 to always get the latest frame (drops old frames if controller is slow)
+        self._framebuffer_queue: Optional[queue.Queue] = queue.Queue(maxsize=1)
+        
+        # Store latest framebuffer for preview (full resolution, no padding)
+        self._latest_framebuffer: Optional[np.ndarray] = None
+        
+        # Track if visualization window needs to be made visible (after first render)
+        self._viz_window_needs_visibility = False
 
-        self.menu_renderer = MenuRenderer(self.menu_layer)
-        self.menu_navigator = MenuNavigator(self.width, self.height, self.settings)
-        self._register_menus()
-        
-        self.gamepad = None
-        try:
-            if hasattr(self.display.backend, 'pygame'):
-                from cube.input.gamepad import GamepadCameraInput
-                self.gamepad = GamepadCameraInput(self.display.backend.pygame, joystick_index=0)
-                if not self.gamepad.is_connected():
-                    self.gamepad = None
-        except Exception:
-            pass
-        
-        # DAG-based renderer and current visualization state
-        self.renderer: Optional[DAGRenderer] = None
-        self.current_shader_path = None
-        self.is_visualizing = False
-        self.launched_from_prompt = False
-        self.fps_counter = 0
-        self.fps_last_time = time.time()
-        self.fps_current = 0.0
+        # Create DevMenuUI
+        project_root = find_project_root()
+        shaders_dir = project_root / 'shaders'
+        self.dev_menu_ui = DevMenuUI(
+            width=self.width,
+            height=self.height,
+            settings=self.settings,
+            menu_layer=self.menu_layer,
+            menu_window=self.menu_window,
+            shaders_root=shaders_dir,
+        )
+
+        # Display coordinator
+        self.display_coordinator = DisplayCoordinator(
+            menu_window=self.menu_window,
+            settings=self.settings,
+        )
+
         self._cleanup_done = False
-
-        # Debug waveform history for beat visualization
-        self._beat_history: list[tuple[float, float]] = []
-
-        # Learn mode and config watching
-        self.project_root = self._find_project_root()
-        self.learn_mode_flag = self.project_root / '.learn_mode'
-        self._learn_mode_active = False
-        self._learn_mode_check_accumulator = 0.0
-        self._effect_bindings_config_path = self.project_root / 'effect_bindings.yml'
-        self._effect_bindings_last_mtime: Optional[float] = None
-        self._effect_bindings_check_accumulator = 0.0
-
-        # Action handlers for visualization settings/effects
-        self._action_handlers: Dict[Action, Callable[[], None]] = {}
-        self._register_action_handlers()
-
-    # ------------------------------------------------------------------
-    # Input wiring
-    # ------------------------------------------------------------------
-    def _configure_input_sources(self) -> None:
-        """Register keyboard and MIDI sources with the InputManager."""
-        # Keyboard source from display backend
-        keyboard_driver = None
-        backend = getattr(self.display, "backend", None)
-        if backend is not None:
-            # Pygame backend exposes .pygame and uses PygameKeyboard internally.
-            if hasattr(backend, "keyboard"):
-                keyboard_driver = backend.keyboard
-
-        if keyboard_driver is None:
-            # Fallback: no keyboard driver exposed; controller can't drive input.
-            # Keep InputManager but without a keyboard source.
-            pass
-        else:
-            self.input_manager.register_source(KeyboardInputSource(keyboard_driver))
-
-        # MIDI source (optional but preferred)
-        self.midi_input_source = MIDIInputSource(self.midi_state)
-        self.input_manager.register_source(self.midi_input_source)
-
-    def _register_action_handlers(self) -> None:
-        """Register handlers for high-level actions during visualization."""
-
-        def toggle_debug() -> None:
-            self.settings["debug_ui"] = not self.settings.get("debug_ui", False)
-            status = "enabled" if self.settings["debug_ui"] else "disabled"
-            print(f"Debug UI {status}")
-
-        def inc_brightness() -> None:
-            self.settings["brightness"] = min(
-                100.0, self.settings.get("brightness", self.default_brightness) + 5.0
-            )
-            print(f"Brightness: {self.settings['brightness']:.0f}%")
-
-        def dec_brightness() -> None:
-            self.settings["brightness"] = max(
-                1.0, self.settings.get("brightness", self.default_brightness) - 5.0
-            )
-            print(f"Brightness: {self.settings['brightness']:.0f}%")
-
-        def inc_gamma() -> None:
-            self.settings["gamma"] = min(
-                3.0, self.settings.get("gamma", self.default_gamma) + 0.1
-            )
-            print(f"Gamma: {self.settings['gamma']:.2f}")
-
-        def dec_gamma() -> None:
-            self.settings["gamma"] = max(
-                0.5, self.settings.get("gamma", self.default_gamma) - 0.1
-            )
-            print(f"Gamma: {self.settings['gamma']:.2f}")
-
-        def inc_fps() -> None:
-            self.settings["fps_limit"] = min(
-                120, self.settings.get("fps_limit", self.fps) + 5
-            )
-            print(f"FPS Limit: {self.settings['fps_limit']}")
-
-        def dec_fps() -> None:
-            self.settings["fps_limit"] = max(
-                10, self.settings.get("fps_limit", self.fps) - 5
-            )
-            print(f"FPS Limit: {self.settings['fps_limit']}")
-
-        def reload_shader() -> None:
-            if self.current_shader_path and self.renderer:
-                print(f"Reloading shader: {self.current_shader_path}")
-                try:
-                    self.renderer.load_shader(str(self.current_shader_path))
-                except Exception as exc:
-                    print(f"Error reloading shader: {exc}")
-
-        def undo_effect() -> None:
-            if self.renderer and hasattr(self.renderer, "effect_manager"):
-                self.renderer.effect_manager.undo_effect()
-
-        def redo_effect() -> None:
-            if self.renderer and hasattr(self.renderer, "effect_manager"):
-                self.renderer.effect_manager.redo_effect()
-
-        self._action_handlers = {
-            Action.TOGGLE_DEBUG: toggle_debug,
-            Action.INCREASE_BRIGHTNESS: inc_brightness,
-            Action.DECREASE_BRIGHTNESS: dec_brightness,
-            Action.INCREASE_GAMMA: inc_gamma,
-            Action.DECREASE_GAMMA: dec_gamma,
-            Action.INCREASE_FPS: inc_fps,
-            Action.DECREASE_FPS: dec_fps,
-            Action.RELOAD_SHADER: reload_shader,
-            Action.UNDO_EFFECT: undo_effect,
-            Action.REDO_EFFECT: redo_effect,
-        }
-    
-    def _find_project_root(self) -> Path:
-        """Find the project root directory by looking for marker files."""
-        # Start from this file's directory
-        current = Path(__file__).parent
-        
-        # Look for common project root markers
-        markers = ['pyproject.toml', 'setup.py', 'requirements.txt', 'effects_config.yml', '.git']
-        
-        # Walk up the directory tree
-        for _ in range(10):  # Limit to 10 levels up
-            # Check if any marker exists
-            for marker in markers:
-                if (current / marker).exists():
-                    return current
-            # Move up one level
-            parent = current.parent
-            if parent == current:  # Reached filesystem root
-                break
-            current = parent
-        
-        # Fallback: use current working directory
-        cwd = Path.cwd()
-        print(f"[Controller] [WARNING] Could not find project root, using CWD: {cwd}")
-        return cwd
-
-    def _register_menus(self):
-        """Register all menu states with the navigator."""
-        self.menu_navigator.register_menu('main', MainMenu())
-        self.menu_navigator.register_menu('visualize', VisualizationModeSelect())
-        self.menu_navigator.register_menu('surface_browser', ShaderBrowser('surface'))
-        self.menu_navigator.register_menu('cube_browser', ShaderBrowser('cube'))
-        self.menu_navigator.register_menu('settings', SettingsMenu())
-        shaders_dir = Path(__file__).parent.parent.parent / 'shaders'
-        self.menu_navigator.register_menu('prompt', PromptMenuState(self.width, self.height, shaders_dir))
-        self.menu_navigator.navigate_to('main')
 
     def run(self):
         """Main game loop: poll input, resolve actions, and render."""
@@ -291,660 +129,224 @@ class CubeController:
 
         running = True
         last_frame_time = time.time()
-        
+
         while running:
             frame_start = time.time()
             dt = frame_start - last_frame_time
             last_frame_time = frame_start
-            
-            # Poll low-level events and feed into unified InputManager
-            events = self.display.handle_events()
-            # The display backend keyboard already feeds its own state; we only
-            # need quit/paste from events here. InputManager gets full state
-            # from its InputSource wrappers.
-            self.input_manager.poll()
-            
-            # Update mouse state in renderer if available
-            if self.renderer and 'mouse' in events:
-                mouse = events['mouse']
-                self.renderer.update_mouse(
-                    mouse.get('x', 0.0),
-                    mouse.get('y', 0.0),
-                    mouse.get('button_pressed', False)
-                )
-            
-            if self.input_manager.is_quit_requested() or events.get("quit"):
+
+            # Process menu window events (window handles its own input polling)
+            menu_events = self.menu_window.process_events()
+
+            # Poll visualization window events (on main thread for macOS compatibility)
+            # This must be on main thread because dispatch_events() requires it on macOS
+            # Note: VisualizationWindow will handle its own input in its thread
+            if self.viz_window:
+                self.viz_window.poll()
+
+            # Receive rendered framebuffer from visualization thread (non-blocking)
+            if self._framebuffer_queue is not None:
+                try:
+                    framebuffer = self._framebuffer_queue.get_nowait()
+                    # Store latest framebuffer for preview (full resolution, no padding)
+                    self._latest_framebuffer = framebuffer.copy()
+                    
+                    # Make window visible after first frame is received (on main thread)
+                    if self._viz_window_needs_visibility and self.viz_window:
+                        self.viz_window.make_visible()
+                        self._viz_window_needs_visibility = False
+                    
+                    # Update shader layer with rendered visualization
+                    fb_height, fb_width = framebuffer.shape[:2]
+                    layer_height, layer_width = self.shader_layer.shape[:2]
+                    
+                    if fb_height == layer_height and fb_width == layer_width:
+                        # Direct copy if sizes match
+                        self.shader_layer[:] = framebuffer
+                    else:
+                        # Center and scale if sizes don't match
+                        self.shader_layer[:, :, :] = 0
+                        y_offset = (layer_height - fb_height) // 2
+                        x_offset = (layer_width - fb_width) // 2
+                        if y_offset >= 0 and x_offset >= 0:
+                            self.shader_layer[y_offset:y_offset + fb_height, x_offset:x_offset + fb_width] = framebuffer
+                except queue.Empty:
+                    pass  # No new frame available
+
+            # Check for quit from menu window
+            if (self.menu_input_manager.is_quit_requested() or menu_events.get("quit")):
                 running = False
             else:
-                if self.is_visualizing:
-                    running = self._update_visualization(dt)
-                else:
-                    running = self._update_menu(dt)
+                # Menu loop (visualization runs in separate thread)
+                menu_action = self.dev_menu_ui.update(dt)
+                
+                if menu_action:
+                    running = self._handle_action(menu_action)
 
-                # MIDI tempo diagnostics (visualization mode only)
-                if self.is_visualizing and self.usb_midi:
-                    current_bpm = self.usb_midi.tap_tempo.get_bpm()
-                    if current_bpm != self.last_bpm:
-                        if current_bpm is not None:
-                            print(f"🎵 Tempo detected: {current_bpm:.1f} BPM")
-                        else:
-                            print("⏸  Tempo timeout")
-                        self.last_bpm = current_bpm
-                
-                # Render current mode
-                if self.is_visualizing:
-                    self._render_visualization()
+                # Render menu UI and debug overlay (DevMenuUI handles both)
+                renderer = self.visualization_runner._renderer if self.visualization_runner else None
+                self.dev_menu_ui.render(self.debug_layer, renderer, dt)
+
+                # Generate preview layer from visualization framebuffer (only if preview mode is enabled)
+                # Use latest framebuffer directly (full resolution, no padding) instead of shader_layer
+                if self.settings.get("preview_mode", False):
+                    from cube.ui.preview_renderer import render_preview
+                    preview_source = self._latest_framebuffer if self.visualization_runner else None
+                    self.preview_layer = render_preview(
+                        self.height,
+                        self.width,
+                        preview_source,
+                        max_size_ratio=0.25,
+                    )
                 else:
-                    self._render_menu()
-                
-                # FPS accounting and sleep
-                self.fps_counter += 1
-                current_time = time.time()
-                if current_time - self.fps_last_time >= 1.0:
-                    self.fps_current = self.fps_counter / (current_time - self.fps_last_time)
-                    self.fps_counter = 0
-                    self.fps_last_time = current_time
-                
+                    # Clear preview layer when preview mode is disabled
+                    self.preview_layer[:, :, :] = 0
+
+                # Display layers (DisplayCoordinator handles composition)
+                self.display_coordinator.display(
+                    self.menu_layer,
+                    self.shader_layer,
+                    self.debug_layer,
+                    self.preview_layer,
+                )
+
                 frame_time = time.time() - frame_start
                 target_fps = self.settings.get("fps_limit", self.fps)
                 if target_fps and target_fps > 0:
                     sleep_time = 1.0 / target_fps - frame_time
                     if sleep_time > 0:
                         time.sleep(sleep_time)
-        
+
         print("Shutdown complete")
         self.cleanup()
 
-    # ------------------------------------------------------------------
-    # Per-mode updates
-    # ------------------------------------------------------------------
-    def _update_menu(self, dt: float) -> bool:
-        """Process input and menu navigation in MENU context."""
-        self.input_manager.set_context(InputContext.MENU)
-
-        # Handle menu-scoped actions (e.g. toggle debug)
-        pressed_actions = self.input_manager.get_pressed_actions()
-        held_actions = self.input_manager.get_held_actions()
-        if Action.TOGGLE_DEBUG in pressed_actions:
-            handler = self._action_handlers.get(Action.TOGGLE_DEBUG)
-            if handler:
-                handler()
-
-        # Map high-level navigation actions to legacy menu key strings
-        key_for_action = None
-        if self.input_manager.is_action_pressed(Action.NAVIGATE_UP):
-            key_for_action = "up"
-        elif self.input_manager.is_action_pressed(Action.NAVIGATE_DOWN):
-            key_for_action = "down"
-        elif self.input_manager.is_action_pressed(Action.NAVIGATE_LEFT):
-            key_for_action = "left"
-        elif self.input_manager.is_action_pressed(Action.NAVIGATE_RIGHT):
-            key_for_action = "right"
-        elif self.input_manager.is_action_pressed(Action.CONFIRM):
-            key_for_action = "enter"
-        elif self.input_manager.is_action_pressed(Action.BACK) or self.input_manager.is_action_pressed(
-            Action.CANCEL
-        ):
-            key_for_action = "escape"
-
-        if key_for_action:
-            action = self.menu_navigator.handle_input(key_for_action)
-            if action:
-                return self._handle_action(action)
-
-        paste_text = self.input_manager.get_paste_text()
-        if paste_text and hasattr(self.menu_navigator.current_state, "handle_paste"):
-            self.menu_navigator.current_state.handle_paste(paste_text)
-
-        action = self.menu_navigator.update(dt)
-        if action:
-            return self._handle_action(action)
-
-        return True
-
-    def _check_learn_mode(self, dt: float):
-        """Check for learn mode flag file."""
-        self._learn_mode_check_accumulator = getattr(self, '_learn_mode_check_accumulator', 0.0) + dt
-        if self._learn_mode_check_accumulator < 0.1:
-            return
-        self._learn_mode_check_accumulator = 0.0
-        
-        was_active = self._learn_mode_active
-        self._learn_mode_active = self.learn_mode_flag.exists()
-        
-        if was_active != self._learn_mode_active:
-            if self._learn_mode_active:
-                print("[Controller] Learn mode active - effect processing disabled")
-            else:
-                print("[Controller] Learn mode inactive - effect processing enabled")
-    
-    def _check_effect_bindings_config(self, dt: float):
-        """Check for changes to effect_bindings.yml and reload if changed."""
-        self._effect_bindings_check_accumulator += dt
-        if self._effect_bindings_check_accumulator < 0.5:
-            return
-        self._effect_bindings_check_accumulator = 0.0
-        
-        # Check if file exists
-        if not self._effect_bindings_config_path.exists():
-            if self._effect_bindings_last_mtime is not None:
-                self._effect_bindings_last_mtime = None
-            return
-        
-        # Get current mtime
-        try:
-            current_mtime = self._effect_bindings_config_path.stat().st_mtime
-        except Exception as e:
-            return
-        
-        # First time - initialize and load
-        if self._effect_bindings_last_mtime is None:
-            self._effect_bindings_last_mtime = current_mtime
-            self._reload_effect_bindings()
-            return
-        
-        # Check if mtime changed
-        if current_mtime != self._effect_bindings_last_mtime:
-            self._effect_bindings_last_mtime = current_mtime
-            print("[Controller] Effect bindings config changed, reloading...")
-            self._reload_effect_bindings()
-    
-    def _reload_effect_bindings(self):
-        """Reload effect bindings from config file."""
-        from cube.input.effect_bindings_loader import load_effect_bindings
-        from cube.render.effect_config_loader import load_effect_config
-        
-        try:
-            _, bindings = load_effect_bindings()
-            
-            # Get all effect actions to identify which bindings to remove
-            effect_definitions = load_effect_config()
-            effect_actions = {ef.action for ef in effect_definitions}
-            
-            # Remove all existing bindings for effect actions in VISUALIZATION context
-            if InputContext.VISUALIZATION in self.input_manager.bindings.reverse:
-                reverse_dict = self.input_manager.bindings.reverse[InputContext.VISUALIZATION]
-                for action in list(effect_actions):
-                    if action in reverse_dict:
-                        # Get all raw_inputs bound to this action (it's a list of tuples)
-                        raw_inputs = reverse_dict[action]
-                        # Remove each binding (make a copy to avoid modification during iteration)
-                        for raw_input in list(raw_inputs):
-                            self.input_manager.bindings.remove_binding(
-                                InputContext.VISUALIZATION,
-                                action,
-                                raw_input
-                            )
-            
-            # Apply new bindings
-            for binding in bindings:
-                for inp in binding.inputs:
-                    # Convert input to tuple format if needed
-                    if isinstance(inp, str):
-                        raw_input = (inp,)
-                    elif isinstance(inp, tuple):
-                        raw_input = inp
-                    else:
-                        raw_input = (str(inp),)
-                    
-                    # Add binding
-                    self.input_manager.bindings.add_binding(
-                        InputContext.VISUALIZATION,
-                        binding.action,
-                        raw_input
-                    )
-            
-            print(f"[Controller] Reloaded {len(bindings)} effect bindings")
-        except Exception as e:
-            print(f"[Controller] Error reloading effect bindings: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def _update_visualization(self, dt: float) -> bool:
-        """Process input and actions while a visualization is running."""
-        self.input_manager.set_context(InputContext.VISUALIZATION)
-        
-        # Check for learn mode and config changes
-        self._check_learn_mode(dt)
-        self._check_effect_bindings_config(dt)
-
-        # Exit visualization on CANCEL/BACK
-        if self.input_manager.is_action_pressed(Action.CANCEL) or self.input_manager.is_action_pressed(
-            Action.BACK
-        ):
-            self._stop_visualization()
-            return True
-
-        # Apply any one-shot visualization actions using the state from the main poll
-        pressed_actions = self.input_manager.get_pressed_actions()
-        held_actions = self.input_manager.get_held_actions()
-        for action in pressed_actions:
-            # Handle built-in visualization actions (debug, gamma, fps, reload)
-            handler = self._action_handlers.get(action)
-            if handler:
-                handler()
-        
-        # Effects via manager (toggle and momentary) - skip if in learn mode
-        if self.renderer and hasattr(self.renderer, "effect_manager") and not self._learn_mode_active:
-            try:
-                self.renderer.effect_manager.process_inputs(pressed_actions, held_actions)
-            except Exception as exc:
-                print(f"Effect manager error: {exc}")
-
-        # Always update the renderer's parameter source (it consumes pressed/held actions)
-        if self.renderer and hasattr(self.renderer, "param_source"):
-            try:
-                self.renderer.param_source.update(dt)
-            except Exception:
-                pass
-
-        # Continuous axes (camera, params) are handled inside DAGRenderer via
-        # CameraUniformSource + ParameterUniformSource, which read from the
-        # shared InputManager each frame.
-        self._route_visualization_midi_keys(dt)
-
-        return True
-
     def cleanup(self):
-        """Clean up resources (display, input, etc.)."""
-        if self.usb_midi:
-            self.usb_midi.cleanup()
-        if hasattr(self, 'gamepad') and self.gamepad:
-            self.gamepad.cleanup()
+        """Clean up resources."""
         if self._cleanup_done:
             return
         self._cleanup_done = True
-        if self.display:
-            self.display.cleanup()
-        if self.renderer:
-            self.renderer.cleanup()
+
+        # Cleanup MIDI
+        self.midi_manager.cleanup()
+
+        # Stop visualization thread if it exists
+        if self.visualization_runner is not None:
+            self.visualization_runner.stop(timeout=5.0)
+
+        # Cleanup windows
+        if self.viz_window is not None:
+            try:
+                self.viz_window.cleanup()
+            except Exception:
+                pass
+        if self.menu_window is not None:
+            self.menu_window.cleanup()
+
+        # Restore original stdout
+        restore_stdout(self.original_stdout)
 
     def _handle_action(self, action: MenuAction) -> bool:
         """
-        Handle an action from the menu system.
+        Handle actions that require cross-thread coordination.
 
         Returns:
             True to continue running, False to quit.
         """
         if isinstance(action, QuitAction):
             return False
-        if isinstance(action, PromptAction):
-            self.menu_navigator.navigate_to('prompt')
-            return True
         if isinstance(action, LaunchVisualizationAction):
             self._launch_visualization(action)
             return True
-        if isinstance(action, ShaderSelectionAction):
-            if action.pixel_mapper:
-                launch_action = LaunchVisualizationAction(shader_path=action.shader_path, pixel_mapper=action.pixel_mapper)
-                self._launch_visualization(launch_action)
-                return True
-            print(f'Warning: Shader selected but no pixel mapper specified: {action.shader_path}')
-            return True
-        if isinstance(action, MixerAction):
-            print(f"Mixer action not yet implemented: {action}")
-            return True
+        # Other actions (PromptAction, MixerAction, etc.) are handled by DevMenuUI
         return True
 
     def _launch_visualization(self, action: LaunchVisualizationAction):
         """Launch a visualization based on the action configuration."""
-        self.launched_from_prompt = self.menu_navigator.current_state.name == 'prompt'
         print(f"\n{'============================================================'}")
         print("Launching visualization")
         print(f"Pixel mapper: {action.pixel_mapper}")
         shader_path = action.shader_path
         print(f"Shader: {shader_path}")
         print(f"{'============================================================'}")
-        print("Controls:")
-        print("  WASD: Rotate view")
-        print("  Shift+WS: Zoom in/out")
-        print("  Shift+AD: Roll left/right")
-        if self.gamepad and self.gamepad.is_connected():
-            print("\nGamepad:")
-            print("  Left Stick: Rotate camera")
-            print("  Right Stick Y: Zoom in/out")
-        print("\nSettings:")
-        print("  B/V: Brightness -/+")
-        print("  F/G: Gamma -/+")
-        print("  -/=: FPS Limit -/+")
-        print("\nActions:")
-        print("  R: Reload shader")
-        print("  I: Toggle debug info")
-        print("  ESC: Return to menu")
-        print("\nMIDI Parameters:")
-        print("  n/m: CC0 (param0) -/+")
-        print("  ,/. : CC1 (param1) -/+")
-        print("  [/] : CC2 (param2) -/+")
-        print("  ;/' : CC3 (param3) -/+")
-        
+
         try:
-            if action.pixel_mapper == "surface":
-                camera = SphericalCamera()
-                pixel_mapper = SurfacePixelMapper(self.width, self.height, camera)
-            elif action.pixel_mapper == "cube":
-                print(f"Cube panel dimensions: {self.panel_width}×{self.panel_height}")
-                print(f"Cube num panels: {self.num_panels}")
-                pixel_mapper = CubePixelMapper(face_width=self.panel_width, face_height=self.panel_height, num_panels=self.num_panels)
-            else:
-                raise ValueError(f'Unknown pixel mapper: {action.pixel_mapper}')
-            
-            if self.renderer:
-                self.renderer.cleanup()
-            
-            # Audio mapping for parameters (optional)
-            audio_mapping_source = None
-            try:
-                from cube.audio.shared_state import AudioStateReader
+            # Create visualization window and runner if they don't exist
+            if self.viz_window is None or self.visualization_runner is None:
+                print("[MAIN] Creating visualization window and runner...")
+                # Create VisualizationWindow on MAIN THREAD (macOS requirement)
+                # CRITICAL: Must be created on main thread, not in visualization thread
+                self.viz_window = VisualizationWindow(
+                    width=self.window_width,
+                    height=self.window_height,
+                    scale=self.scale,
+                    title="Cube Visualization",
+                )
 
-                audio_mapping_source = AudioUniformMappingSource(AudioStateReader())
-            except Exception:
-                audio_mapping_source = None
+                # Create VisualizationRunner (pass window created on main thread)
+                self.visualization_runner = VisualizationRunner(
+                    width=self.window_width,
+                    height=self.window_height,
+                    num_panels=self.num_panels,
+                    midi_state=self.midi_manager.midi_state,
+                    midi_uniform_source=self.midi_manager.midi_uniform_source,
+                    settings=self.settings,
+                    viz_window=self.viz_window,
+                    # Callback to signal stop from viz thread
+                    stop_callback=self._stop_visualization,
+                    # Queue to receive rendered framebuffers
+                    framebuffer_queue=self._framebuffer_queue,
+                )
 
-            self.renderer = DAGRenderer(
-                pixel_mapper=pixel_mapper,
-                input_manager=self.input_manager,
-                settings=self.settings,
-                uniform_sources=[self.midi_uniform_source],
-                audio_mapping_source=audio_mapping_source,
-            )
-            self.renderer.load_shader(str(shader_path))
-            self.current_shader_path = shader_path
-            self.is_visualizing = True
-            print("Visualization started. Press ESC to return to menu.")
+                # Start visualization thread (stdout already redirected, window already created)
+                self.visualization_runner.start()
+                
+                # Track that we need to make window visible after first render
+                # This will be done in the main loop after visualization starts rendering
+                self._viz_window_needs_visibility = True
+
+            # Deploy pipeline via VisualizationRunner
+            pipeline_config = {
+                'source': {
+                    'shader_path': str(shader_path),
+                    'pixel_mapper': action.pixel_mapper
+                },
+                'effects': [],  # No effects initially
+                'params': None  # Use defaults
+            }
+
+            # Deploy pipeline (cross-thread communication)
+            self.visualization_runner.deploy_pipeline(pipeline_config)
+
+            print(
+                "Visualization started. Press ESC in visualization window to return to menu.")
         except Exception as e:
             print(f"Error launching visualization: {e}")
             import traceback
             traceback.print_exc()
-            self.is_visualizing = False
             return
 
     def _stop_visualization(self):
-        """Stop current visualization and return to menu."""
-        if self.launched_from_prompt:
-            print("Returning to prompt...")
-            self.menu_navigator.navigate_to("prompt")
-        else:
-            print("Returning to menu...")
-        
-        if self.renderer:
-            self.renderer.cleanup()
-            self.renderer = None
-        self.is_visualizing = False
-        self.current_shader_path = None
-        self.launched_from_prompt = False
+        """Stop visualization thread and cleanup (called from visualization thread)."""
+        print("[MAIN] Stopping visualization...")
 
-    def _route_visualization_midi_keys(self, dt: float) -> None:
-        """
-        Route held keys through MIDIKeyboardDriver for smooth CC updates.
+        # Stop visualization thread
+        if self.visualization_runner is not None:
+            print("[MAIN] Stopping visualization thread...")
+            self.visualization_runner.stop(timeout=5.0)
+            self.visualization_runner = None
 
-        This keeps keyboard→MIDI mappings working on top of the InputManager
-        axis system (e.g. n/m, ,/. for params).
-        """
-        # Build a synthetic held-keys list from current keyboard InputSource.
-        held_keys: list[str] = []
-        # KeyboardInputSource encodes keys as 'key:NAME' in InputState. Bindings
-        # map those to Actions/Axes, but for MIDIKeyboardDriver we only care
-        # about the logical key names.
-        # We approximate this by using the current bindings for param actions.
-        # For now, we leave MIDIKeyboardDriver mostly for discrete taps; smooth
-        # param control is handled via axes in ParameterUniformSource.
-        self.midi_keyboard.update_from_held_keys(held_keys, dt)
-
-    def _reload_shader(self):
-        """Reload current shader."""
-        if self.unified_renderer and self.current_shader_path:
-            print(f'Reloading shader: {self.current_shader_path}')
+        # Cleanup visualization window
+        if self.viz_window is not None:
+            print("[MAIN] Cleaning up visualization window...")
             try:
-                self.unified_renderer.load_shader(str(self.current_shader_path))
+                self.viz_window.cleanup()
             except Exception as e:
-                print(f'Error reloading shader: {e}')
+                print(f"[MAIN] Error cleaning up viz window: {e}")
+            self.viz_window = None
 
-    def _render_debug_overlay(self):
-        """Render debug information (FPS, camera position, params, waveform) to debug layer."""
-        import numpy as np
+        # Return to main menu
+        print("Returning to menu...")
+        self.dev_menu_ui.navigator.navigate_to("main")
 
-        self.debug_layer[:, :, :] = 0
-
-        # Always render active effects list (top-left) for quick visibility.
-        self._render_effect_overlay()
-        
-        if not self.settings.get('debug_ui', False):
-            return
-        
-        from cube.menu.menu_renderer import MenuRenderer
-
-        debug_renderer = MenuRenderer(self.debug_layer)
-        height, width = self.debug_layer.shape[:2]
-        char_width = 4
-        char_height = 8
-        line_spacing = 2
-        lines: list[str] = []
-        
-        # Line 1: FPS
-        fps_text = f'FPS: {self.fps_current:.1f}'
-        lines.append(fps_text)
-        
-        # Line 2: Camera position (if available)
-        if self.is_visualizing and self.renderer:
-            try:
-                camera_source = self.renderer.get_camera_source()
-                camera_uniforms = camera_source.get_uniforms()
-                cam_pos = camera_uniforms.get('iCameraPos', (0.0, 0.0, 0.0))
-                cam_text = f'Cam: ({cam_pos[0]:.1f},{cam_pos[1]:.1f},{cam_pos[2]:.1f})'
-                lines.append(cam_text)
-            except Exception:
-                pass
-        
-        # Line 3: Mouse position (if available)
-        if self.is_visualizing and self.renderer:
-            try:
-                if hasattr(self.renderer, 'gpu_renderer') and hasattr(self.renderer.gpu_renderer, 'mouse_source'):
-                    mouse_uniforms = self.renderer.gpu_renderer.mouse_source.get_uniforms()
-                    mouse = mouse_uniforms.get('iMouse', (0.0, 0.0, 0.0, 0.0))
-                    mouse_text = f'Mouse: ({mouse[0]:.0f},{mouse[1]:.0f})'
-                    if mouse[2] > 0.0 or mouse[3] > 0.0:
-                        mouse_text += f' click:({mouse[2]:.0f},{mouse[3]:.0f})'
-                    lines.append(mouse_text)
-            except Exception:
-                pass
-        
-        # Line 4: Parameters iParam0-7 from renderer state
-        params = None
-        beat_phase = 0.0
-        beat_pulse = 0.0
-        if self.is_visualizing and self.renderer:
-            try:
-                debug_state = self.renderer.get_debug_state()
-                params = debug_state.get('params')
-                beat_phase = float(debug_state.get('beat_phase', 0.0))
-                beat_pulse = float(debug_state.get('beat_pulse', 0.0))
-            except Exception:
-                params = None
-        param_line_start = None
-        if params is not None:
-            param_line_start = len(lines)
-            first_row = ' '.join(f'{p:.2f}' for p in params[:4])
-            second_row = ' '.join(f'{p:.2f}' for p in params[4:])
-            lines.append(f'{first_row}')
-            lines.append(f'{second_row}')
-        
-        # Layout text in top-right corner
-        max_text_len = max((len(line) for line in lines)) if lines else 0
-        text_width = max_text_len * char_width
-        x_pos = width - text_width - 2
-        y_start = height - len(lines) * (char_height + line_spacing) - 2
-        
-        for i, line in enumerate(lines):
-            y_pos = y_start + i * (char_height + line_spacing)
-            if i == 0:
-                color = (0, 255, 0)
-            elif line.startswith('Cam:'):
-                color = (100, 200, 255)
-            elif line.startswith('Mouse:'):
-                color = (255, 150, 100)
-            elif param_line_start is not None and i >= param_line_start:
-                color = (255, 255, 0)  # brighter yellow for params
-            else:
-                color = (200, 200, 200)
-            debug_renderer.draw_text(line, x_pos, y_pos, color=color, scale=1)
-
-        # Waveform visualizer in bottom-left for beat pulse/phase
-        self._render_beat_waveform(beat_phase, beat_pulse)
-
-    def _render_beat_waveform(self, beat_phase: float, beat_pulse: float) -> None:
-        """Render simple waveform visualization for beat phase/pulse in bottom-left."""
-        import numpy as np
-
-        height, width = self.debug_layer.shape[:2]
-        if width == 0 or height == 0:
-            return
-
-        # Append new sample and clamp history
-        self._beat_history.append((beat_phase, beat_pulse))
-        max_samples = min(width // 2, 128)
-        if len(self._beat_history) > max_samples:
-            self._beat_history = self._beat_history[-max_samples:]
-
-        wave_width = len(self._beat_history)
-        wave_height = min(32, height // 4)
-        y_start = height - wave_height
-        x_start = 0
-
-        # Clear region
-        self.debug_layer[y_start:height, x_start:x_start + wave_width, :] = 0
-
-        if wave_width <= 1:
-            return
-
-        # Split the band: top half = phase (green), bottom half = pulse (pink)
-        # Leave a 1px spacer between the two bands
-        spacer = 1
-        phase_height = wave_height // 2
-        pulse_height = wave_height - phase_height - spacer
-        phase_base = y_start + phase_height - 1  # bottom of phase band
-        pulse_base = y_start + wave_height - 1   # bottom of pulse band
-
-        for i, (phase, pulse) in enumerate(self._beat_history):
-            x = x_start + i
-            if x < 0 or x >= width:
-                continue
-            clamped_phase = max(0.0, min(1.0, phase))
-            clamped_pulse = max(0.0, min(1.0, pulse))
-
-            # Phase column (green)
-            phase_fill = int(clamped_phase * (phase_height - 1))
-            y_phase_top = max(0, phase_base - phase_fill)
-            y_phase_bottom = phase_base
-            self.debug_layer[y_phase_top:y_phase_bottom + 1, x, 0] = 0
-            self.debug_layer[y_phase_top:y_phase_bottom + 1, x, 1] = 255
-            self.debug_layer[y_phase_top:y_phase_bottom + 1, x, 2] = 0
-
-            # Pulse column (pink)
-            pulse_fill = int(clamped_pulse * (pulse_height - 1))
-            y_pulse_top = max(0, pulse_base - pulse_fill)
-            y_pulse_bottom = pulse_base
-            self.debug_layer[y_pulse_top:y_pulse_bottom + 1, x, 0] = 255
-            self.debug_layer[y_pulse_top:y_pulse_bottom + 1, x, 1] = 105
-            self.debug_layer[y_pulse_top:y_pulse_bottom + 1, x, 2] = 180
-
-        # Labels at left edge
-        label_color_phase = (0, 255, 0)
-        label_color_pulse = (255, 105, 180)
-        try:
-            from cube.menu.menu_renderer import MenuRenderer
-            label_renderer = MenuRenderer(self.debug_layer)
-            label_renderer.draw_text("phase", x_start + 2, y_start, color=label_color_phase, scale=1)
-            label_renderer.draw_text("pulse", x_start + 2, y_start + phase_height + spacer, color=label_color_pulse, scale=1)
-        except Exception:
-            pass
-
-    # ------------------------------------------------------------------
-    # Effect overlay
-    # ------------------------------------------------------------------
-    def _format_binding_label(self, raw_input: tuple[str]) -> str:
-        """Format a raw binding tuple for display."""
-        parts = []
-        for key in raw_input:
-            if key.startswith("key:"):
-                parts.append(key.split("key:", 1)[1])
-            elif key.startswith("midi:"):
-                parts.append(key.split("midi:", 1)[1])
-            else:
-                parts.append(key)
-        return "+".join(parts)
-
-    def _render_effect_overlay(self) -> None:
-        """Render active effects and their deactivation bindings in top-left."""
-        if not self.renderer or not hasattr(self.renderer, "effect_manager"):
-            return
-        try:
-            active_actions = self.renderer.effect_manager.get_active_actions()
-        except Exception:
-            return
-        if not active_actions:
-            return
-
-        from cube.menu.menu_renderer import MenuRenderer
-
-        lines: list[str] = []
-        for action in active_actions:
-            friendly = action.name.replace("TOGGLE_", "").replace("_", " ").title()
-            raw_bindings = self.input_manager.bindings.get_raw_inputs(
-                action, InputContext.VISUALIZATION
-            )
-            labels = [self._format_binding_label(b) for b in raw_bindings] if raw_bindings else []
-            binding_text = ", ".join(labels) if labels else "[unbound]"
-            lines.append(f"{friendly}: {binding_text}")
-
-        if not lines:
-            return
-
-        overlay_renderer = MenuRenderer(self.debug_layer)
-        char_height = 8
-        line_spacing = 2
-        x_pos = 2
-        y_start = 2
-        for i, line in enumerate(lines):
-            y_pos = y_start + i * (char_height + line_spacing)
-            overlay_renderer.draw_text(line, x_pos, y_pos, color=(255, 255, 255), scale=1)
-
-    def _render_menu(self):
-        """Render current menu."""
-        self.shader_layer[:, :, :] = 0
-        self.menu_layer[:, :, :] = 0
-        self.menu_navigator.render(self.menu_renderer)
-        self._render_debug_overlay()
-        self.display.show(brightness=self.settings.get('brightness', 90.0), gamma=self.settings.get('gamma', 1.0))
-
-    def _render_visualization(self):
-        """Render current visualization."""
-        if not self.renderer:
-            return
-
-        # Let pixel mapper react to current camera vectors if it supports it.
-        if hasattr(self.renderer.pixel_mapper, 'update_from_camera'):
-            try:
-                camera_uniforms = self.renderer.get_camera_source().get_uniforms()
-                self.renderer.pixel_mapper.update_from_camera(camera_uniforms)
-            except Exception:
-                pass
-
-        self.menu_layer[:, :, :] = 0
-        framebuffer = self.renderer.render()
-        fb_height, fb_width = framebuffer.shape[:2]
-        layer_height, layer_width = self.shader_layer.shape[:2]
-
-        if fb_height == layer_height and fb_width == layer_width:
-            self.shader_layer[:] = framebuffer
-        else:
-            self.shader_layer[:, :, :] = 0
-            y_offset = (layer_height - fb_height) // 2
-            x_offset = (layer_width - fb_width) // 2
-            self.shader_layer[y_offset:y_offset + fb_height, x_offset:x_offset + fb_width] = framebuffer
-
-        self._render_debug_overlay()
-        self.display.show(
-            brightness=self.settings.get('brightness', 90.0),
-            gamma=self.settings.get('gamma', 1.0),
-        )
+        print("[MAIN] Visualization stopped")
 

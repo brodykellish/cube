@@ -50,6 +50,12 @@ float mapTerrain( vec3 p )
 
 vec3 gro = vec3(0.0);
 
+float hash13(vec3 p) {
+    p = fract(p * vec3(443.8975, 397.2973, 491.1871));
+    p += dot(p.zxy, p.yxz + 19.27);
+    return fract(p.x * p.y * p.z);
+}
+
 float map(in vec3 c) 
 {
 	vec3 p = c + 0.5;
@@ -57,8 +63,19 @@ float map(in vec3 c)
 	float f = mapTerrain( p ) + 0.25*p.y;
 
     f = mix( f, 1.0, step( length(gro-p), 5.0 ) );
+    
+    float voxelExists = step( f, 0.5 );
+    
+    if (iParam1 > 0.001) {
+        vec3 voxelId = floor(c);
+        float voxelHash = hash13(voxelId * 0.1);
+        float flickerPhase = sin(iTime * (5.0 + iParam1 * 15.0) + voxelHash * 6.28) * 0.5 + 0.5;
+        float threshold = iParam1 * 0.7;
+        float shouldExist = step(threshold, flickerPhase);
+        voxelExists *= shouldExist;
+    }
 
-	return step( f, 0.5 );
+	return voxelExists;
 }
 
 const vec3 lig = normalize( vec3(-0.4,0.3,0.7) );
@@ -211,6 +228,20 @@ vec3 render( in vec3 ro, in vec3 rd )
         lin += 0.5*bac*vec3(0.15,0.10,0.10)*occ;
         lin += 2.0*sky*vec3(0.40,0.30,0.15)*occ;
 
+        // flicker effect controlled by iParam0 - much more pronounced
+        float flickerSpeed = 15.0 + iParam0 * 30.0;
+        float flickerIntensity = iParam0;
+        float flickerBase = abs(sin(iTime * flickerSpeed + pos.x * 2.0 + pos.y * 3.0 + pos.z * 1.5));
+        float flicker = 1.0 + flickerIntensity * (0.0 + 2.5 * flickerBase);
+        flicker = mix(1.0, flicker, step(0.001, iParam0));
+        
+        float rapidFlicker = 1.0;
+        if (iParam0 > 0.5) {
+            rapidFlicker = step(0.3, fract(iTime * flickerSpeed * 2.0 + pos.x + pos.y + pos.z));
+            rapidFlicker = mix(0.1, 1.0, rapidFlicker);
+        }
+        flicker *= rapidFlicker;
+        
         // line glow	
         float lineglow = 0.0;
         lineglow += smoothstep( 0.4, 1.0,     uv.x )*(1.0-va.x*(1.0-vc.x));
@@ -221,13 +252,14 @@ vec3 render( in vec3 ro, in vec3 rd )
         lineglow += smoothstep( 0.4, 1.0,      uv.y* (1.0-uv.x))*(1.0-vb.y*(1.0-vd.y));
         lineglow += smoothstep( 0.4, 1.0, (1.0-uv.y)*(1.0-uv.x))*(1.0-vb.z*(1.0-vd.z));
         lineglow += smoothstep( 0.4, 1.0, (1.0-uv.y)*     uv.x )*(1.0-vb.w*(1.0-vd.w));
+        lineglow *= flicker;
 		
         vec3 linCol = 2.0*vec3(5.0,0.6,0.0);
         linCol *= (0.5+0.5*occ)*0.5;
         lin += lineglow*linCol;
 		
         col = col*lin;
-        col += 8.0*linCol*vec3(1.0,2.0,3.0)*(1.0-www);//*(0.5+1.0*sha);
+        col += 8.0*linCol*vec3(1.0,2.0,3.0)*(1.0-www)*flicker;//*(0.5+1.0*sha);
         col += 0.1*lineglow*linCol;
         col *= min(0.1,exp( -0.07*t ));
 	
