@@ -169,7 +169,6 @@ class ShaderBrowser(MenuState):
             ("directory", "GRAPHICS", "graphics"),
             ("directory", "REALISM", "realism"),
             ("directory", "PRIMITIVES", "primitives"),
-            ("directory", "CHRISTMAS", "christmas"),
             ("directory", "GENERATED", "generated"),
             ("action", "BACK", None)
         ]

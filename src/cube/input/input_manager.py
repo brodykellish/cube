@@ -44,6 +44,7 @@ class InputManager:
         self._last_cc_values = {}
         self._quit = False
         self._paste = None
+        self._last_raw_states = []  # Store raw states from last poll() for forwarding
 
     def register_source(self, source: InputSource):
         """
@@ -76,6 +77,9 @@ class InputManager:
         Adds velocity tracking to all CC signals and tracks modifiers.
         """
         raw_states = [s.poll() for s in self.sources if s.is_available()]
+        
+        # Store raw states for forwarding (before they get modified)
+        self._last_raw_states = raw_states
 
         self._actions = self.bindings.resolve_actions_with_overlays(
             raw_states, self.context, self.overlay_stack
@@ -98,6 +102,17 @@ class InputManager:
         self._prev_actions = current_actions.copy()
         self._quit = any((s.quit_requested for s in raw_states))
         self._paste = next((s.paste_text for s in raw_states if s.paste_text), None)
+    
+    def get_last_raw_states(self) -> List[InputState]:
+        """
+        Get raw input states from last poll() call.
+        
+        Useful for forwarding input to another InputManager without polling sources again.
+        
+        Returns:
+            List of InputState objects from last poll()
+        """
+        return self._last_raw_states.copy()
 
     def get_axis(self, axis: Axis, default: float=0.0) -> float:
         """

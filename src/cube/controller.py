@@ -20,7 +20,6 @@ from cube.display.menu_window import MenuWindow
 from cube.display.visualization_window import VisualizationWindow
 from cube.render.visualization_runner import VisualizationRunner
 from cube.ui.dev_menu import DevMenuUI
-from cube.ui.display_coordinator import DisplayCoordinator
 from cube.midi.midi_manager import MIDIManager
 from cube.utils.app_setup import setup_debug_logging, restore_stdout, find_project_root
 from cube.menu.actions import (
@@ -63,12 +62,6 @@ class CubeController:
         self.menu_window = MenuWindow(width, height, scale=scale, **kwargs)
         self.width = self.menu_window.backend.width
         self.height = self.menu_window.backend.height
-
-        # Create layers
-        self.menu_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-        self.shader_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-        self.debug_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-        self.preview_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
         
         # Settings (shared between menu and visualization)
         self.settings = {
@@ -109,15 +102,8 @@ class CubeController:
             width=self.width,
             height=self.height,
             settings=self.settings,
-            menu_layer=self.menu_layer,
             menu_window=self.menu_window,
             shaders_root=shaders_dir,
-        )
-
-        # Display coordinator
-        self.display_coordinator = DisplayCoordinator(
-            menu_window=self.menu_window,
-            settings=self.settings,
         )
 
         self._cleanup_done = False
@@ -137,6 +123,17 @@ class CubeController:
 
             # Process menu window events (window handles its own input polling)
             menu_events = self.menu_window.process_events()
+            
+            # Update forwarding source cache if forwarding is enabled (must be on main thread)
+            if (self.dev_menu_ui.input_forwarding_enabled and 
+                self.viz_window and 
+                hasattr(self.viz_window.input_manager, 'sources')):
+                # Find forwarding source and update its cache
+                for source in self.viz_window.input_manager.sources:
+                    if hasattr(source, 'name') and source.name == 'menu_forwarding':
+                        if hasattr(source, 'update_cache'):
+                            source.update_cache()
+                        break
 
             # Poll visualization window events (on main thread for macOS compatibility)
             # This must be on main thread because dispatch_events() requires it on macOS
@@ -156,20 +153,7 @@ class CubeController:
                         self.viz_window.make_visible()
                         self._viz_window_needs_visibility = False
                     
-                    # Update shader layer with rendered visualization
-                    fb_height, fb_width = framebuffer.shape[:2]
-                    layer_height, layer_width = self.shader_layer.shape[:2]
-                    
-                    if fb_height == layer_height and fb_width == layer_width:
-                        # Direct copy if sizes match
-                        self.shader_layer[:] = framebuffer
-                    else:
-                        # Center and scale if sizes don't match
-                        self.shader_layer[:, :, :] = 0
-                        y_offset = (layer_height - fb_height) // 2
-                        x_offset = (layer_width - fb_width) // 2
-                        if y_offset >= 0 and x_offset >= 0:
-                            self.shader_layer[y_offset:y_offset + fb_height, x_offset:x_offset + fb_width] = framebuffer
+                    # Visualization is displayed in separate window, no need to update menu layer
                 except queue.Empty:
                     pass  # No new frame available
 
@@ -180,35 +164,14 @@ class CubeController:
                 # Menu loop (visualization runs in separate thread)
                 menu_action = self.dev_menu_ui.update(dt)
                 
+                # Handle input forwarding toggle
+                self._update_input_forwarding()
+                
                 if menu_action:
                     running = self._handle_action(menu_action)
 
-                # Render menu UI and debug overlay (DevMenuUI handles both)
-                renderer = self.visualization_runner._renderer if self.visualization_runner else None
-                self.dev_menu_ui.render(self.debug_layer, renderer, dt)
-
-                # Generate preview layer from visualization framebuffer (only if preview mode is enabled)
-                # Use latest framebuffer directly (full resolution, no padding) instead of shader_layer
-                if self.settings.get("preview_mode", False):
-                    from cube.ui.preview_renderer import render_preview
-                    preview_source = self._latest_framebuffer if self.visualization_runner else None
-                    self.preview_layer = render_preview(
-                        self.height,
-                        self.width,
-                        preview_source,
-                        max_size_ratio=0.25,
-                    )
-                else:
-                    # Clear preview layer when preview mode is disabled
-                    self.preview_layer[:, :, :] = 0
-
-                # Display layers (DisplayCoordinator handles composition)
-                self.display_coordinator.display(
-                    self.menu_layer,
-                    self.shader_layer,
-                    self.debug_layer,
-                    self.preview_layer,
-                )
+                # Render menu UI (handles framebuffer composition, corrections, and display)
+                self.dev_menu_ui.render(dt)
 
                 frame_time = time.time() - frame_start
                 target_fps = self.settings.get("fps_limit", self.fps)
@@ -241,9 +204,7 @@ class CubeController:
                 pass
         if self.menu_window is not None:
             self.menu_window.cleanup()
-
-        # Restore original stdout
-        restore_stdout(self.original_stdout)
+    
 
     def _handle_action(self, action: MenuAction) -> bool:
         """
@@ -348,5 +309,49 @@ class CubeController:
         print("Returning to menu...")
         self.dev_menu_ui.navigator.navigate_to("main")
 
+        # Disable input forwarding when visualization stops
+        self.dev_menu_ui.input_forwarding_enabled = False
+        self._update_input_forwarding()
+
         print("[MAIN] Visualization stopped")
+    
+    def _update_input_forwarding(self):
+        """Update input forwarding state based on DevMenuUI toggle."""
+        if not self.visualization_runner or not self.viz_window:
+            return
+        
+        forwarding_enabled = self.dev_menu_ui.input_forwarding_enabled
+        viz_input_manager = self.viz_window.input_manager
+        
+        # Check if forwarding source is already registered
+        forwarding_source = None
+        for source in viz_input_manager.sources:
+            if hasattr(source, 'name') and source.name == 'menu_forwarding':
+                forwarding_source = source
+                break
+        
+        if forwarding_enabled and forwarding_source is None:
+            # Enable forwarding: register forwarding source
+            from cube.input.forwarding_source import ForwardingInputSource
+            # Filter out 't' key (toggle key), but allow numeric keys (1-8) and shift
+            # Numeric keys are needed for effect toggles, and shift is needed for shift+1-8
+            forwarding_source = ForwardingInputSource(
+                self.menu_input_manager,
+                midi_state=self.midi_manager.midi_state if self.midi_manager else None,
+                filter_keys={'key:t'},  # Only filter out 't' key (toggle forwarding)
+                priority=50
+            )
+            viz_input_manager.register_source(forwarding_source)
+            # Set flag in visualization runner to poll even when not focused
+            if hasattr(self.visualization_runner, '_input_forwarding_enabled'):
+                self.visualization_runner._input_forwarding_enabled = True
+            print("[CONTROLLER] Input forwarding enabled")
+        elif not forwarding_enabled and forwarding_source is not None:
+            # Disable forwarding: unregister forwarding source
+            viz_input_manager.sources.remove(forwarding_source)
+            forwarding_source.cleanup()
+            # Clear flag in visualization runner
+            if hasattr(self.visualization_runner, '_input_forwarding_enabled'):
+                self.visualization_runner._input_forwarding_enabled = False
+            print("[CONTROLLER] Input forwarding disabled")
 

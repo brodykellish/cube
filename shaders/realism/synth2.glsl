@@ -162,12 +162,8 @@ vec3 pixel(vec2 p, float time, float ct)
 	float i2 = step(0.5, iParam1);
 	float i3 = step(0.5, iParam2);
 	float i4 = step(0.5, iParam3);
-	float s = time * 50.0;
-	vec2 shk = (vec2(nse1(s), nse1(s + 11.0)) * 2.0 - 1.0) * iParam1 * 0.1;
-	pp += shk;
-	p += shk;
 	vec3 col = vec3(0.1);
-	s = 0.2;
+	float s = 0.2;
 	float c = smoothstep(aav, 0.0, circuit(vec3(p, 0.1) * s).y / s - 0.001);
 	col += vec3(c) * 0.05;
 	vec4 bcol; vec3 acol = vec3(0.0);

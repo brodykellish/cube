@@ -57,6 +57,9 @@ class PygameKeyboard(Keyboard):
             # Common letter keys (a-z) for various controls
             **{getattr(self.pygame, f'K_{chr(c)}'): chr(c) for c in range(ord('a'), ord('z') + 1)},
 
+            # Numeric keys 0-9
+            **{getattr(self.pygame, f'K_{chr(c)}'): chr(c) for c in range(ord('0'), ord('9') + 1)},
+
             # Special characters for FPS control
             self.pygame.K_MINUS: '-',
             self.pygame.K_EQUALS: '=',

@@ -62,6 +62,7 @@ class Action(Enum):
     TOGGLE_PINCH = auto()
     TOGGLE_SINEWAVE_DISTORT = auto()
     TOGGLE_DISPLACEMENT_MAP = auto()
+    TOGGLE_SHAKE = auto()
     
     # Post-processing effects
     TOGGLE_NOISE = auto()

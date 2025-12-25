@@ -89,6 +89,11 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
+  - action: TOGGLE_SHAKE
+    shader: shaders/effects/shake.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
   - action: TOGGLE_BLUR
     shader: shaders/effects/single_pass_blur.glsl
     node_class: EffectNode

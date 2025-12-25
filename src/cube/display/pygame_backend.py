@@ -35,6 +35,7 @@ class PygameBackend(DisplayBackend):
         self.window_width = width
         self.window_height = height
         self.aspect_ratio = width / height if height > 0 else 1.0
+        self._ignore_aspect_ratio = False
 
         # Create resizable window
         self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
@@ -90,22 +91,30 @@ class PygameBackend(DisplayBackend):
         for event in resize_events:
             new_width = event.w
             new_height = event.h
-            
-            # Calculate which dimension changed more (relative to current size)
-            width_change = abs(new_width - self.window_width) / max(self.window_width, 1)
-            height_change = abs(new_height - self.window_height) / max(self.window_height, 1)
-            
-            # Maintain aspect ratio by using the dimension that changed more as primary
-            if width_change >= height_change:
-                # Width changed more, calculate height from width
-                constrained_height = int(new_width / self.aspect_ratio)
+            print(f"Pygame backend resize event: {new_width}×{new_height}")
+            if self._ignore_aspect_ratio:
                 self.window_width = new_width
-                self.window_height = constrained_height
-            else:
-                # Height changed more, calculate width from height
-                constrained_width = int(new_height * self.aspect_ratio)
-                self.window_width = constrained_width
                 self.window_height = new_height
+                self.screen = self.pygame.display.set_mode((self.window_width, self.window_height), self.pygame.RESIZABLE)
+                print(f"[Pygame] Window resized to {self.window_width}×{self.window_height} (aspect ratio ignored)")
+                continue
+            else:
+                # Manual resize: maintain aspect ratio
+                # Calculate which dimension changed more (relative to current size)
+                width_change = abs(new_width - self.window_width) / max(self.window_width, 1)
+                height_change = abs(new_height - self.window_height) / max(self.window_height, 1)
+                
+                # Maintain aspect ratio by using the dimension that changed more as primary
+                if width_change >= height_change:
+                    # Width changed more, calculate height from width
+                    constrained_height = int(new_width / self.aspect_ratio)
+                    self.window_width = new_width
+                    self.window_height = constrained_height
+                else:
+                    # Height changed more, calculate width from height
+                    constrained_width = int(new_height * self.aspect_ratio)
+                    self.window_width = constrained_width
+                    self.window_height = new_height
             
             # Recreate screen surface with constrained size
             self.screen = self.pygame.display.set_mode((self.window_width, self.window_height), self.pygame.RESIZABLE)

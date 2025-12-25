@@ -185,14 +185,18 @@ class VisualizationRunner:
                 
                 # Update visualization input (keyboard + MIDI)
                 # Keyboard state is updated from main thread's event polling
-                # Only poll and process input if visualization window is focused
-                if self._viz_window and self._viz_window.is_focused():
+                # Poll and process input if visualization window is focused OR input forwarding is enabled
+                should_poll_input = (
+                    (self._viz_window and self._viz_window.is_focused()) or
+                    getattr(self, '_input_forwarding_enabled', False)
+                )
+                
+                if should_poll_input:
                     self._viz_input_manager.poll()
                     
                     # Process actions (effects, debug toggle, settings, etc.)
-                    # Only process when window is focused
                     self._process_actions()
-                # else: Window not focused, skip input processing
+                # else: Window not focused and forwarding disabled, skip input processing
                 
                 # Update binding map to check for effect bindings config changes
                 # (works even when window is not focused, to allow live remapping)
@@ -220,30 +224,8 @@ class VisualizationRunner:
                     # Render to framebuffer (uses FBOs internally)
                     framebuffer = self._renderer.render()
                     
-                    # Update FPS counter (always, for debug layer)
+                    # Update FPS counter (always, for menu debug UI)
                     self._update_fps()
-                    
-                    # Render debug layer (FPS, params, beat waveforms) if enabled
-                    # Skip entirely if debug UI is disabled to avoid overhead
-                    debug_enabled = self._settings.get('viz_debug_ui', False)
-                    if debug_enabled:
-                        # Ensure debug layer matches framebuffer size
-                        fb_height, fb_width = framebuffer.shape[:2]
-                        if self._debug_layer is None or self._debug_layer.shape[:2] != (fb_height, fb_width):
-                            self._debug_layer = np.zeros((fb_height, fb_width, 3), dtype=np.uint8)
-                        
-                        # Render debug layer using utility
-                        self._debug_renderer.render(
-                            debug_layer=self._debug_layer,
-                            settings=self._settings,
-                            fps=self._fps_current,
-                            renderer=self._renderer,
-                            input_manager=self._viz_input_manager,
-                            context='viz',
-                        )
-                        # Composite debug layer on top of main framebuffer
-                        mask = np.any(self._debug_layer != 0, axis=2, keepdims=True)
-                        framebuffer = np.where(mask, self._debug_layer, framebuffer)
                     
                     # Send framebuffer to controller (non-blocking, drop if queue full)
                     if self._framebuffer_queue is not None:
@@ -479,6 +461,15 @@ class VisualizationRunner:
             config: Pipeline configuration dict
         """
         self._pipeline_queue.put(config)
+    
+    def get_fps(self) -> float:
+        """
+        Get current FPS (thread-safe, returns current value).
+        
+        Returns:
+            Current FPS value
+        """
+        return self._fps_current
     
     def get_state(self) -> Dict[str, Any]:
         """
