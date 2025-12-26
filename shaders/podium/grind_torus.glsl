@@ -74,8 +74,11 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec2 uv = (2.*fragCoord-iResolution.xy)/iResolution.y;
     
     float dither = hash21(uv);
-    vec3 ro=vec3(uv*3.8,-50.),rd=normalize(vec3(0.,0.0,1.)),p=ro,
-    col=vec3(0.),l=vec3(1.,2.,-2.);
+    vec3 ro = iCameraPos;
+    vec3 rd = normalize(uv.x * iCameraRight + uv.y * iCameraUp + iCameraForward);
+    vec3 p = ro;
+    vec3 col = vec3(0.);
+    vec3 l = vec3(1.,2.,-2.);
     
     bool hit=false;
     for (float i=0.; i<100.; i++)

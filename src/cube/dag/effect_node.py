@@ -3,7 +3,7 @@ Effect node implementation for cube.
 
 EffectNode consumes one texture and outputs one texture.
 """
-from typing import Optional, Dict, Any
+from typing import Optional
 from pathlib import Path
 import random
 import numpy as np
@@ -12,9 +12,9 @@ from OpenGL.GL import *
 from PIL import Image
 from .node import Node
 from ..shader.program import ShaderProgram
-from ..shader.shader_loader import load_shader_program
 from ..render.texture import Texture
 from ..utils.gl_utils import draw_fullscreen_quad
+from .dag import DAG
 
 
 class EffectNode(Node):
@@ -24,24 +24,30 @@ class EffectNode(Node):
     Used for effects like blur, bloom, warp, etc.
     """
 
-    def __init__(self, name: str, shader: ShaderProgram, input_texture: Texture, width: int, height: int, vao: int):
+    def __init__(self, name: str, shader: ShaderProgram, input_texture: Optional[Texture] = None, width: int = 0, height: int = 0, vao: int = 0):
         """
         Initialize effect node.
         
         Args:
             name: Node identifier
             shader: Shader program
-            input_texture: Input texture to process
-            width: Output width
-            height: Output height
+            input_texture: Optional input texture (can be resolved from DAG connections)
+            width: Output width (required if input_texture not provided)
+            height: Output height (required if input_texture not provided)
             vao: VAO for fullscreen quad
         """
+        # If input_texture provided, use its dimensions
+        if input_texture is not None:
+            width = input_texture.width
+            height = input_texture.height
+        
         super().__init__(name, shader, width, height)
-        self.input_texture = input_texture
+        self.input_texture = input_texture  # May be None, resolved from DAG during render
         self.vao = vao
         self.additional_textures = {}
+        self._dag = None  # Set by renderer to allow input resolution
 
-    def render(self, t: float, resolution: tuple[float, float], uniforms: dict=None):
+    def render(self, t: float, resolution: tuple[float, float], uniforms: dict=None, dag: Optional[DAG] = None):
         """
         Render effect node.
         
@@ -49,8 +55,19 @@ class EffectNode(Node):
             t: Current time in seconds
             resolution: Resolution as (width, height)
             uniforms: Optional dictionary of uniforms to set (overrides defaults)
+            dag: Optional DAG instance (unused, kept for API compatibility)
         """
         if not self.enabled:
+            return
+        
+        # Resolve input texture from parent node if not set
+        input_texture = self.input_texture
+        if input_texture is None:
+            if self.parent:
+                input_texture = self.parent.output_texture
+        
+        # If still no input texture, skip rendering
+        if input_texture is None:
             return
         
         self.output_texture.bind()
@@ -63,8 +80,8 @@ class EffectNode(Node):
             for name, value in uniforms.items():
                 self.shader.set_uniform(name, value)
         
-        if self.input_texture.color_texture:
-            self.shader.set_texture('iChannel0', 0, self.input_texture.color_texture)
+        if input_texture.color_texture:
+            self.shader.set_texture('iChannel0', 0, input_texture.color_texture)
         
         texture_unit = 1
         for channel_name, texture_id in self.additional_textures.items():
@@ -220,7 +237,7 @@ class FrameDifferencingEffectNode(EffectNode):
         glBindFramebuffer(GL_READ_FRAMEBUFFER, 0)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
 
-    def render(self, t: float, resolution: tuple[float, float], uniforms: dict=None):
+    def render(self, t: float, resolution: tuple[float, float], uniforms: dict=None, dag: Optional[DAG] = None):
         """
         Render frame differencing effect.
         
@@ -235,7 +252,7 @@ class FrameDifferencingEffectNode(EffectNode):
         if not self._previous_frame_initialized:
             self._create_previous_frame_buffer(self.width, self.height)
         
-        super().render(t, resolution, uniforms)
+        super().render(t, resolution, uniforms, dag)
         self._copy_current_to_previous()
 
     def cleanup(self):

@@ -141,6 +141,15 @@ class CubeController:
             # Note: VisualizationWindow will handle its own input in its thread
             if self.viz_window:
                 self.viz_window.poll()
+                
+                # Check if close was requested (e.g., by ESC key) and close window on main thread
+                if self.viz_window.check_close_request():
+                    print("[MAIN] Visualization window close requested, cleaning up...")
+                    self._cleanup_visualization()
+                # Also check if window was closed externally (e.g., by clicking X button)
+                elif not self.viz_window.is_focused():
+                    print("[MAIN] Visualization window closed, cleaning up...")
+                    self._cleanup_visualization()
 
             # Receive rendered framebuffer from visualization thread (non-blocking)
             if self._framebuffer_queue is not None:
@@ -294,14 +303,21 @@ class CubeController:
             traceback.print_exc()
             return
 
-    def _stop_visualization(self):
-        """Stop visualization thread and cleanup (called from visualization thread)."""
-        print("[MAIN] Stopping visualization...")
+    def _cleanup_visualization(self):
+        """Clean up visualization thread and window (called from main thread)."""
+        print("[MAIN] Cleaning up visualization...")
 
-        # Stop visualization thread
+        # Stop visualization thread (only if it's still running)
         if self.visualization_runner is not None:
-            print("[MAIN] Stopping visualization thread...")
-            self.visualization_runner.stop(timeout=5.0)
+            # Check if thread is still alive before trying to stop it
+            if self.visualization_runner._thread is not None and self.visualization_runner._thread.is_alive():
+                print("[MAIN] Stopping visualization thread...")
+                # Set stop flag - thread will exit on its own
+                self.visualization_runner._stop_flag.set()
+                # Wait for thread to finish (with timeout)
+                self.visualization_runner._thread.join(timeout=2.0)
+                if self.visualization_runner._thread.is_alive():
+                    print("[MAIN] Warning: Visualization thread did not stop within timeout")
             self.visualization_runner = None
 
         # Cleanup visualization window
@@ -321,7 +337,14 @@ class CubeController:
         self.dev_menu_ui.input_forwarding_enabled = False
         self._update_input_forwarding()
 
-        print("[MAIN] Visualization stopped")
+        print("[MAIN] Visualization cleaned up")
+    
+    def _stop_visualization(self):
+        """Stop visualization thread and cleanup (deprecated - use _cleanup_visualization from main thread)."""
+        # This method should not be called from visualization thread anymore
+        # It's kept for backwards compatibility but should not be used
+        print("[MAIN] Warning: _stop_visualization called (should use _cleanup_visualization from main thread)")
+        self._cleanup_visualization()
     
     def _update_input_forwarding(self):
         """Update input forwarding state based on DevMenuUI toggle."""

@@ -15,9 +15,11 @@ from cube.render.dag_renderer import DAGRenderer
 from cube.render.pixel_mappers import PixelMapper, SurfacePixelMapper, CubePixelMapper
 from cube.shader import SphericalCamera
 from cube.input.input_manager import InputManager
-from cube.input.actions import Action, InputContext
+from cube.input.actions import Action, InputContext, Axis
 from cube.input.midi_source import MIDIInputSource
 from cube.ui.debug_renderer import DebugRenderer
+from cube.dag.dag import DAG
+from cube.dag.source_node import SourceNode
 
 
 class VisualizationRunner:
@@ -134,11 +136,121 @@ class VisualizationRunner:
             except Exception:
                 pass
             
+            # Create ParameterStore and HandlerRegistry
+            print("[VIZ] Creating parameter store and handlers...")
+            from cube.render.parameter_store import (
+                ParameterStore, ParameterHandlerRegistry,
+                TimeHandler, CameraHandler, MouseHandler,
+                SignalParameterHandler, DirectParameterHandler,
+                SettingsParameterHandler
+            )
+            from cube.core.signals import KeyboardParamSignal, AudioSignal
+            from cube.input.actions import Action
+            
+            parameter_store = ParameterStore(settings=self._settings)
+            handler_registry = ParameterHandlerRegistry()
+            
+            # Create and register time handler
+            time_handler = TimeHandler(parameter_store)
+            handler_registry.register(time_handler)
+            
+            # Create and register camera handler
+            camera_handler = CameraHandler(parameter_store, camera, self._viz_input_manager)
+            handler_registry.register(camera_handler)
+            
+            # Create and register mouse handler
+            mouse_handler = MouseHandler(parameter_store, self._width, self._height)
+            handler_registry.register(mouse_handler)
+            
+            # Create signal-based handlers for iParam0-7 (keyboard increment/decrement)
+            keyboard_handlers = {}
+            for i in range(8):
+                param_id = f'iParam{i}'
+                param_axis = getattr(Axis, f'PARAM{i}')
+                inc_action = getattr(Action, f'INC_PARAM{i}')
+                dec_action = getattr(Action, f'DEC_PARAM{i}')
+                
+                # Keyboard signal handler (low priority - can be overridden)
+                keyboard_signal = KeyboardParamSignal(self._viz_input_manager, param_axis, inc_action, dec_action)
+                keyboard_handler = SignalParameterHandler(
+                    parameter_store,
+                    keyboard_signal,
+                    param_id,
+                    priority=0  # Low priority
+                )
+                handler_registry.register(keyboard_handler)
+                keyboard_handlers[param_id] = keyboard_handler
+                
+                # MIDI direct handler (high priority - overrides keyboard)
+                midi_handler = DirectParameterHandler(
+                    parameter_store,
+                    self._viz_input_manager,
+                    param_id,
+                    param_axis,
+                    priority=100  # High priority - overrides keyboard
+                )
+                handler_registry.register(midi_handler)
+                
+                # Audio signal handler (if mapped - highest priority)
+                if audio_mapping_source:
+                    audio_mappings = audio_mapping_source.get_all_mappings()
+                    if audio_signal_name := audio_mappings.get(param_id):
+                        audio_signal = AudioSignal(audio_mapping_source, audio_signal_name)
+                        audio_handler = SignalParameterHandler(
+                            parameter_store,
+                            audio_signal,
+                            param_id,
+                            priority=200  # Highest priority - overrides MIDI and keyboard
+                        )
+                        handler_registry.register(audio_handler)
+                        # Disable keyboard handler when audio is mapped
+                        keyboard_handler.set_enabled(False)
+            
+            # Create iSeed handler (direct from InputManager)
+            seed_handler = DirectParameterHandler(
+                parameter_store,
+                self._viz_input_manager,
+                'iSeed',
+                Axis.SEED,
+                priority=0
+            )
+            handler_registry.register(seed_handler)
+            
+            # Create beat parameter handlers (from audio)
+            if audio_mapping_source:
+                beat_pulse_signal = AudioSignal(audio_mapping_source, 'u_audio_beat_pulse')
+                beat_pulse_handler = SignalParameterHandler(
+                    parameter_store,
+                    beat_pulse_signal,
+                    'iBeatPulse',
+                    priority=0
+                )
+                handler_registry.register(beat_pulse_handler)
+                
+                beat_phase_signal = AudioSignal(audio_mapping_source, 'u_audio_beat_phase')
+                beat_phase_handler = SignalParameterHandler(
+                    parameter_store,
+                    beat_phase_signal,
+                    'iBeatPhase',
+                    priority=0
+                )
+                handler_registry.register(beat_phase_handler)
+            
+            # Create iDebugAxes handler (from settings)
+            debug_axes_handler = SettingsParameterHandler(
+                parameter_store,
+                self._settings,
+                'iDebugAxes',
+                'debug_axes',
+                transform=lambda x: 1.0 if x else 0.0,
+                priority=0
+            )
+            handler_registry.register(debug_axes_handler)
+            
+            print("[VIZ] Parameter handlers registered")
+            
             # Create renderer (uses OpenGL context from pyglet window)
             print("[VIZ] Creating DAG renderer...")
-            uniform_sources = []
-            if self._midi_uniform_source:
-                uniform_sources.append(self._midi_uniform_source)
             
             # Use visualization window's context instead of creating ShaderRenderer
             def make_context_current():
@@ -152,13 +264,34 @@ class VisualizationRunner:
             
             self._renderer = DAGRenderer(
                 pixel_mapper=pixel_mapper,
-                input_manager=self._viz_input_manager,
-                settings=self._settings,
-                uniform_sources=uniform_sources,
-                audio_mapping_source=audio_mapping_source,
                 make_context_current=make_context_current,
             )
             print("[VIZ] DAG renderer created")
+            
+            # Store parameter store and handler registry for use in render loop
+            self._parameter_store = parameter_store
+            self._handler_registry = handler_registry
+            self._audio_mapping_source = audio_mapping_source
+            self._mouse_handler = mouse_handler
+            
+            # Create DAG (maintained as state in visualization runner)
+            self._dag: DAG = DAG()
+            
+            # Create effect manager (needs renderer for VAO and GLSL version)
+            from cube.render.effect_manager import EffectManager
+            from cube.render.effect_config_loader import load_effect_config
+            self._effect_manager = EffectManager(self._renderer)
+            
+            # Load effects from config file
+            effect_definitions = load_effect_config()
+            for effect_def in effect_definitions:
+                self._effect_manager.add_effect(
+                    effect_def.action,
+                    effect_def.shader_path,
+                    effect_def.trigger_mode,
+                    effect_def.node_class,
+                    effect_def.priority
+                )
             
             # Create debug layer (same size as render framebuffer)
             self._debug_layer = np.zeros((self._height, self._width, 3), dtype=np.uint8)
@@ -170,6 +303,12 @@ class VisualizationRunner:
             # Main render loop
             print("[VIZ] Starting render loop...")
             while not self._stop_flag.is_set():
+                # Check if window is closed
+                if not self._viz_window or not self._viz_window.is_focused():
+                    print("[VIZ] Window closed, exiting render loop...")
+                    self._stop_flag.set()
+                    break
+                
                 loop_start = time.time()
                 
                 # Get current FPS limit (may be updated by action handlers)
@@ -177,7 +316,12 @@ class VisualizationRunner:
                 frame_time = 1.0 / target_fps
                 
                 # Make context current (required before any OpenGL calls)
-                self._viz_window.backend.window.switch_to()
+                try:
+                    self._viz_window.backend.window.switch_to()
+                except Exception as e:
+                    print(f"[VIZ] Error switching to window context: {e}")
+                    self._stop_flag.set()
+                    break
                 
                 # Note: Event polling is handled on main thread for macOS compatibility
                 # (dispatch_events() must be called from main thread on macOS)
@@ -205,6 +349,24 @@ class VisualizationRunner:
                     if hasattr(self._viz_input_manager.bindings, 'update'):
                         self._viz_input_manager.bindings.update(dt)
                 
+                # Update mouse handler from window backend
+                if hasattr(self, '_mouse_handler') and self._viz_window:
+                    backend = self._viz_window.backend
+                    if hasattr(backend, 'mouse_x') and hasattr(backend, 'mouse_y') and hasattr(backend, 'mouse_button_pressed'):
+                        # Normalize mouse coordinates to 0.0-1.0 range
+                        mouse_x_norm = backend.mouse_x / self._width if self._width > 0 else 0.0
+                        mouse_y_norm = backend.mouse_y / self._height if self._height > 0 else 0.0
+                        self._mouse_handler.set_position(mouse_x_norm, mouse_y_norm)
+                        self._mouse_handler.set_button(backend.mouse_button_pressed)
+                
+                # Update audio mapping source (if needed)
+                if hasattr(self, '_audio_mapping_source') and self._audio_mapping_source:
+                    self._audio_mapping_source.update(dt)
+                
+                # Update all parameters via handler registry
+                if hasattr(self, '_handler_registry'):
+                    self._handler_registry.update_all(dt)
+                
                 # Check pipeline deployment queue
                 try:
                     config = self._pipeline_queue.get_nowait()
@@ -213,18 +375,22 @@ class VisualizationRunner:
                 except queue.Empty:
                     pass
                 
-                # Update renderer from input
-                # (Camera, params, effects are handled by DAGRenderer internally)
+                # Render frame (only if DAG has nodes)
+                has_dag = self._dag and len(self._dag.nodes) > 0
                 
-                # Render frame (only if source nodes exist)
-                has_source_nodes = self._renderer and hasattr(self._renderer, 'source_nodes') and len(self._renderer.source_nodes) > 0
-                
-                if has_source_nodes:
+                if has_dag:
+                    # Skip rendering during fullscreen transitions to avoid OpenGL/Metal errors
+                    backend = self._viz_window.backend if self._viz_window else None
+                    if backend and getattr(backend, '_fullscreen_transitioning', False):
+                        # Skip this frame during transition
+                        time.sleep(0.01)  # Small sleep to avoid busy-waiting
+                        continue
+                    
                     # Ensure context is current before rendering
                     self._renderer.make_context_current()
                     
-                    # Render to framebuffer (uses FBOs internally)
-                    framebuffer = self._renderer.render()
+                    # Render to framebuffer (pass DAG and ParameterStore to renderer)
+                    framebuffer = self._renderer.render(self._dag, self._parameter_store)
                     
                     # Update FPS counter (always, for menu debug UI)
                     self._update_fps()
@@ -238,8 +404,15 @@ class VisualizationRunner:
                         except queue.Full:
                             pass  # Drop frame if queue is full
                     
-                    # Display to pyglet window
-                    self._viz_window.display(framebuffer)
+                    # Display to pyglet window (check if window is still valid)
+                    if self._viz_window and self._viz_window.is_focused():
+                        try:
+                            self._viz_window.display(framebuffer)
+                        except Exception as e:
+                            print(f"[VIZ] Error displaying frame: {e}")
+                            # Window might be closed, exit loop
+                            self._stop_flag.set()
+                            break
                 # else: No source nodes loaded yet, skip rendering (will render once pipeline is deployed)
                 
                 # FPS limit
@@ -321,17 +494,48 @@ class VisualizationRunner:
             if self._current_shader_path and self._renderer:
                 print(f"[VIZ] Reloading shader: {self._current_shader_path}")
                 try:
-                    self._renderer.load_shader(str(self._current_shader_path))
+                    # Get existing source nodes
+                    old_source_nodes = [n for n in self._dag.root_nodes if isinstance(n, SourceNode)]
+                    
+                    # Recreate source nodes with same shader path
+                    render_specs = self._renderer.pixel_mapper.get_render_specs()
+                    glsl_version = self._renderer.get_glsl_version()
+                    new_source_nodes = []
+                    for i, spec in enumerate(render_specs):
+                        node = SourceNode(
+                            f"source_{i}",
+                            str(self._current_shader_path),
+                            spec.width,
+                            spec.height,
+                            self._renderer.vao,
+                            glsl_version=glsl_version
+                        )
+                        new_source_nodes.append(node)
+                    
+                    # Swap source nodes, preserving effect chain connections
+                    for i in range(max(len(old_source_nodes), len(new_source_nodes))):
+                        if i < len(old_source_nodes) and i < len(new_source_nodes):
+                            old_source_nodes[i].cleanup()
+                            self._dag.swap_source(old_source_nodes[i], new_source_nodes[i])
+                        elif i < len(old_source_nodes):
+                            old_source_nodes[i].cleanup()
+                            self._dag.remove_node(old_source_nodes[i])
+                        else:
+                            self._dag.add_node(new_source_nodes[i], is_root=True)
+                    
+                    print(f"[VIZ] Reloaded shader: {self._current_shader_path}")
                 except Exception as exc:
                     print(f"[VIZ] Error reloading shader: {exc}")
+                    import traceback
+                    traceback.print_exc()
         
         def undo_effect() -> None:
-            if self._renderer and hasattr(self._renderer, "effect_manager"):
-                self._renderer.effect_manager.undo_effect()
+            if hasattr(self, "_effect_manager"):
+                self._effect_manager.undo_effect(self._dag)
         
         def redo_effect() -> None:
-            if self._renderer and hasattr(self._renderer, "effect_manager"):
-                self._renderer.effect_manager.redo_effect()
+            if hasattr(self, "_effect_manager"):
+                self._effect_manager.redo_effect(self._dag)
         
         self._action_handlers = {
             Action.TOGGLE_DEBUG: toggle_debug,
@@ -351,11 +555,11 @@ class VisualizationRunner:
         if not self._viz_input_manager or not self._renderer:
             return
         
-        # Check for exit
+        # Check for exit - close window instead of stopping entire program
         if self._viz_input_manager.is_action_pressed(Action.CANCEL) or self._viz_input_manager.is_action_pressed(Action.BACK):
-            print("[VIZ] Exit requested (ESC/CANCEL)")
-            if self._stop_callback:
-                self._stop_callback()
+            print("[VIZ] Close window requested (ESC/CANCEL)")
+            if self._viz_window:
+                self._viz_window.close()
             self._stop_flag.set()
             return
         
@@ -370,9 +574,9 @@ class VisualizationRunner:
                 handler()
         
         # Process effects (toggle and momentary) via effect manager
-        if hasattr(self._renderer, "effect_manager"):
+        if hasattr(self, "_effect_manager"):
             try:
-                self._renderer.effect_manager.process_inputs(pressed_actions, held_actions)
+                self._effect_manager.process_inputs(pressed_actions, held_actions, self._dag)
             except Exception as exc:
                 print(f"[VIZ] Effect manager error: {exc}")
         
@@ -407,14 +611,65 @@ class VisualizationRunner:
             video_path = source.get('video_path')
             pixel_mapper_type = source.get('pixel_mapper', 'surface')
             
+            # Preserve effect chain: swap source nodes, keeping connections
+            from cube.dag.video_source_node import VideoSourceNode
+            
+            old_source_nodes = []
+            for node in self._dag.nodes:
+                if isinstance(node, (SourceNode, VideoSourceNode)):
+                    old_source_nodes.append(node)
+            
+            # Create new source nodes
+            render_specs = self._renderer.pixel_mapper.get_render_specs()
+            new_source_nodes = []
+            
             if video_path:
                 print(f"[VIZ] Loading video: {video_path}")
                 self._current_shader_path = Path(video_path)
-                self._renderer.load_video(str(video_path))
+                from cube.dag.frame_loader import VideoFileFrameLoader
+                
+                video_file_path = Path(video_path)
+                if not video_file_path.exists():
+                    raise FileNotFoundError(f'Video file not found: {video_path}')
+                
+                for i, spec in enumerate(render_specs):
+                    frame_loader = VideoFileFrameLoader(video_file_path, loop=True)
+                    node = VideoSourceNode(
+                        f"video_source_{i}",
+                        frame_loader,
+                        spec.width,
+                        spec.height
+                    )
+                    new_source_nodes.append(node)
             elif shader_path:
                 print(f"[VIZ] Loading shader: {shader_path}")
                 self._current_shader_path = Path(shader_path)
-                self._renderer.load_shader(str(shader_path))
+                
+                glsl_version = self._renderer.get_glsl_version()
+                for i, spec in enumerate(render_specs):
+                    node = SourceNode(
+                        f"source_{i}",
+                        str(shader_path),
+                        spec.width,
+                        spec.height,
+                        self._renderer.vao,
+                        glsl_version=glsl_version
+                    )
+                    new_source_nodes.append(node)
+            
+            # Swap source nodes, preserving effect chain connections
+            for i in range(max(len(old_source_nodes), len(new_source_nodes))):
+                if i < len(old_source_nodes) and i < len(new_source_nodes):
+                    # Swap: preserves connections
+                    old_source_nodes[i].cleanup()
+                    self._dag.swap_source(old_source_nodes[i], new_source_nodes[i])
+                elif i < len(old_source_nodes):
+                    # More old sources than new: just remove
+                    old_source_nodes[i].cleanup()
+                    self._dag.remove_node(old_source_nodes[i])
+                else:
+                    # More new sources than old: just add
+                    self._dag.add_node(new_source_nodes[i], is_root=True)
             
             # Update pixel mapper if needed
             if pixel_mapper_type == 'cube':
@@ -441,16 +696,16 @@ class VisualizationRunner:
                     try:
                         action = Action[action_name]
                         if enabled:
-                            self._renderer.effect_manager.trigger_effect(action)
+                            self._effect_manager.trigger_effect(action, self._dag)
                         else:
-                            self._renderer.effect_manager.untoggle_effect(action)
+                            self._effect_manager.untoggle_effect(action, self._dag)
                     except (KeyError, AttributeError):
                         print(f"[VIZ] Unknown effect action: {action_name}")
             
             # Set parameters (if needed)
             params = config.get('params')
-            if params and hasattr(self._renderer, 'param_source'):
-                # Parameters are managed by ParameterUniformSource via input_manager
+            if params and hasattr(self, '_parameter_store'):
+                # Parameters are managed by ParameterStore via handlers
                 # This would need to be implemented if we want to set initial values
                 pass
             
@@ -477,6 +732,25 @@ class VisualizationRunner:
             Current FPS value
         """
         return self._fps_current
+    
+    def get_debug_state(self) -> Dict[str, Any]:
+        """
+        Get debug state from parameter store (thread-safe, returns copy).
+        
+        Returns:
+            Dict with params, beat_phase, beat_pulse
+        """
+        if hasattr(self, '_parameter_store') and self._parameter_store:
+            return self._renderer.get_debug_state(self._parameter_store) if self._renderer else {
+                'params': [0.0] * 8,
+                'beat_phase': 0.0,
+                'beat_pulse': 0.0,
+            }
+        return {
+            'params': [0.0] * 8,
+            'beat_phase': 0.0,
+            'beat_pulse': 0.0,
+        }
     
     def get_state(self) -> Dict[str, Any]:
         """

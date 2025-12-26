@@ -219,7 +219,8 @@ class DevMenuUI:
             preview_source = None
             if self.controller and self.controller.visualization_runner:
                 try:
-                    renderer = self.controller.visualization_runner._renderer
+                    # Pass VisualizationRunner (not DAGRenderer) so get_debug_state() works
+                    renderer = self.controller.visualization_runner
                     fps = self.controller.visualization_runner.get_fps() if hasattr(self.controller.visualization_runner, 'get_fps') else 0.0
                     preview_source = self.controller._latest_framebuffer
                 except Exception:

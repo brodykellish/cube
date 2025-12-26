@@ -12,7 +12,12 @@ from typing import Dict, Optional
 
 from OpenGL.GL import (  # type: ignore[import-untyped]
     GL_ACTIVE_UNIFORMS,
+    GL_BOOL,
+    GL_CURRENT_PROGRAM,
+    GL_FLOAT,
     GL_FRAGMENT_SHADER,
+    GL_INT,
+    GL_SAMPLER_2D,
     GL_TEXTURE_2D,
     GL_TEXTURE0,
     GL_VERTEX_SHADER,
@@ -20,6 +25,7 @@ from OpenGL.GL import (  # type: ignore[import-untyped]
     glBindTexture,
     glBindVertexArray,
     glGetActiveUniform,
+    glGetIntegerv,
     glGetProgramiv,
     glGetString,
     glGetUniformLocation,
@@ -80,6 +86,7 @@ class ShaderProgram:
         self.glsl_version = glsl_version
         self.program: Optional[int] = None
         self.uniform_locations: Dict[str, int] = {}
+        self.uniform_types: Dict[str, int] = {}  # Store uniform types from OpenGL
 
     @classmethod
     def from_file(cls, spec: ShaderSpec, shader_path: Path, glsl_version: Optional[str] = None) -> "ShaderProgram":
@@ -119,9 +126,10 @@ class ShaderProgram:
         if vao is not None:
             glBindVertexArray(0)
 
-        # Cache uniform locations for fast updates.
+        # Cache uniform locations and types for fast updates.
         glUseProgram(self.program)
         self.uniform_locations.clear()
+        self.uniform_types.clear()
 
         num_uniforms = glGetProgramiv(self.program, GL_ACTIVE_UNIFORMS)
         for i in range(num_uniforms):
@@ -137,6 +145,7 @@ class ShaderProgram:
             loc = glGetUniformLocation(self.program, decoded)
             if loc >= 0:
                 self.uniform_locations[decoded] = loc
+                self.uniform_types[decoded] = uniform_type
 
         glUseProgram(0)
 
@@ -153,25 +162,79 @@ class ShaderProgram:
         if location is None:
             return
 
-        if isinstance(value, (int, bool)):
-            glUniform1i(location, int(value))
-        elif isinstance(value, float):
-            glUniform1f(location, float(value))
-        elif isinstance(value, (list, tuple)):
-            if len(value) == 2:
-                glUniform2f(location, float(value[0]), float(value[1]))
-            elif len(value) == 3:
-                glUniform3f(location, float(value[0]), float(value[1]), float(value[2]))
-            elif len(value) == 4:
-                glUniform4f(
-                    location,
-                    float(value[0]),
-                    float(value[1]),
-                    float(value[2]),
-                    float(value[3]),
-                )
+        # Get uniform type from shader
+        uniform_type = self.uniform_types.get(name)
+        
+        # Get current program to verify it's active
+        current_program = glGetIntegerv(GL_CURRENT_PROGRAM)
+        if current_program != self.program:
+            # Program not active, activate it
+            glUseProgram(self.program)
+
+        # Use the correct OpenGL function based on the shader's uniform type
+        # For int/bool/sampler uniforms, use glUniform1i
+        # For float uniforms, use glUniform1f
+        if uniform_type in (GL_INT, GL_BOOL, GL_SAMPLER_2D):
+            # Integer, boolean, or sampler uniform - use glUniform1i
+            if isinstance(value, (list, tuple)):
+                # For arrays, convert all elements to int
+                if len(value) == 2:
+                    glUniform2f(location, float(value[0]), float(value[1]))  # vec2i not available, use float
+                elif len(value) == 3:
+                    glUniform3f(location, float(value[0]), float(value[1]), float(value[2]))  # vec3i not available
+                elif len(value) == 4:
+                    glUniform4f(location, float(value[0]), float(value[1]), float(value[2]), float(value[3]))  # vec4i not available
+                else:
+                    glUniform1i(location, int(value[0]) if value else 0)
+            else:
+                glUniform1i(location, int(value))
+        elif uniform_type == GL_FLOAT or uniform_type is None:
+            # Float uniform (or unknown type, default to float)
+            if isinstance(value, (int, bool)):
+                # Convert int to float for float uniforms
+                glUniform1f(location, float(value))
+            elif isinstance(value, float):
+                glUniform1f(location, float(value))
+            elif isinstance(value, (list, tuple)):
+                if len(value) == 2:
+                    glUniform2f(location, float(value[0]), float(value[1]))
+                elif len(value) == 3:
+                    glUniform3f(location, float(value[0]), float(value[1]), float(value[2]))
+                elif len(value) == 4:
+                    glUniform4f(
+                        location,
+                        float(value[0]),
+                        float(value[1]),
+                        float(value[2]),
+                        float(value[3]),
+                    )
+                else:
+                    raise ValueError(f"Unsupported array length: {len(value)}")
+            else:
+                raise ValueError(f"Unsupported uniform value type: {type(value)}")
         else:
-            raise ValueError(f"Unsupported uniform value type: {type(value)}")
+            # Unknown uniform type - try to infer from value
+            if isinstance(value, (int, bool)):
+                glUniform1i(location, int(value))
+            elif isinstance(value, float):
+                glUniform1f(location, float(value))
+            elif isinstance(value, (list, tuple)):
+                if len(value) == 2:
+                    glUniform2f(location, float(value[0]), float(value[1]))
+                elif len(value) == 3:
+                    glUniform3f(location, float(value[0]), float(value[1]), float(value[2]))
+                elif len(value) == 4:
+                    glUniform4f(
+                        location,
+                        float(value[0]),
+                        float(value[1]),
+                        float(value[2]),
+                        float(value[3]),
+                    )
+                else:
+                    raise ValueError(f"Unsupported array length: {len(value)}")
+            else:
+                raise ValueError(f"Unsupported uniform value type: {type(value)}")
 
     def set_texture(self, name: str, texture_unit: int, texture_id: Optional[int]) -> None:
         if self.program is None:

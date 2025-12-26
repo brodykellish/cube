@@ -35,6 +35,7 @@ class VisualizationWindow:
         self.width = self.backend.width
         self.height = self.backend.height
         self._has_exit = False
+        self._close_requested = False
         
         # Register close handler
         @self.backend.window.event
@@ -124,6 +125,23 @@ class VisualizationWindow:
             fullscreen: True to enter fullscreen, False to exit
         """
         self.backend.set_fullscreen(fullscreen)
+    
+    def close(self):
+        """Request window close (thread-safe, actual close happens on main thread)."""
+        self._close_requested = True
+        self._has_exit = True
+    
+    def check_close_request(self):
+        """Check if close was requested and close window (must be called from main thread)."""
+        if self._close_requested:
+            self._close_requested = False
+            if hasattr(self.backend, 'window'):
+                try:
+                    self.backend.window.close()
+                except Exception as e:
+                    print(f"[VizWindow] Error closing window: {e}")
+            return True
+        return False
     
     def cleanup(self):
         """Clean up pyglet resources."""

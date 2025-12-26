@@ -6,6 +6,7 @@ Simple OpenGL texture rendering with HiDPI support and optional scaling.
 import pyglet
 pyglet.options['dpi_scale'] = 'real'
 import numpy as np
+import time
 from OpenGL.GL import *
 from .backend import Backend
 from ..input.pyglet_keyboard import PygletKeyboard
@@ -32,6 +33,7 @@ class PygletBackend(Backend):
         self.scale = scale
         self._resize_pending = False
         self._is_fullscreen = False
+        self._fullscreen_transitioning = False
         
         # Create window initially invisible to prevent it from stealing focus
         # It will be made visible when rendering starts
@@ -151,9 +153,22 @@ class PygletBackend(Backend):
             fullscreen: True to enter fullscreen, False to exit
         """
         if fullscreen and not self._is_fullscreen:
+            # Mark that we're transitioning to prevent rendering during transition
+            self._fullscreen_transitioning = True
+            
             # Save current window size before going fullscreen
             self._saved_window_size = (self.window_width, self.window_height)
-            self.window.set_fullscreen(True)
+            try:
+                self.window.set_fullscreen(True)
+            except Exception as e:
+                print(f"[Pyglet] Error setting fullscreen: {e}")
+                self._fullscreen_transitioning = False
+                return
+            
+            # Wait a moment for window to finish transitioning
+            # This gives the render loop time to finish any in-flight OpenGL operations
+            time.sleep(0.2)
+            
             self.window_width, self.window_height = self.window.size
             # Update framebuffer size after fullscreen change
             fb_width, fb_height = self.window.get_framebuffer_size()
@@ -162,20 +177,45 @@ class PygletBackend(Backend):
             self._width = fb_width // self.scale
             self._height = fb_height // self.scale
             self._is_fullscreen = True
-            # Update viewport and texture size
+            
+            # Update viewport and texture size (ensure context is current)
             self.window.switch_to()
+            error = glGetError()
+            if error != GL_NO_ERROR:
+                print(f"[Pyglet] OpenGL error before fullscreen setup: {error}")
+            
             glViewport(0, 0, fb_width, fb_height)
-            if self.texture:
-                glBindTexture(GL_TEXTURE_2D, self.texture)
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self._width, self._height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+            if self.texture and self.texture != 0:
+                try:
+                    glBindTexture(GL_TEXTURE_2D, self.texture)
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self._width, self._height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+                    error = glGetError()
+                    if error != GL_NO_ERROR:
+                        print(f"[Pyglet] OpenGL error resizing texture in fullscreen: {error}")
+                except Exception as e:
+                    print(f"[Pyglet] Exception resizing texture in fullscreen: {e}")
+            self._fullscreen_transitioning = False
             print(f"[Pyglet] Entered fullscreen: window {self.window_width}×{self.window_height}, framebuffer {fb_width}×{fb_height}, render {self._width}×{self._height}")
         elif not fullscreen and self._is_fullscreen:
+            # Mark that we're transitioning to prevent rendering during transition
+            self._fullscreen_transitioning = True
+            
             # Restore saved window size
             if hasattr(self, '_saved_window_size'):
                 restore_width, restore_height = self._saved_window_size
             else:
                 restore_width, restore_height = 960, 540  # Default fallback
-            self.window.set_fullscreen(False)
+            try:
+                self.window.set_fullscreen(False)
+            except Exception as e:
+                print(f"[Pyglet] Error exiting fullscreen: {e}")
+                self._fullscreen_transitioning = False
+                return
+            
+            # Wait a moment for window to finish transitioning
+            # This gives the render loop time to finish any in-flight OpenGL operations
+            time.sleep(0.2)
+            
             self.window.set_size(restore_width, restore_height)
             self.window_width, self.window_height = self.window.size
             # Update framebuffer size after windowed change
@@ -185,12 +225,24 @@ class PygletBackend(Backend):
             self._width = fb_width // self.scale
             self._height = fb_height // self.scale
             self._is_fullscreen = False
-            # Update viewport and texture size
+            
+            # Update viewport and texture size (ensure context is current)
             self.window.switch_to()
+            error = glGetError()
+            if error != GL_NO_ERROR:
+                print(f"[Pyglet] OpenGL error before windowed setup: {error}")
+            
             glViewport(0, 0, fb_width, fb_height)
-            if self.texture:
-                glBindTexture(GL_TEXTURE_2D, self.texture)
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self._width, self._height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+            if self.texture and self.texture != 0:
+                try:
+                    glBindTexture(GL_TEXTURE_2D, self.texture)
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self._width, self._height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+                    error = glGetError()
+                    if error != GL_NO_ERROR:
+                        print(f"[Pyglet] OpenGL error resizing texture in windowed: {error}")
+                except Exception as e:
+                    print(f"[Pyglet] Exception resizing texture in windowed: {e}")
+            self._fullscreen_transitioning = False
             print(f"[Pyglet] Exited fullscreen: window {self.window_width}×{self.window_height}, framebuffer {fb_width}×{fb_height}, render {self._width}×{self._height}")
 
     def was_resized(self) -> bool:
@@ -297,23 +349,61 @@ class PygletBackend(Backend):
         Args:
             framebuffer: RGB framebuffer (H, W, 3)
         """
+        # Skip display during fullscreen transitions to avoid OpenGL/Metal errors
+        if self._fullscreen_transitioning:
+            return
+        
         flipped = np.flip(framebuffer, axis=0)
         fb_height, fb_width = flipped.shape[:2]
         
-        self.window.switch_to()
+        # Ensure context is current before any OpenGL operations
+        try:
+            self.window.switch_to()
+        except Exception as e:
+            print(f"[Pyglet] Error switching to context: {e}")
+            return
+        
+        # Check for OpenGL errors before proceeding
+        error = glGetError()
+        if error != GL_NO_ERROR:
+            print(f"[Pyglet] OpenGL error before display: {error}")
+        
         # Ensure viewport covers the full framebuffer each frame. Other parts
         # of the system (e.g. FBO rendering) may have changed the viewport.
         glViewport(0, 0, self.fb_width, self.fb_height)
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.program)
         glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, self.texture)
         
-        # Check if texture needs to be resized
-        if fb_width != self._width or fb_height != self._height:
+        # Check if texture needs to be resized (but skip during fullscreen transition)
+        if not self._fullscreen_transitioning and (fb_width != self._width or fb_height != self._height):
             # Recreate texture with new dimensions
-            glDeleteTextures([self.texture])
-            self.texture = glGenTextures(1)
+            # Ensure context is current and texture is valid before deletion
+            if self.texture is not None and self.texture != 0:
+                try:
+                    glBindTexture(GL_TEXTURE_2D, 0)  # Unbind first
+                    glDeleteTextures([self.texture])
+                    error = glGetError()
+                    if error != GL_NO_ERROR:
+                        print(f"[Pyglet] Error deleting texture: {error}")
+                except Exception as e:
+                    print(f"[Pyglet] Exception deleting texture: {e}")
+            
+            # Ensure context is still current before creating new texture
+            self.window.switch_to()
+            try:
+                self.texture = glGenTextures(1)
+                error = glGetError()
+                if error != GL_NO_ERROR:
+                    print(f"[Pyglet] Error generating texture: {error}")
+                    # If texture creation failed, try to continue with existing texture
+                    if self.texture is None or self.texture == 0:
+                        print("[Pyglet] Failed to create texture, skipping frame")
+                        return
+            except Exception as e:
+                print(f"[Pyglet] Exception generating texture: {e}")
+                return
+            
             glBindTexture(GL_TEXTURE_2D, self.texture)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
@@ -322,6 +412,13 @@ class PygletBackend(Backend):
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, fb_width, fb_height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
             self._width = fb_width
             self._height = fb_height
+        else:
+            glBindTexture(GL_TEXTURE_2D, self.texture)
+        
+        # Only proceed if texture is valid
+        if self.texture is None or self.texture == 0:
+            print("[Pyglet] Invalid texture, skipping frame")
+            return
         
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, fb_width, fb_height, GL_RGB, GL_UNSIGNED_BYTE, flipped)
         glBindVertexArray(self.vao)
@@ -350,13 +447,68 @@ class PygletBackend(Backend):
     def close(self):
         """Clean up pyglet resources"""
         self.keyboard.cleanup()
-        self.window.switch_to()
-        if self.vao:
-            glDeleteVertexArrays(1, [self.vao])
-        if self.vbo:
-            glDeleteBuffers(1, [self.vbo])
-        if self.texture:
-            glDeleteTextures([self.texture])
-        if self.program:
-            glDeleteProgram(self.program)
-        self.window.close()
+        
+        # Try to clean up OpenGL resources, but handle errors gracefully
+        # The context might be invalid or resources might already be deleted
+        context_valid = False
+        try:
+            # Check if window and context are still valid
+            if hasattr(self, 'window') and self.window and not self.window.has_exit:
+                try:
+                    self.window.switch_to()
+                    context_valid = True
+                except Exception as e:
+                    print(f"[Pyglet] Cannot switch to window context (may be destroyed): {e}")
+                    context_valid = False
+            
+            if context_valid:
+                # Clear any pending OpenGL errors
+                while glGetError() != GL_NO_ERROR:
+                    pass
+                
+                if self.vao and self.vao != 0:
+                    try:
+                        glDeleteVertexArrays(1, [self.vao])
+                        error = glGetError()
+                        if error != GL_NO_ERROR:
+                            print(f"[Pyglet] Error deleting VAO: {error}")
+                    except Exception as e:
+                        print(f"[Pyglet] Exception deleting VAO: {e}")
+                
+                if self.vbo and self.vbo != 0:
+                    try:
+                        glDeleteBuffers(1, [self.vbo])
+                        error = glGetError()
+                        if error != GL_NO_ERROR:
+                            print(f"[Pyglet] Error deleting VBO: {error}")
+                    except Exception as e:
+                        print(f"[Pyglet] Exception deleting VBO: {e}")
+                
+                if self.texture and self.texture != 0:
+                    try:
+                        glDeleteTextures([self.texture])
+                        error = glGetError()
+                        if error != GL_NO_ERROR:
+                            print(f"[Pyglet] Error deleting texture: {error}")
+                    except Exception as e:
+                        print(f"[Pyglet] Exception deleting texture: {e}")
+                
+                if self.program and self.program != 0:
+                    try:
+                        glDeleteProgram(self.program)
+                        error = glGetError()
+                        if error != GL_NO_ERROR:
+                            # Don't print error for invalid program - it might already be deleted
+                            if error != 1281:  # GL_INVALID_VALUE
+                                print(f"[Pyglet] Error deleting program: {error}")
+                    except Exception as e:
+                        print(f"[Pyglet] Exception deleting program: {e}")
+        except Exception as e:
+            print(f"[Pyglet] Error during OpenGL cleanup: {e}")
+        finally:
+            # Always try to close window, even if cleanup failed
+            if hasattr(self, 'window') and self.window:
+                try:
+                    self.window.close()
+                except Exception as e:
+                    print(f"[Pyglet] Error closing window: {e}")

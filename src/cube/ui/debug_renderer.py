@@ -209,15 +209,29 @@ class DebugRenderer:
             except Exception:
                 pass
         
-        # Line 2: Camera position (if renderer available)
+        # Camera information (if renderer available)
         if renderer:
             try:
                 camera_source = renderer.get_camera_source()
                 if camera_source:
                     camera_uniforms = camera_source.get_uniforms()
                     cam_pos = camera_uniforms.get('iCameraPos', (0.0, 0.0, 0.0))
-                    cam_text = f'Cam: ({cam_pos[0]:.1f},{cam_pos[1]:.1f},{cam_pos[2]:.1f})'
-                    lines.append(cam_text)
+                    cam_right = camera_uniforms.get('iCameraRight', (0.0, 0.0, 0.0))
+                    cam_up = camera_uniforms.get('iCameraUp', (0.0, 0.0, 0.0))
+                    cam_forward = camera_uniforms.get('iCameraForward', (0.0, 0.0, 0.0))
+                    
+                    lines.append(f'Cam Pos: ({cam_pos[0]:.2f},{cam_pos[1]:.2f},{cam_pos[2]:.2f})')
+                    lines.append(f'Cam Fwd: ({cam_forward[0]:.2f},{cam_forward[1]:.2f},{cam_forward[2]:.2f})')
+                    lines.append(f'Cam Up: ({cam_up[0]:.2f},{cam_up[1]:.2f},{cam_up[2]:.2f})')
+                    lines.append(f'Cam Rgt: ({cam_right[0]:.2f},{cam_right[1]:.2f},{cam_right[2]:.2f})')
+                    
+                    # Show spherical camera parameters if available
+                    camera = camera_source.get_camera()
+                    from cube.shader.camera_modes import SphericalCamera
+                    if isinstance(camera, SphericalCamera):
+                        lines.append(f'Dist: {camera.distance:.2f} Yaw: {camera.yaw:.2f} Pitch: {camera.pitch:.2f}')
+                        if abs(camera.roll) > 0.001:
+                            lines.append(f'Roll: {camera.roll:.2f}')
             except Exception:
                 pass
         
@@ -266,7 +280,7 @@ class DebugRenderer:
                 break
             if i == 0:
                 color = (0, 255, 0)  # Green for FPS
-            elif line.startswith('Cam:'):
+            elif line.startswith('Cam ') or line.startswith('Dist:') or line.startswith('Roll:'):
                 color = (100, 200, 255)  # Light blue for camera
             elif line.startswith('Mouse:'):
                 color = (255, 150, 100)  # Orange for mouse
