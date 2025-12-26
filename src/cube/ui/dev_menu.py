@@ -44,6 +44,7 @@ class DevMenuUI:
         settings: dict,
         menu_window,  # MenuWindow instance - now owns its own InputManager
         shaders_root: Path,
+        controller=None,  # Optional controller reference for accessing visualization data
     ) -> None:
         self.width = width
         self.height = height
@@ -51,11 +52,16 @@ class DevMenuUI:
         self.menu_window = menu_window
         self.menu_input_manager = menu_window.input_manager  # Access window's input manager
         self.shaders_root = shaders_root
+        self.controller = controller  # Store controller reference for accessing visualization data
 
-        # Create layers
+        # Create layers at render resolution (same as menu)
         self.menu_layer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-        self.debug_pane_height = 256  # Fixed height for debug pane
-        self.debug_layer = np.zeros((self.debug_pane_height, self.width, 3), dtype=np.uint8)
+        self.debug_pane_height = 256  # Fixed height for debug pane (window resolution)
+        # Debug layer should be at render resolution, not window resolution
+        # Get scale from backend to calculate render height
+        scale = menu_window.backend.scale if hasattr(menu_window, 'backend') else 1
+        debug_pane_render_height = self.debug_pane_height // scale
+        self.debug_layer = np.zeros((debug_pane_render_height, self.width, 3), dtype=np.uint8)
         self.debug_pane_visible = False
         self.base_window_height = height  # Store original window height
         self.debug_renderer = DebugRenderer()
@@ -99,9 +105,19 @@ class DevMenuUI:
             self._last_t_key_state = t_key_held
         
         # Handle debug toggle in MENU context (only process if menu has focus)
-        # Note: Input is only polled when menu is focused, so this is safe
+        # Note: Input is only polled when menu has focus, so this is safe
         if Action.TOGGLE_DEBUG in pressed_actions:
             self._toggle_debug_window()
+        
+        # Handle mouse scroll for effects list when debug pane is visible
+        if self.debug_pane_visible:
+            if hasattr(self.menu_window, 'backend') and hasattr(self.menu_window.backend, 'mouse_scroll'):
+                mouse_scroll = self.menu_window.backend.mouse_scroll
+                if mouse_scroll != 0:
+                    self.debug_renderer.handle_mouse_scroll(mouse_scroll)
+        
+        # Handle input forwarding toggle
+        # (handled above via 't' key detection)
         
 
         # If input forwarding is enabled, don't process menu navigation
@@ -185,53 +201,127 @@ class DevMenuUI:
         Get the final framebuffer for display, stitching menu and debug layers together.
         
         Returns:
-            Numpy array matching the current window size
+            Numpy array matching the internal render resolution (backend.width/height)
         """
         menu_height, menu_width = self.menu_layer.shape[:2]
         
-        # Get current window size from backend (may have changed due to resize)
-        current_window_height = self.menu_window.backend.window_height
-        current_window_width = self.menu_window.backend.window_width
+        # Get scale and render resolution from backend
+        scale = self.menu_window.backend.scale
+        render_width = self.menu_window.backend.width
         
         # Render debug pane if visible
         if self.debug_pane_visible:
-            # Fill debug layer with light blue background (only 256px tall)
+            # Fill debug layer with light blue background
             self.debug_layer[:, :] = (173, 216, 230)  # Light blue
             
-            # Create framebuffer matching window size exactly
-            framebuffer = np.zeros((current_window_height, current_window_width, 3), dtype=np.uint8)
+            # Get visualization data if available
+            renderer = None
+            fps = 0.0
+            preview_source = None
+            if self.controller and self.controller.visualization_runner:
+                try:
+                    renderer = self.controller.visualization_runner._renderer
+                    fps = self.controller.visualization_runner.get_fps() if hasattr(self.controller.visualization_runner, 'get_fps') else 0.0
+                    preview_source = self.controller._latest_framebuffer
+                except Exception:
+                    pass
             
-            # Place menu at top (only up to menu_height)
-            actual_menu_height = min(menu_height, current_window_height)
-            actual_menu_width = min(menu_width, current_window_width)
-            framebuffer[:actual_menu_height, :actual_menu_width] = self.menu_layer[:actual_menu_height, :actual_menu_width]
+            # Render debug UI components in a horizontal row
+            # Debug layer is at fixed render resolution
             
-            # Place debug pane below menu (only 256px tall, not full window height)
-            debug_start = actual_menu_height
-            debug_end = min(debug_start + self.debug_pane_height, current_window_height)
-            actual_debug_height = debug_end - debug_start
-            if actual_debug_height > 0:
-                framebuffer[debug_start:debug_end, :current_window_width] = self.debug_layer[:actual_debug_height, :current_window_width]
+            # Ensure debug layer matches render width (may need to resize if window was resized)
+            debug_layer_height, debug_layer_width = self.debug_layer.shape[:2]
+            if debug_layer_width != render_width:
+                # Resize debug layer to match current render width
+                old_debug_layer = self.debug_layer
+                self.debug_layer = np.zeros((debug_layer_height, render_width, 3), dtype=np.uint8)
+                # Copy old content if possible
+                copy_width = min(debug_layer_width, render_width)
+                self.debug_layer[:, :copy_width] = old_debug_layer[:, :copy_width]
+                # Fill rest with blue
+                if render_width > copy_width:
+                    self.debug_layer[:, copy_width:render_width] = (173, 216, 230)
+                debug_layer_width = render_width
+            
+            # Calculate widths for each element (divide available width)
+            num_elements = 3  # effects, preview, debug_info
+            element_width = render_width // num_elements
+            x_positions = [i * element_width for i in range(num_elements)]
+            
+            # Get beat phase/pulse from renderer if available
+            beat_phase = 0.0
+            beat_pulse = 0.0
+            if renderer:
+                try:
+                    debug_state = renderer.get_debug_state()
+                    beat_phase = float(debug_state.get('beat_phase', 0.0))
+                    beat_pulse = float(debug_state.get('beat_pulse', 0.0))
+                except Exception:
+                    pass
+            
+            # Get input manager for effects list
+            viz_input_manager = None
+            if self.controller and self.controller.viz_window:
+                viz_input_manager = self.controller.viz_window.input_manager
+            
+            # Element 1: Effects list (left) - using pygame font rendering
+            effects_rendered = self.debug_renderer.render_effects_list_pygame(
+                element_width, debug_layer_height, renderer, viz_input_manager
+            )
+            self.debug_layer[:, x_positions[0]:x_positions[0] + element_width] = effects_rendered[:, :element_width]
+            
+            # Element 3: Preview window
+            preview_rendered = self.debug_renderer.render_preview(
+                element_width, debug_layer_height, preview_source
+            )
+            self.debug_layer[:, x_positions[1]:x_positions[1] + element_width] = preview_rendered[:, :element_width]
+            
+            # Element 4: Debug info (FPS, parameters) (right)
+            debug_info_rendered = self.debug_renderer.render_debug_info(
+                element_width, debug_layer_height, fps, renderer
+            )
+            self.debug_layer[:, x_positions[2]:x_positions[2] + element_width] = debug_info_rendered[:, :element_width]
+            
+            # Total framebuffer height: menu at original resolution + debug pane
+            total_render_height = menu_height + debug_layer_height
+            
+            # Create framebuffer: menu at original resolution + debug pane appended
+            framebuffer = np.zeros((total_render_height, render_width, 3), dtype=np.uint8)
+            
+            # Place menu at top at its original resolution (no scaling/distortion)
+            actual_menu_width = min(menu_width, render_width)
+            framebuffer[:menu_height, :actual_menu_width] = self.menu_layer[:, :actual_menu_width]
+            
+            # Place debug pane below menu (already at render resolution, no scaling needed)
+            debug_start = menu_height
+            debug_end = total_render_height
+            
+            # Copy debug layer directly into framebuffer (both are at render resolution)
+            copy_height = min(debug_layer_height, total_render_height - debug_start)
+            copy_width = min(debug_layer_width, render_width)
+            framebuffer[debug_start:debug_start + copy_height, :copy_width] = self.debug_layer[:copy_height, :copy_width]
+            # Fill rest with blue if needed
+            if render_width > copy_width:
+                framebuffer[debug_start:debug_start + copy_height, copy_width:render_width] = (173, 216, 230)
             
             return framebuffer
         else:
-            # No debug pane - create framebuffer matching window size
-            # If window was resized, we need to match it
-            if current_window_height != menu_height or current_window_width != menu_width:
-                framebuffer = np.zeros((current_window_height, current_window_width, 3), dtype=np.uint8)
-                # Place menu in top portion
-                actual_menu_height = min(menu_height, current_window_height)
-                actual_menu_width = min(menu_width, current_window_width)
-                framebuffer[:actual_menu_height, :actual_menu_width] = self.menu_layer[:actual_menu_height, :actual_menu_width]
-                return framebuffer
-            else:
-                # Window size matches menu layer, return as-is
-                return self.menu_layer.copy()
+            # No debug pane - return menu layer at its original resolution
+            # Menu layer is already at render resolution, return as-is
+            return self.menu_layer.copy()
         
 
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
+
+    def _toggle_input_forwarding(self) -> None:
+        """Toggle input forwarding state and notify controller."""
+        self.input_forwarding_enabled = not self.input_forwarding_enabled
+        # Controller will handle the actual forwarding setup via _update_input_forwarding()
+        if self.controller:
+            self.controller._update_input_forwarding()
+        print(f"[DevMenuUI] Input forwarding {'enabled' if self.input_forwarding_enabled else 'disabled'}")
 
     def _register_menus(self) -> None:
         """Register all menu states with the navigator."""
@@ -251,13 +341,25 @@ class DevMenuUI:
 
     def _toggle_debug_window(self) -> None:
         """Toggle debug pane visibility and resize window accordingly."""
+        # Get current window height
+        current_height = self.menu_window.backend.window_height
+
+        print(f"Current window size: (WxH): {self.menu_window.backend.window_width}x{self.menu_window.backend.window_height}")
+        print(f"Current menu size: (WxH): {self.menu_layer.shape[1]}x{self.menu_layer.shape[0]}")
+        print(f"Current debug pane size: (WxH): {self.debug_layer.shape[1]}x{self.debug_layer.shape[0]}")
+        
+        # Toggle debug pane visibility
         self.debug_pane_visible = not self.debug_pane_visible
         
-        # Calculate new window height based on base height
+        # Calculate new window height: always add/subtract 256px
         if self.debug_pane_visible:
-            new_height = self.base_window_height + self.debug_pane_height
+            # Add debug pane height to current window
+            new_height = current_height + self.debug_pane_height
         else:
-            new_height = self.base_window_height
+            # Remove debug pane height from current window
+            new_height = max(self.debug_pane_height, current_height - self.debug_pane_height)  # Don't go below 256px
+
+        print(f"New window size: (WxH): {self.menu_window.backend.window_width}x{new_height}")
         
         # Resize pygame window programmatically (bypass aspect ratio enforcement)
         if hasattr(self.menu_window, 'backend') and hasattr(self.menu_window.backend, 'pygame'):
@@ -275,5 +377,3 @@ class DevMenuUI:
                 (backend.window_width, new_height),
                 pygame.RESIZABLE
             )
-
-            print(f'[DevMenuUI] Debug pane {"shown" if self.debug_pane_visible else "hidden"}, window resizing to {backend.window_width}×{new_height}')

@@ -19,7 +19,9 @@ class DebugRenderer:
     def __init__(self):
         """Initialize debug renderer."""
         self._beat_history: List[Tuple[float, float]] = []
-        self._effects_scroll_offset = 0
+        self._pygame_font = None
+        self._pygame_available = False
+        self._effects_scroll_offset_pygame = 0
     
     def render_effects_list(
         self,
@@ -53,9 +55,9 @@ class DebugRenderer:
                 return result
             
             overlay_renderer = MenuRenderer(result)
-            char_height = 8
-            char_width = 4
-            line_spacing = 2
+            char_height = 12
+            char_width = 6
+            line_spacing = 3
             
             lines: List[str] = []
             for action in active_actions:
@@ -76,118 +78,27 @@ class DebugRenderer:
             # Calculate visible area
             max_visible_lines = (height - 4) // (char_height + line_spacing)
             
-            # Auto-scroll: if we have more lines than visible, show the most recent
-            if len(lines) > max_visible_lines:
-                self._effects_scroll_offset = len(lines) - max_visible_lines
-            else:
-                self._effects_scroll_offset = 0
-            
             # Position in top-left
             x_pos = 2
             y_pos_start = 2
             
-            # Render visible lines
-            visible_lines = lines[self._effects_scroll_offset:]
+            # Render visible lines (just show what fits, starting from the top)
+            visible_lines = lines[:max_visible_lines]
             for i, line in enumerate(visible_lines):
                 y_pos = y_pos_start + i * (char_height + line_spacing)
                 if y_pos + char_height > height:
                     break
                 overlay_renderer.draw_text(line, x_pos, y_pos, color=(255, 255, 255), scale=1)
             
-            # Show scroll indicator if needed
-            if self._effects_scroll_offset > 0:
-                indicator_text = f"... ({self._effects_scroll_offset} more)"
-                overlay_renderer.draw_text(indicator_text, x_pos, y_pos_start, color=(150, 150, 150), scale=1)
+            # Show indicator if there are more items than can be displayed
+            if len(lines) > max_visible_lines:
+                remaining = len(lines) - max_visible_lines
+                indicator_text = f"... {remaining} more"
+                y_bottom = y_pos_start + max_visible_lines * (char_height + line_spacing)
+                if y_bottom < height:
+                    overlay_renderer.draw_text(indicator_text, x_pos, y_bottom, color=(150, 150, 150), scale=1)
         except Exception:
             pass
-        
-        return result
-    
-    def render_waveforms(
-        self,
-        width: int,
-        height: int,
-        beat_phase: float = 0.0,
-        beat_pulse: float = 0.0,
-    ) -> np.ndarray:
-        """
-        Render beat waveforms.
-        
-        Args:
-            width: Desired width in pixels
-            height: Desired height in pixels
-            beat_phase: Beat phase value (0.0-1.0)
-            beat_pulse: Beat pulse value (0.0-1.0)
-        
-        Returns:
-            Numpy array (H, W, 3) with waveforms rendered
-        """
-        result = np.zeros((height, width, 3), dtype=np.uint8)
-        
-        if width == 0 or height == 0:
-            return result
-        
-        # Append new sample and clamp history
-        self._beat_history.append((beat_phase, beat_pulse))
-        max_samples = min(width - 4, 128)
-        if len(self._beat_history) > max_samples:
-            self._beat_history = self._beat_history[-max_samples:]
-        
-        wave_width = len(self._beat_history)
-        if wave_width <= 1:
-            return result
-        
-        # Waveform area: fill available space
-        wave_height = height - 4
-        wave_x_start = 2
-        wave_y_start = height - wave_height - 2
-        
-        # Clear waveform area
-        result[wave_y_start:height, wave_x_start:wave_x_start + wave_width, :] = 0
-        
-        # Draw waveforms
-        phase_height = wave_height // 2
-        pulse_height = wave_height // 2
-        y_phase_top = wave_y_start
-        y_phase_bottom = wave_y_start + phase_height - 1
-        y_pulse_top = wave_y_start + phase_height
-        y_pulse_bottom = wave_y_start + wave_height - 1
-        
-        for x_idx, (phase, pulse) in enumerate(self._beat_history):
-            x = wave_x_start + x_idx
-            if x >= width:
-                break
-            
-            # Clamp values
-            clamped_phase = max(0.0, min(1.0, phase))
-            clamped_pulse = max(0.0, min(1.0, pulse))
-            
-            # Phase column (green)
-            phase_fill = int(clamped_phase * (phase_height - 1))
-            phase_bottom = y_phase_bottom - phase_fill
-            
-            result[phase_bottom:y_phase_bottom + 1, x, 0] = 0
-            result[phase_bottom:y_phase_bottom + 1, x, 1] = 255
-            result[phase_bottom:y_phase_bottom + 1, x, 2] = 0
-            
-            # Pulse column (pink)
-            pulse_fill = int(clamped_pulse * (pulse_height - 1))
-            pulse_bottom = y_pulse_bottom - pulse_fill
-            
-            result[pulse_bottom:y_pulse_bottom + 1, x, 0] = 255
-            result[pulse_bottom:y_pulse_bottom + 1, x, 1] = 105
-            result[pulse_bottom:y_pulse_bottom + 1, x, 2] = 180
-        
-        # Labels at left edge
-        label_color_phase = (0, 255, 0)
-        label_color_pulse = (255, 105, 180)
-        
-        if wave_width > 10:
-            label_renderer = MenuRenderer(result)
-            label_renderer.draw_text(
-                "phase", wave_x_start + 2, wave_y_start, color=label_color_phase, scale=1)
-            label_renderer.draw_text(
-                "pulse", wave_x_start + 2, wave_y_start + phase_height, color=label_color_pulse, scale=1)
         
         return result
     
@@ -272,9 +183,9 @@ class DebugRenderer:
         """
         result = np.zeros((height, width, 3), dtype=np.uint8)
         debug_renderer = MenuRenderer(result)
-        char_width = 4
-        char_height = 8
-        line_spacing = 2
+        char_width = 6
+        char_height = 12
+        line_spacing = 3
         
         lines: List[str] = []
         
@@ -348,6 +259,164 @@ class DebugRenderer:
             else:
                 color = (200, 200, 200)  # Gray for other
             debug_renderer.draw_text(line, x_pos, y_pos, color=color, scale=1)
+        
+        return result
+    
+    def _init_pygame_font(self, size: int = 11):
+        """Lazily initialize pygame font if available."""
+        try:
+            import pygame
+            pygame.font.init()
+            # Always create font with requested size (don't cache, size may vary)
+            font = pygame.font.Font(None, size)
+            self._pygame_available = True
+            return font
+        except (ImportError, Exception):
+            self._pygame_available = False
+            return None
+    
+    def handle_mouse_scroll(self, scroll_delta: int):
+        """
+        Handle mouse scroll event for effects list.
+        
+        Args:
+            scroll_delta: Scroll amount (positive = scroll down, negative = scroll up)
+        """
+        self._effects_scroll_offset_pygame = max(0, self._effects_scroll_offset_pygame - scroll_delta)
+    
+    def render_effects_list_pygame(
+        self,
+        width: int,
+        height: int,
+        renderer: Optional[Any] = None,
+        input_manager: Optional[Any] = None,
+    ) -> np.ndarray:
+        """
+        Render active effects list using pygame fonts with mouse scrolling.
+        
+        Args:
+            width: Desired width in pixels
+            height: Desired height in pixels
+            renderer: Optional renderer instance to get effect manager
+            input_manager: Optional input manager for bindings
+        
+        Returns:
+            Numpy array (H, W, 3) with effects list rendered
+        """
+        result = np.zeros((height, width, 3), dtype=np.uint8)
+        
+        # Render at 4x resolution for better quality, then scale down
+        render_scale = 4
+        render_width = width * render_scale
+        render_height = height * render_scale
+        
+        pygame_font = self._init_pygame_font(size=16 * render_scale)
+        if pygame_font is None:
+            return result
+        
+        if not renderer or not hasattr(renderer, "effect_manager"):
+            return result
+        
+        try:
+            import pygame
+            
+            effect_manager = renderer.effect_manager
+            active_actions = effect_manager.get_active_actions()
+            
+            if not active_actions:
+                return result
+            
+            lines: List[Tuple[str, Tuple[int, int, int]]] = []
+            for action in active_actions:
+                friendly = action.name.replace("TOGGLE_", "").replace("_", " ").title()
+                binding_text = "[unbound]"
+                
+                if input_manager and hasattr(input_manager, 'bindings'):
+                    from cube.input.actions import InputContext
+                    raw_bindings = input_manager.bindings.get_raw_inputs(
+                        action, InputContext.VISUALIZATION
+                    )
+                    if raw_bindings:
+                        labels = [self._format_binding_label(b) for b in raw_bindings]
+                        binding_text = ", ".join(labels)
+                
+                line_text = f"{friendly}: {binding_text}"
+                lines.append((line_text, (255, 255, 255)))
+            
+            if not lines:
+                return result
+            
+            padding = 4 * render_scale
+            line_height = 18 * render_scale
+            
+            # Calculate how many lines can actually fit
+            # First, render a sample line to get actual text height
+            sample_text = pygame_font.render("Sample", False, (255, 255, 255))
+            actual_line_height = sample_text.get_height() + 1  # text height + spacing
+            
+            # Calculate max visible lines based on actual text height
+            available_height = render_height - padding * 2
+            max_visible_lines = available_height // actual_line_height if actual_line_height > 0 else len(lines)
+            
+            # Only scroll if we have more lines than can fit
+            if len(lines) <= max_visible_lines:
+                # All lines fit - show all, no scrolling
+                self._effects_scroll_offset_pygame = 0
+                visible_start = 0
+                visible_end = len(lines)
+                max_scroll_offset = 0
+            else:
+                # More lines than fit - enable scrolling
+                max_scroll_offset = len(lines) - max_visible_lines
+                self._effects_scroll_offset_pygame = min(self._effects_scroll_offset_pygame, max_scroll_offset)
+                visible_start = self._effects_scroll_offset_pygame
+                visible_end = min(visible_start + max_visible_lines, len(lines))
+            
+            pygame_surface = pygame.Surface((render_width, render_height))
+            pygame_surface.fill((0, 0, 0))
+            
+            # Draw subtle border
+            border_color = (100, 100, 100)
+            pygame.draw.rect(pygame_surface, border_color, (0, 0, render_width, render_height), 1)
+            
+            y_pos = padding
+            for i in range(visible_start, visible_end):
+                line_text, color = lines[i]
+                text_surface = pygame_font.render(line_text, False, color)
+                text_height = text_surface.get_height()
+                pygame_surface.blit(text_surface, (padding, y_pos))
+                y_pos += text_height + 1
+                # Stop if we've run out of vertical space
+                if y_pos + text_height > render_height - padding:
+                    break
+            
+            if max_scroll_offset > 0:
+                if self._effects_scroll_offset_pygame > 0:
+                    indicator = pygame_font.render(
+                        f"↑ {self._effects_scroll_offset_pygame} above", 
+                        False, (150, 150, 150)
+                    )
+                    pygame_surface.blit(indicator, (padding, padding))
+                
+                remaining = max_scroll_offset - self._effects_scroll_offset_pygame
+                if remaining > 0:
+                    indicator = pygame_font.render(
+                        f"↓ {remaining} below", 
+                        False, (150, 150, 150)
+                    )
+                    pygame_surface.blit(indicator, (padding, render_height - line_height - padding))
+            
+            # Scale down from high-res to target resolution using nearest-neighbor
+            pygame_array = pygame.surfarray.array3d(pygame_surface)
+            high_res = np.transpose(pygame_array, (1, 0, 2))
+            
+            # Downscale using nearest-neighbor
+            y_indices = np.linspace(0, render_height - 1, height).astype(int)
+            x_indices = np.linspace(0, render_width - 1, width).astype(int)
+            result = high_res[np.ix_(y_indices, x_indices)]
+            
+        except Exception:
+            pass
         
         return result
     

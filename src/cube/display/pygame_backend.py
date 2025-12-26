@@ -35,7 +35,7 @@ class PygameBackend(DisplayBackend):
         self.window_width = width
         self.window_height = height
         self.aspect_ratio = width / height if height > 0 else 1.0
-        self._ignore_aspect_ratio = False
+        self._ignore_aspect_ratio = True
 
         # Create resizable window
         self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
@@ -48,6 +48,7 @@ class PygameBackend(DisplayBackend):
         self.mouse_x = 0.0
         self.mouse_y = 0.0
         self.mouse_button_pressed = False
+        self.mouse_scroll = 0
 
     def show_framebuffer(self, framebuffer: np.ndarray):
         """
@@ -65,7 +66,8 @@ class PygameBackend(DisplayBackend):
         )
 
         # Scale content to fill window using nearest-neighbor (no smoothing)
-        # This preserves sharp pixel edges for that "chunky pixel" look
+        # Note: Render resolution (self.width/self.height) is FIXED and never changes
+        # Only window size changes - this scaling is just for display
         surface = self.pygame.transform.scale(
             surface,
             (self.window_width, self.window_height)
@@ -150,6 +152,12 @@ class PygameBackend(DisplayBackend):
         self.mouse_x = float(mouse_pos[0] * scale_x)
         self.mouse_y = float((self.window_height - mouse_pos[1]) * scale_y)
         self.mouse_button_pressed = mouse_buttons[0] or mouse_buttons[1] or mouse_buttons[2]
+        
+        # Check for mouse wheel events
+        self.mouse_scroll = 0
+        for event in other_events:
+            if event.type == self.pygame.MOUSEWHEEL:
+                self.mouse_scroll = event.y
 
         # Convert KeyboardState to dict format
         result = {
@@ -160,7 +168,8 @@ class PygameBackend(DisplayBackend):
             'mouse': {
                 'x': self.mouse_x,
                 'y': self.mouse_y,
-                'button_pressed': self.mouse_button_pressed
+                'button_pressed': self.mouse_button_pressed,
+                'scroll': self.mouse_scroll
             }
         }
 

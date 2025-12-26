@@ -104,6 +104,7 @@ class CubeController:
             settings=self.settings,
             menu_window=self.menu_window,
             shaders_root=shaders_dir,
+            controller=self,  # Pass controller reference for accessing visualization data
         )
 
         self._cleanup_done = False
