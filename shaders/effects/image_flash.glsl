@@ -25,9 +25,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Create alpha mask: black pixels are transparent, colored pixels are opaque
     float flashAlpha = smoothstep(0.0, 0.1, flashBrightness);
     
+    // Modulate by iParam7 intensity
+    float intensity = clamp(iParam7, 0.0, 1.0);
     
     // Additively blend: background + flashImage * intensity * alpha
-    vec3 result = background + flashImage * flashAlpha;
+    vec3 result = background + flashImage * flashAlpha * intensity;
     
     fragColor = vec4(result, 1.0);
 }

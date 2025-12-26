@@ -7,8 +7,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Previous node's output
     vec3 base = texture(iChannel0, uv).rgb;
 
-    // Beat-driven flash (0..1)
-    float flash = clamp(iBeatPulse, 0.0, 1.0);
+    // Beat-driven flash (0..1) modulated by iParam7
+    float flash = clamp(iBeatPulse, 0.0, 1.0) * clamp(iParam7, 0.0, 1.0);
 
     // Expose heavily based on beat, then tone-map
     float exposure = mix(1.0, 12.0, flash);          // up to ~12x

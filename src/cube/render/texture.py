@@ -4,6 +4,7 @@ Texture and framebuffer management for cube.
 Provides Texture class for managing FBOs and render targets.
 """
 from typing import Optional
+import numpy as np
 from OpenGL.GL import *
 
 class Texture:
@@ -64,6 +65,43 @@ class Texture:
     def unbind(self):
         """Unbind FBO."""
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
+
+    def upload_pixels(self, pixel_data: np.ndarray):
+        """
+        Upload pixel data directly to the texture.
+        
+        Args:
+            pixel_data: RGB or RGBA numpy array (H, W, 3) or (H, W, 4) with dtype uint8
+        """
+        if not self._created:
+            self.create()
+        
+        if len(pixel_data.shape) != 3:
+            raise ValueError(f"Expected 3D array (H, W, C), got shape {pixel_data.shape}")
+        
+        height, width, channels = pixel_data.shape
+        if channels not in (3, 4):
+            raise ValueError(f"Expected 3 or 4 channels (RGB/RGBA), got {channels}")
+        
+        if width != self.width or height != self.height:
+            raise ValueError(f"Pixel data size ({width}x{height}) doesn't match texture size ({self.width}x{self.height})")
+        
+        if pixel_data.dtype != np.uint8:
+            pixel_data = (pixel_data * 255).astype(np.uint8)
+        
+        pixel_data = np.ascontiguousarray(pixel_data)
+        
+        # Bind texture and upload data
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, self.color_texture)
+        
+        if channels == 3:
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixel_data)
+        else:
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixel_data)
+        
+        # Unbind texture to avoid affecting other operations
+        glBindTexture(GL_TEXTURE_2D, 0)
 
     def cleanup(self):
         """Delete OpenGL resources."""

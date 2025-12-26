@@ -5,7 +5,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     vec2 texel = 1.0 / iResolution.xy;
     
-    float strength = clamp(iParam0, 0.0, 1.0);
+    float strength = clamp(iParam0, 0.0, 1.0) * clamp(iParam7, 0.0, 1.0);
     
     // Sample base color
     vec3 base = texture(iChannel0, uv).rgb;

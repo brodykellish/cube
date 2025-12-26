@@ -27,6 +27,8 @@ class Action(Enum):
     # Settings
     TOGGLE_DEBUG = auto()
     TOGGLE_PREVIEW = auto()
+    TOGGLE_INPUT_FORWARDING = auto()
+    TOGGLE_VISUALIZATION_FULLSCREEN = auto()
     INCREASE_BRIGHTNESS = auto()
     DECREASE_BRIGHTNESS = auto()
     INCREASE_GAMMA = auto()

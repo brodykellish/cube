@@ -216,8 +216,10 @@ class VisualizationRunner:
                 # Update renderer from input
                 # (Camera, params, effects are handled by DAGRenderer internally)
                 
-                # Render frame (only if shader is loaded)
-                if self._renderer and hasattr(self._renderer, 'current_shader_program') and self._renderer.current_shader_program:
+                # Render frame (only if source nodes exist)
+                has_source_nodes = self._renderer and hasattr(self._renderer, 'source_nodes') and len(self._renderer.source_nodes) > 0
+                
+                if has_source_nodes:
                     # Ensure context is current before rendering
                     self._renderer.make_context_current()
                     
@@ -238,7 +240,7 @@ class VisualizationRunner:
                     
                     # Display to pyglet window
                     self._viz_window.display(framebuffer)
-                # else: No shader loaded yet, skip rendering (will render once pipeline is deployed)
+                # else: No source nodes loaded yet, skip rendering (will render once pipeline is deployed)
                 
                 # FPS limit
                 elapsed = time.time() - loop_start
@@ -399,12 +401,17 @@ class VisualizationRunner:
             return
         
         try:
-            # Load shader
+            # Load shader or video
             source = config.get('source', {})
             shader_path = source.get('shader_path')
+            video_path = source.get('video_path')
             pixel_mapper_type = source.get('pixel_mapper', 'surface')
             
-            if shader_path:
+            if video_path:
+                print(f"[VIZ] Loading video: {video_path}")
+                self._current_shader_path = Path(video_path)
+                self._renderer.load_video(str(video_path))
+            elif shader_path:
                 print(f"[VIZ] Loading shader: {shader_path}")
                 self._current_shader_path = Path(shader_path)
                 self._renderer.load_shader(str(shader_path))

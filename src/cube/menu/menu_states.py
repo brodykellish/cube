@@ -170,6 +170,7 @@ class ShaderBrowser(MenuState):
             ("directory", "REALISM", "realism"),
             ("directory", "PRIMITIVES", "primitives"),
             ("directory", "GENERATED", "generated"),
+            ("directory", "VIDEOS", "videos"),
             ("action", "BACK", None)
         ]
 
@@ -206,6 +207,16 @@ class ShaderBrowser(MenuState):
                 shaders.append(("shader", shader_path.stem, shader_path))
         return shaders
 
+    def _load_video_directory(self, directory: Path) -> List[tuple]:
+        """Load all video files in a directory into a list of tuples (type, name, path)."""
+        videos = []
+        if directory.exists():
+            video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.m4v']
+            for ext in video_extensions:
+                for video_path in sorted(directory.glob(f"*{ext}")):
+                    videos.append(("video", video_path.stem, video_path))
+        return videos
+
     def _show_shader_selection(self, directory_name: str):
         """Show shaders from the selected directory."""
         self.browsing_mode = "shader"
@@ -226,6 +237,26 @@ class ShaderBrowser(MenuState):
 
         self.list.set_items(self.items)
 
+    def _show_video_selection(self):
+        """Show videos from the videos directory."""
+        self.browsing_mode = "video"
+        self.selected_directory = "videos"
+        self.items = []
+
+        # Load videos from videos directory
+        directory_path = Path("videos")
+        videos = self._load_video_directory(directory_path)
+
+        if videos:
+            self.items.extend(videos)
+        else:
+            self.items.append(("info", "NO VIDEOS FOUND", None))
+
+        # Add back option
+        self.items.append(("action", "BACK", None))
+
+        self.list.set_items(self.items)
+
     def render(self, renderer: MenuRenderer, context: MenuContext):
         renderer.clear((0, 0, 0))
 
@@ -238,6 +269,10 @@ class ShaderBrowser(MenuState):
             # Show pixel mapper if selected, or if fixed
             pm = self.selected_pixel_mapper or self.pixel_mapper
             subtitle = f"[{pm.upper()}]" if pm else ""
+        elif self.browsing_mode == "video":
+            title = "SELECT VIDEO"
+            pm = self.selected_pixel_mapper or self.pixel_mapper
+            subtitle = f"[{pm.upper()}] VIDEOS" if pm else "VIDEOS"
         else:  # shader mode
             title = "SELECT SHADER"
             pm = self.selected_pixel_mapper or self.pixel_mapper
@@ -260,6 +295,8 @@ class ShaderBrowser(MenuState):
             elif item_type == "directory":
                 return f"  {name}"
             elif item_type == "shader":
+                return f"  {name}"
+            elif item_type == "video":
                 return f"  {name}"
             elif item_type == "info":
                 return f"  {name}"
@@ -300,7 +337,10 @@ class ShaderBrowser(MenuState):
                     # Directory selection mode
                     if item_type == "directory":
                         # Navigate into directory
-                        self._show_shader_selection(data)
+                        if data == "videos":
+                            self._show_video_selection()
+                        else:
+                            self._show_shader_selection(data)
                     elif item_type == "action" and name == "BACK":
                         # If we came from pixel mapper selection, go back to it
                         if self.include_pixel_mapper and not self.pixel_mapper:
@@ -320,8 +360,20 @@ class ShaderBrowser(MenuState):
                         # Go back to directory selection
                         self._show_directory_selection()
 
+                elif self.browsing_mode == "video":
+                    # Video selection mode
+                    if item_type == "video":
+                        # Return launch action with video path
+                        return LaunchVisualizationAction(
+                            video_path=data,
+                            pixel_mapper=self.selected_pixel_mapper or self.pixel_mapper
+                        )
+                    elif item_type == "action" and name == "BACK":
+                        # Go back to directory selection
+                        self._show_directory_selection()
+
         elif key in ('back', 'escape'):
-            if self.browsing_mode == "shader":
+            if self.browsing_mode == "shader" or self.browsing_mode == "video":
                 # Back goes to directory selection
                 self._show_directory_selection()
             elif self.browsing_mode == "directory":

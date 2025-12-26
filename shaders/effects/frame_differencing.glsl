@@ -6,7 +6,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     vec3 cur = texture(iChannel0, uv).rgb;
     vec3 prev = texture(iChannel1, uv).rgb;
-    float gain = mix(1.0, 4.0, clamp(iParam0, 0.0, 1.0));
+    float gain = mix(1.0, 4.0, clamp(iParam0, 0.0, 1.0) * clamp(iParam7, 0.0, 1.0));
     vec3 diff = (cur - prev) * gain;
     fragColor = vec4(diff, 1.0);
 }

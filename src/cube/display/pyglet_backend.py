@@ -31,6 +31,7 @@ class PygletBackend(Backend):
         self.window_height = height
         self.scale = scale
         self._resize_pending = False
+        self._is_fullscreen = False
         
         # Create window initially invisible to prevent it from stealing focus
         # It will be made visible when rendering starts
@@ -114,6 +115,83 @@ class PygletBackend(Backend):
     def height(self) -> int:
         """Current render height"""
         return self._height
+    
+    def get_render_resolution(self) -> tuple[int, int]:
+        """
+        Get the shader rendering resolution.
+        
+        Returns:
+            Tuple of (width, height) in pixels
+        """
+        return (self._width, self._height)
+    
+    def get_window_size(self) -> tuple[int, int]:
+        """
+        Get the window size (not framebuffer size).
+        
+        Returns:
+            Tuple of (width, height) in pixels
+        """
+        return (self.window_width, self.window_height)
+    
+    def get_framebuffer_size(self) -> tuple[int, int]:
+        """
+        Get the framebuffer size (may differ from window size on HiDPI displays).
+        
+        Returns:
+            Tuple of (width, height) in pixels
+        """
+        return (self.fb_width, self.fb_height)
+    
+    def set_fullscreen(self, fullscreen: bool):
+        """
+        Toggle fullscreen mode.
+        
+        Args:
+            fullscreen: True to enter fullscreen, False to exit
+        """
+        if fullscreen and not self._is_fullscreen:
+            # Save current window size before going fullscreen
+            self._saved_window_size = (self.window_width, self.window_height)
+            self.window.set_fullscreen(True)
+            self.window_width, self.window_height = self.window.size
+            # Update framebuffer size after fullscreen change
+            fb_width, fb_height = self.window.get_framebuffer_size()
+            self.fb_width = fb_width
+            self.fb_height = fb_height
+            self._width = fb_width // self.scale
+            self._height = fb_height // self.scale
+            self._is_fullscreen = True
+            # Update viewport and texture size
+            self.window.switch_to()
+            glViewport(0, 0, fb_width, fb_height)
+            if self.texture:
+                glBindTexture(GL_TEXTURE_2D, self.texture)
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self._width, self._height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+            print(f"[Pyglet] Entered fullscreen: window {self.window_width}×{self.window_height}, framebuffer {fb_width}×{fb_height}, render {self._width}×{self._height}")
+        elif not fullscreen and self._is_fullscreen:
+            # Restore saved window size
+            if hasattr(self, '_saved_window_size'):
+                restore_width, restore_height = self._saved_window_size
+            else:
+                restore_width, restore_height = 960, 540  # Default fallback
+            self.window.set_fullscreen(False)
+            self.window.set_size(restore_width, restore_height)
+            self.window_width, self.window_height = self.window.size
+            # Update framebuffer size after windowed change
+            fb_width, fb_height = self.window.get_framebuffer_size()
+            self.fb_width = fb_width
+            self.fb_height = fb_height
+            self._width = fb_width // self.scale
+            self._height = fb_height // self.scale
+            self._is_fullscreen = False
+            # Update viewport and texture size
+            self.window.switch_to()
+            glViewport(0, 0, fb_width, fb_height)
+            if self.texture:
+                glBindTexture(GL_TEXTURE_2D, self.texture)
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self._width, self._height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+            print(f"[Pyglet] Exited fullscreen: window {self.window_width}×{self.window_height}, framebuffer {fb_width}×{fb_height}, render {self._width}×{self._height}")
 
     def was_resized(self) -> bool:
         """Check and clear resize flag"""

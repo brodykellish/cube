@@ -233,6 +233,52 @@ class DAGRenderer:
         # Recreate source nodes with new shader
         self._recreate_source_nodes()
     
+    def load_video(self, video_path: str):
+        """
+        Load video file and create video source nodes.
+        
+        Args:
+            video_path: Path to video file
+        """
+        from pathlib import Path
+        from ..dag.video_source_node import VideoSourceNode
+        from ..dag.frame_loader import VideoFileFrameLoader
+        
+        self.shader_path = video_path
+        
+        # Ensure context is current
+        self.make_context_current()
+        
+        # Load video file
+        video_file_path = Path(video_path)
+        if not video_file_path.exists():
+            raise FileNotFoundError(f'Video file not found: {video_path}')
+        
+        # Clean up old source nodes
+        for node in self.source_nodes:
+            node.cleanup()
+        self.source_nodes.clear()
+        
+        # Create new DAG (this removes all nodes)
+        self.dag = DAG()
+        
+        # Create video source nodes for each render spec
+        render_specs = self.pixel_mapper.get_render_specs()
+        for i, spec in enumerate(render_specs):
+            node_name = f"video_source_{i}"
+            frame_loader = VideoFileFrameLoader(video_file_path, loop=True)
+            node = VideoSourceNode(
+                node_name,
+                frame_loader,
+                spec.width,
+                spec.height
+            )
+            self.source_nodes.append(node)
+            self.dag.add_node(node)
+        
+        # Clear shader program since we're not using one
+        self.current_shader_program = None
+    
     def _get_glsl_version(self) -> str:
         """Get GLSL version based on OpenGL version."""
         try:
@@ -256,6 +302,9 @@ class DAGRenderer:
         """Recreate source nodes for current render specs, preserving effect chain."""
         if not self.current_shader_program:
             return
+        
+        # Always use the current shader program (the one that was just loaded)
+        shader_program = self.current_shader_program
         
         # Identify first-layer effect nodes and map them to source indices
         # First-layer effects are those that depend directly on source nodes
@@ -309,7 +358,7 @@ class DAGRenderer:
             node_name = f"source_{i}"
             node = SourceNode(
                 node_name,
-                self.current_shader_program,
+                shader_program,
                 spec.width,
                 spec.height,
                 self.vao
@@ -393,16 +442,17 @@ class DAGRenderer:
         # Debug axes
         all_uniforms['iDebugAxes'] = 1.0 if self.settings.get('debug_axes', False) else 0.0
         
-        # Update uniforms in all source nodes
+        # Update uniforms in all source nodes (only those with shaders)
         for node in self.source_nodes:
-            resolution = (float(node.width), float(node.height))
-            all_uniforms['iResolution'] = (resolution[0], resolution[1], 1.0)
-            
-            # Set uniforms in shader
-            node.shader.use()
-            for name, value in all_uniforms.items():
-                node.shader.set_uniform(name, value)
-            glUseProgram(0)
+            if node.shader is not None:
+                resolution = (float(node.width), float(node.height))
+                all_uniforms['iResolution'] = (resolution[0], resolution[1], 1.0)
+                
+                # Set uniforms in shader
+                node.shader.use()
+                for name, value in all_uniforms.items():
+                    node.shader.set_uniform(name, value)
+                glUseProgram(0)
         
         return all_uniforms
 
@@ -468,17 +518,23 @@ class DAGRenderer:
         Returns:
             Final framebuffer ready for display
         """
-        if not self.current_shader_program:
-            raise RuntimeError("No shader loaded. Call load_shader() first.")
+        if not self.source_nodes:
+            raise RuntimeError("No shader or video loaded. Call load_shader() or load_video() first.")
         
-        # Update dynamic textures
-        self._update_dynamic_textures()
+        # Check if we have shader-based nodes (vs video nodes)
+        has_shader_nodes = any(node.shader is not None for node in self.source_nodes)
+        
+        # Update dynamic textures (only for shader-based rendering)
+        if has_shader_nodes:
+            self._update_dynamic_textures()
         
         # Update time
         elapsed = time.time() - self.start_time
         self.frame_count += 1
         
-        # Update uniforms in nodes
+        # Update uniforms - effects need them even if source is video
+        uniforms = {}
+        # Always update uniforms (effects need them, and shader nodes need them too)
         uniforms = self._update_uniforms_in_nodes(elapsed)
         
         # Get render specs
@@ -490,8 +546,9 @@ class DAGRenderer:
             # Reposition the camera to view from this face
             if len(render_specs) > 1 and hasattr(self.pixel_mapper, 'reposition_camera_for_face') and self.camera_source:
                 self.pixel_mapper.reposition_camera_for_face(i, self.camera_source)
-                # Update uniforms again with new camera
-                uniforms = self._update_uniforms_in_nodes(elapsed)
+                # Update uniforms again with new camera (only if shader-based)
+                if has_shader_nodes:
+                    uniforms = self._update_uniforms_in_nodes(elapsed)
             
             # Get corresponding source node
             if i < len(self.source_nodes):

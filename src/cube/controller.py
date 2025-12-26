@@ -227,8 +227,10 @@ class CubeController:
         print(f"\n{'============================================================'}")
         print("Launching visualization")
         print(f"Pixel mapper: {action.pixel_mapper}")
-        shader_path = action.shader_path
-        print(f"Shader: {shader_path}")
+        if action.video_path:
+            print(f"Video: {action.video_path}")
+        elif action.shader_path:
+            print(f"Shader: {action.shader_path}")
         print(f"{'============================================================'}")
 
         try:
@@ -267,11 +269,16 @@ class CubeController:
                 self._viz_window_needs_visibility = True
 
             # Deploy pipeline via VisualizationRunner
+            source_config = {
+                'pixel_mapper': action.pixel_mapper
+            }
+            if action.video_path:
+                source_config['video_path'] = str(action.video_path)
+            elif action.shader_path:
+                source_config['shader_path'] = str(action.shader_path)
+            
             pipeline_config = {
-                'source': {
-                    'shader_path': str(shader_path),
-                    'pixel_mapper': action.pixel_mapper
-                },
+                'source': source_config,
                 'effects': [],  # No effects initially
                 'params': None  # Use defaults
             }

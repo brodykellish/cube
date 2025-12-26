@@ -44,10 +44,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     vec2 aspect = vec2(iResolution.x / iResolution.y, 1.0);
     
-    float screenInset = mix(0.05, 0.15, clamp(iParam0, 0.0, 1.0));
-    float frameThickness = mix(0.08, 0.2, clamp(iParam1, 0.0, 1.0));
-    float curvature = clamp(iParam2, 0.0, 1.0);
-    float scanlineIntensity = clamp(iParam3, 0.0, 1.0);
+    float intensity = clamp(iParam7, 0.0, 1.0);
+    if (intensity < 0.001) {
+        fragColor = texture(iChannel0, uv);
+        return;
+    }
+    float screenInset = mix(0.05, 0.15, clamp(iParam0, 0.0, 1.0) * intensity);
+    float frameThickness = mix(0.08, 0.2, clamp(iParam1, 0.0, 1.0) * intensity);
+    float curvature = clamp(iParam2, 0.0, 1.0) * intensity;
+    float scanlineIntensity = clamp(iParam3, 0.0, 1.0) * intensity;
     
     // Normalize UV to center
     vec2 centeredUV = (uv - 0.5) * aspect;

@@ -14,7 +14,7 @@ float nse1(float x) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
-    float intensity = clamp(iParam1, 0.0, 1.0);
+    float intensity = clamp(iParam1, 0.0, 1.0) * clamp(iParam7, 0.0, 1.0);
     
     // Only apply shake if iParam1 is activated (greater than threshold)
     if (intensity < 0.001) {

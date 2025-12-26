@@ -97,10 +97,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     vec2 texel = 1.0 / iResolution.xy;
     
-    float distortionIntensity = clamp(iParam0, 0.0, 1.0);
-    float chromaIntensity = clamp(iParam1, 0.0, 1.0);
-    float scanLineDensity = clamp(iParam2, 0.0, 1.0);
-    float noiseIntensity = clamp(iParam3, 0.0, 1.0);
+    float intensity = clamp(iParam7, 0.0, 1.0);
+    float distortionIntensity = clamp(iParam0, 0.0, 1.0) * intensity;
+    float chromaIntensity = clamp(iParam1, 0.0, 1.0) * intensity;
+    float scanLineDensity = clamp(iParam2, 0.0, 1.0) * intensity;
+    float noiseIntensity = clamp(iParam3, 0.0, 1.0) * intensity;
     
     float time = iTime;
     

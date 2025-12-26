@@ -87,8 +87,13 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     if (gray > 0.9535) n = 33061407;
     if (gray > 0.9767) n = 11512810;
     
+	float intensity = clamp(iParam7, 0.0, 1.0);
+	if (intensity < 0.001) {
+		fragColor = vec4(col, 1.0);
+		return;
+	}
 	vec2 pixCoord = fragCoord.xy;
-	float cellSize = mix(1.5, 16.0, clamp(iParam4, 0.0, 1.0));
+	float cellSize = mix(1.5, 16.0, clamp(iParam4, 0.0, 1.0) * intensity);
 	vec2 p = mod(pixCoord/cellSize, 2.0) - vec2(1.0);
     
 	if (iMouse.z > 0.5)	col = vec3(character(n, p));

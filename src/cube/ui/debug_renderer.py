@@ -168,15 +168,17 @@ class DebugRenderer:
         height: int,
         fps: float,
         renderer: Optional[Any] = None,
+        viz_window: Optional[Any] = None,
     ) -> np.ndarray:
         """
-        Render debug information (FPS, camera, mouse, parameters).
+        Render debug information (FPS, camera, mouse, parameters, resolutions).
         
         Args:
             width: Desired width in pixels
             height: Desired height in pixels
             fps: Current FPS value
             renderer: Optional renderer instance to get camera/mouse/params
+            viz_window: Optional visualization window to get resolution info
         
         Returns:
             Numpy array (H, W, 3) with debug info rendered
@@ -192,6 +194,20 @@ class DebugRenderer:
         # Line 1: FPS
         fps_text = f'FPS: {fps:.1f}'
         lines.append(fps_text)
+        
+        # Resolution information from visualization window
+        if viz_window:
+            try:
+                render_res = viz_window.get_render_resolution()
+                window_size = viz_window.get_window_size()
+                fb_size = viz_window.get_framebuffer_size()
+                
+                lines.append(f'Shader Render: {render_res[0]}×{render_res[1]}')
+                lines.append(f'Window Size: {window_size[0]}×{window_size[1]}')
+                if fb_size != window_size:
+                    lines.append(f'Framebuffer: {fb_size[0]}×{fb_size[1]}')
+            except Exception:
+                pass
         
         # Line 2: Camera position (if renderer available)
         if renderer:
@@ -310,7 +326,7 @@ class DebugRenderer:
         render_width = width * render_scale
         render_height = height * render_scale
         
-        pygame_font = self._init_pygame_font(size=16 * render_scale)
+        pygame_font = self._init_pygame_font(size=12 * render_scale)
         if pygame_font is None:
             return result
         

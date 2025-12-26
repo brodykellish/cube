@@ -23,10 +23,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     vec3 tex = texture(iChannel0, uv).rgb;
     vec3 hsb = rgb2hsb(tex);
-    float speed = mix(0.0, 6.2831853, clamp(iParam3, 0.0, 1.0));
+    float intensity = clamp(iParam7, 0.0, 1.0);
+    float speed = mix(0.0, 6.2831853, clamp(iParam3, 0.0, 1.0) * intensity);
     hsb.x = fract(hsb.x + iTime * speed / (2.0 * 3.14159265));
-    hsb.y *= mix(1.0, 2.0, clamp(iParam1, 0.0, 1.0));
-    hsb.z *= mix(1.0, 2.0, clamp(iParam2, 0.0, 1.0));
+    hsb.y *= mix(1.0, 2.0, clamp(iParam1, 0.0, 1.0) * intensity);
+    hsb.z *= mix(1.0, 2.0, clamp(iParam2, 0.0, 1.0) * intensity);
     vec3 rgb = hsb2rgb(hsb);
     fragColor = vec4(rgb, 1.0);
 }

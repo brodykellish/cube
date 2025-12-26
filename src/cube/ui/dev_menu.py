@@ -96,18 +96,17 @@ class DevMenuUI:
         
         # Handle input forwarding toggle (always check 't' key, even when forwarding is active)
         # Check for 't' key directly from keyboard state (check keys_held to detect press)
-        if self.menu_window.backend.keyboard:
-            kb_state = self.menu_window.backend.keyboard.poll()
-            t_key_held = 't' in kb_state.keys_held
-            # Detect transition from not held to held (key press)
-            if t_key_held and not self._last_t_key_state:
-                self._toggle_input_forwarding()
-            self._last_t_key_state = t_key_held
+        if Action.TOGGLE_INPUT_FORWARDING in pressed_actions:
+            self._toggle_input_forwarding()
         
         # Handle debug toggle in MENU context (only process if menu has focus)
         # Note: Input is only polled when menu has focus, so this is safe
         if Action.TOGGLE_DEBUG in pressed_actions:
             self._toggle_debug_window()
+        
+        # Handle fullscreen toggle for visualization window (when debug pane is visible)
+        if Action.TOGGLE_VISUALIZATION_FULLSCREEN in pressed_actions:
+                self._toggle_visualization_fullscreen()
         
         # Handle mouse scroll for effects list when debug pane is visible
         if self.debug_pane_visible:
@@ -276,9 +275,12 @@ class DevMenuUI:
             )
             self.debug_layer[:, x_positions[1]:x_positions[1] + element_width] = preview_rendered[:, :element_width]
             
-            # Element 4: Debug info (FPS, parameters) (right)
+            # Element 4: Debug info (FPS, parameters, resolutions) (right)
+            viz_window = None
+            if self.controller and self.controller.viz_window:
+                viz_window = self.controller.viz_window
             debug_info_rendered = self.debug_renderer.render_debug_info(
-                element_width, debug_layer_height, fps, renderer
+                element_width, debug_layer_height, fps, renderer, viz_window
             )
             self.debug_layer[:, x_positions[2]:x_positions[2] + element_width] = debug_info_rendered[:, :element_width]
             
@@ -339,6 +341,19 @@ class DevMenuUI:
 
         self.navigator.navigate_to("main")
 
+    def _toggle_visualization_fullscreen(self) -> None:
+        """Toggle fullscreen mode for visualization window."""
+        if not self.controller or not self.controller.viz_window:
+            return
+        
+        # Get current fullscreen state from backend
+        viz_backend = self.controller.viz_window.backend
+        is_fullscreen = getattr(viz_backend, '_is_fullscreen', False)
+        
+        # Toggle fullscreen
+        self.controller.viz_window.set_fullscreen(not is_fullscreen)
+        print(f"[DevMenu] Visualization window fullscreen: {not is_fullscreen}")
+    
     def _toggle_debug_window(self) -> None:
         """Toggle debug pane visibility and resize window accordingly."""
         # Get current window height

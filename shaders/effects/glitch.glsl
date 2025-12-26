@@ -13,7 +13,7 @@ float hash2(vec2 p) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
-    float intensity = clamp(iParam0, 0.0, 1.0);
+    float intensity = clamp(iParam0, 0.0, 1.0) * clamp(iParam7, 0.0, 1.0);
     
     // Time-based glitch triggers
     float glitchTime = floor(iTime * 8.0);

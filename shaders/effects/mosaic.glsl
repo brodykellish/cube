@@ -4,9 +4,14 @@
 // iParam1: jitter/displacement amount (0..1 -> 0..0.15 UV)
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
+    float intensity = clamp(iParam7, 0.0, 1.0);
+    if (intensity < 0.001) {
+        fragColor = texture(iChannel0, uv);
+        return;
+    }
     float aspect = iResolution.x / iResolution.y;
-    float squares = mix(5.0, 120.0, clamp(iParam0, 0.0, 1.0));
-    float amt = mix(0.0, 0.15, clamp(iParam1, 0.0, 1.0));
+    float squares = mix(5.0, 120.0, clamp(iParam0, 0.0, 1.0) * intensity);
+    float amt = mix(0.0, 0.15, clamp(iParam1, 0.0, 1.0) * intensity);
     float offset = amt * 0.5;
     vec2 tc = uv;
     vec2 centered = uv - 0.5;

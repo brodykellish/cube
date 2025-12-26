@@ -17,13 +17,13 @@ class Node(ABC):
     Nodes produce textures by rendering shaders.
     """
 
-    def __init__(self, name: str, shader: ShaderProgram, width: int, height: int):
+    def __init__(self, name: str, shader: Optional[ShaderProgram], width: int, height: int):
         """
         Initialize node.
         
         Args:
             name: Node identifier
-            shader: Shader program to use for rendering
+            shader: Shader program to use for rendering (None for non-shader nodes)
             width: Output texture width
             height: Output texture height
         """
@@ -37,6 +37,8 @@ class Node(ABC):
 
     def _register_parameters(self):
         """Register node parameters in global registry."""
+        if self.shader is None:
+            return
         registry = ParameterRegistry()
         for uniform in self.shader.spec.uniforms:
             if uniform.type.value != 'sampler2D':

@@ -29,9 +29,9 @@ class VisualizationWindow:
             title: Window title
             **kwargs: Additional arguments passed to PygletBackend
         """
-        # Ensure visualization window is NOT resizable (fixed size)
+        # Allow visualization window to be resizable so it can be moved to correct display
         kwargs.pop('resizable', None)  # Remove resizable if passed
-        self.backend = PygletBackend(width, height, scale=scale, title=title, resizable=False, **kwargs)
+        self.backend = PygletBackend(width, height, scale=scale, title=title, resizable=True, **kwargs)
         self.width = self.backend.width
         self.height = self.backend.height
         self._has_exit = False
@@ -88,6 +88,42 @@ class VisualizationWindow:
             framebuffer: RGB framebuffer (H, W, 3)
         """
         self.backend.display(framebuffer)
+    
+    def get_render_resolution(self) -> tuple[int, int]:
+        """
+        Get the shader rendering resolution.
+        
+        Returns:
+            Tuple of (width, height) in pixels
+        """
+        return self.backend.get_render_resolution()
+    
+    def get_window_size(self) -> tuple[int, int]:
+        """
+        Get the window size (not framebuffer size).
+        
+        Returns:
+            Tuple of (width, height) in pixels
+        """
+        return self.backend.get_window_size()
+    
+    def get_framebuffer_size(self) -> tuple[int, int]:
+        """
+        Get the framebuffer size (may differ from window size on HiDPI displays).
+        
+        Returns:
+            Tuple of (width, height) in pixels
+        """
+        return self.backend.get_framebuffer_size()
+    
+    def set_fullscreen(self, fullscreen: bool):
+        """
+        Toggle fullscreen mode.
+        
+        Args:
+            fullscreen: True to enter fullscreen, False to exit
+        """
+        self.backend.set_fullscreen(fullscreen)
     
     def cleanup(self):
         """Clean up pyglet resources."""

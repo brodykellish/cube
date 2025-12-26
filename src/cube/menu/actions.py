@@ -40,7 +40,8 @@ class LaunchVisualizationAction(MenuAction):
     pixel_mapper is optional - if None, the action may be used for editing
     rather than visualization (e.g., in prompt menu /list command).
     """
-    shader_path: Path
+    shader_path: Optional[Path] = None
+    video_path: Optional[Path] = None
     pixel_mapper: Optional[Literal['surface', 'cube']] = None
 
 
