@@ -9,6 +9,26 @@ effects:
     node_class: EffectNode
     trigger_mode: toggle
 
+  - action: TOGGLE_MINIATURE_OVERLAY
+    shader: shaders/effects/miniature_overlay.glsl
+    node_class: MiniatureOverlayEffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_BULGE
+    shader: shaders/effects/bulge.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_PINCH
+    shader: shaders/effects/pinch.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
+  - action: TOGGLE_SWIRL
+    shader: shaders/effects/swirl.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
+
   - action: TOGGLE_FLASH
     shader: shaders/effects/flashing_light.glsl
     node_class: EffectNode

@@ -10,6 +10,7 @@ from cube.dag.effect_node import (
     EffectNode,
     FrameDifferencingEffectNode,
     ImageFlashEffectNode,
+    MiniatureOverlayEffectNode,
 )
 from cube.dag.node import Node
 from cube.shader.shader_loader import load_shader_program
@@ -68,6 +69,7 @@ class EffectManager:
             'EffectNode': EffectNode,
             'FrameDifferencingEffectNode': FrameDifferencingEffectNode,
             'ImageFlashEffectNode': ImageFlashEffectNode,
+            'MiniatureOverlayEffectNode': MiniatureOverlayEffectNode,
         }.get(reg.node_class, EffectNode)
 
         nodes = []

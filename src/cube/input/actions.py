@@ -38,25 +38,27 @@ class Action(Enum):
     RELOAD_SHADER = auto()
     TOGGLE_AUDIO = auto()
 
-    # Effects (MIDI pad triggers)
+    # Additive effects
     TOGGLE_FLASH = auto()
     TOGGLE_MATRIX = auto()
     TOGGLE_LIGHTNING = auto()
-    TOGGLE_PSYCHEDELIC = auto()
-    TOGGLE_VHS = auto()
-    TOGGLE_RGB_SPLIT = auto()
     TRIGGER_IMAGE_FLASH = auto()
+    TOGGLE_MINIATURE_OVERLAY = auto()
     
     # Color effects
+    TOGGLE_RGB_SPLIT = auto()
+    TOGGLE_PSYCHEDELIC = auto()
     TOGGLE_INVERT = auto()
     TOGGLE_GRAYSCALE = auto()
     TOGGLE_THRESHOLD = auto()
+    TOGGLE_RGB_TO_HSB = auto()
     
     # Edge detection and blur
     TOGGLE_EDGE_DETECTION = auto()
-    TOGGLE_BLUR = auto()
     
     # Distortion effects
+    TOGGLE_BLUR = auto()
+    TOGGLE_VHS = auto()
     TOGGLE_PIXELATE = auto()
     TOGGLE_KALEIDOSCOPE = auto()
     TOGGLE_SWIRL = auto()
@@ -65,19 +67,11 @@ class Action(Enum):
     TOGGLE_SINEWAVE_DISTORT = auto()
     TOGGLE_DISPLACEMENT_MAP = auto()
     TOGGLE_SHAKE = auto()
-    
-    # Post-processing effects
-    TOGGLE_NOISE = auto()
     TOGGLE_SCANLINES = auto()
-    
-    # Stylization effects
     TOGGLE_GLITCH = auto()
     TOGGLE_ASCII = auto()
-    
-    # Special effects
     TOGGLE_MIRROR = auto()
     TOGGLE_STRIPES = auto()
-    TOGGLE_RGB_TO_HSB = auto()
     TOGGLE_FRAME_DIFFERENCING = auto()
     TOGGLE_MOSAIC = auto()
     TOGGLE_SLITSCAN = auto()

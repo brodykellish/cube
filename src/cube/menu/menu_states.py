@@ -95,6 +95,7 @@ class VisualizationModeSelect(MenuState):
         self.options = [
             ("SURFACE", "surface_browser"),
             ("CUBE", "cube_browser"),
+            ("SAVED CONFIGS", "dag_config_browser"),
             ("BACK", None),
         ]
         self.list = ScrollableList(self.options)

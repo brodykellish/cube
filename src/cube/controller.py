@@ -26,6 +26,8 @@ from cube.menu.actions import (
     MenuAction,
     QuitAction,
     LaunchVisualizationAction,
+    SaveDAGConfigAction,
+    LoadDAGConfigAction,
 )
 
 
@@ -154,9 +156,7 @@ class CubeController:
             # Receive rendered framebuffer from visualization thread (non-blocking)
             if self._framebuffer_queue is not None:
                 try:
-                    framebuffer = self._framebuffer_queue.get_nowait()
-                    # Store latest framebuffer for preview (full resolution, no padding)
-                    self._latest_framebuffer = framebuffer.copy()
+                    self._latest_framebuffer = self._framebuffer_queue.get_nowait().copy()
                     
                     # Make window visible after first frame is received (on main thread)
                     if self._viz_window_needs_visibility and self.viz_window:
@@ -181,7 +181,7 @@ class CubeController:
                     running = self._handle_action(menu_action)
 
                 # Render menu UI (handles framebuffer composition, corrections, and display)
-                self.dev_menu_ui.render(dt)
+                self.dev_menu_ui.render()
 
                 frame_time = time.time() - frame_start
                 target_fps = self.settings.get("fps_limit", self.fps)
@@ -228,8 +228,47 @@ class CubeController:
         if isinstance(action, LaunchVisualizationAction):
             self._launch_visualization(action)
             return True
+        if isinstance(action, SaveDAGConfigAction):
+            self._save_dag_config(action)
+            return True
+        if isinstance(action, LoadDAGConfigAction):
+            self._load_dag_config(action)
+            return True
         # Other actions (PromptAction, MixerAction, etc.) are handled by DevMenuUI
         return True
+    
+    def _save_dag_config(self, action: SaveDAGConfigAction):
+        """Save current DAG configuration."""
+        if not self.visualization_runner:
+            print("[CONTROLLER] Cannot save DAG config: No visualization running")
+            return
+        
+        from pathlib import Path
+        from cube.utils.app_setup import find_project_root
+        
+        project_root = find_project_root()
+        configs_dir = project_root / 'dag_configs'
+        configs_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Ensure filename has .yaml extension
+        filename = action.filename
+        if not filename.endswith(('.yaml', '.yml')):
+            filename += '.yaml'
+        
+        config_path = configs_dir / filename
+        self.visualization_runner.save_dag_config(config_path)
+        print(f"[CONTROLLER] Saving DAG config to {config_path}")
+    
+    def _load_dag_config(self, action: LoadDAGConfigAction):
+        """Load a saved DAG configuration."""
+        if not self.visualization_runner:
+            print("[CONTROLLER] Cannot load DAG config: No visualization running")
+            # If no visualization is running, we need to start one first
+            # For now, just print an error - could launch a default visualization
+            return
+        
+        self.visualization_runner.load_dag_config(action.config_path)
+        print(f"[CONTROLLER] Loading DAG config from {action.config_path}")
 
     def _launch_visualization(self, action: LaunchVisualizationAction):
         """Launch a visualization based on the action configuration."""

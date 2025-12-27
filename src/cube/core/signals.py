@@ -103,8 +103,14 @@ class AudioSignal(Signal):
         self.audio_mapping_source = audio_mapping_source
         self.audio_signal_name = audio_signal_name
 
+    def set_signal_name(self, audio_signal_name: str):
+        """Update the audio signal name (allows dynamic remapping)."""
+        self.audio_signal_name = audio_signal_name
+
     def sample(self, t: float) -> float:
         """Sample audio signal value."""
+        if not self.audio_signal_name:
+            return 0.0
         audio_values = self.audio_mapping_source.get_audio_values()
         return audio_values.get(self.audio_signal_name, 0.0)
 

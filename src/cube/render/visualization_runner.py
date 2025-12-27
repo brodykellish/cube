@@ -12,12 +12,11 @@ import numpy as np
 
 from cube.display.visualization_window import VisualizationWindow
 from cube.render.dag_renderer import DAGRenderer
-from cube.render.pixel_mappers import PixelMapper, SurfacePixelMapper, CubePixelMapper
+from cube.render.pixel_mappers import SurfacePixelMapper, CubePixelMapper
 from cube.shader import SphericalCamera
 from cube.input.input_manager import InputManager
-from cube.input.actions import Action, InputContext, Axis
+from cube.input.actions import Action, Axis
 from cube.input.midi_source import MIDIInputSource
-from cube.ui.debug_renderer import DebugRenderer
 from cube.dag.dag import DAG
 from cube.dag.source_node import SourceNode
 
@@ -71,6 +70,8 @@ class VisualizationRunner:
         # Thread-safe communication
         self._pipeline_queue = queue.Queue()
         self._framebuffer_queue = framebuffer_queue  # Queue to send rendered frames to controller
+        self._save_config_queue = queue.Queue()  # Queue for save DAG config requests
+        self._load_config_queue = queue.Queue()  # Queue for load DAG config requests
         self._stop_flag = threading.Event()
         self._thread: Optional[threading.Thread] = None
         
@@ -83,7 +84,6 @@ class VisualizationRunner:
         self._fps_last_time: float = time.time()
         self._fps_frame_count: int = 0
         self._debug_layer: Optional[np.ndarray] = None  # Separate debug layer
-        self._debug_renderer = DebugRenderer()  # Reusable debug renderer
     
     def start(self):
         """Launch visualization thread (non-blocking)."""
@@ -162,8 +162,14 @@ class VisualizationRunner:
             mouse_handler = MouseHandler(parameter_store, self._width, self._height)
             handler_registry.register(mouse_handler)
             
+            # Store references for debug access
+            self._parameter_store = parameter_store
+            self._camera_handler = camera_handler
+            self._mouse_handler = mouse_handler
+            
             # Create signal-based handlers for iParam0-7 (keyboard increment/decrement)
-            keyboard_handlers = {}
+            # Store all handlers so we can enable/disable them dynamically
+            param_handlers = {}  # param_id -> {keyboard, midi, audio}
             for i in range(8):
                 param_id = f'iParam{i}'
                 param_axis = getattr(Axis, f'PARAM{i}')
@@ -179,7 +185,6 @@ class VisualizationRunner:
                     priority=0  # Low priority
                 )
                 handler_registry.register(keyboard_handler)
-                keyboard_handlers[param_id] = keyboard_handler
                 
                 # MIDI direct handler (high priority - overrides keyboard)
                 midi_handler = DirectParameterHandler(
@@ -191,20 +196,39 @@ class VisualizationRunner:
                 )
                 handler_registry.register(midi_handler)
                 
-                # Audio signal handler (if mapped - highest priority)
+                # Audio signal handler (created for all params, enabled/disabled based on mapping)
+                audio_handler = None
+                audio_signal = None
                 if audio_mapping_source:
-                    audio_mappings = audio_mapping_source.get_all_mappings()
-                    if audio_signal_name := audio_mappings.get(param_id):
-                        audio_signal = AudioSignal(audio_mapping_source, audio_signal_name)
-                        audio_handler = SignalParameterHandler(
+                    # Create audio signal handler (will be configured based on mapping)
+                    # We'll use a placeholder signal initially, but update it when mappings change
+                    audio_signal = AudioSignal(audio_mapping_source, '')  # Empty initially
+                    audio_handler = SignalParameterHandler(
                             parameter_store,
                             audio_signal,
                             param_id,
                             priority=200  # Highest priority - overrides MIDI and keyboard
                         )
-                        handler_registry.register(audio_handler)
-                        # Disable keyboard handler when audio is mapped
-                        keyboard_handler.set_enabled(False)
+                    handler_registry.register(audio_handler)
+                    # Initially disabled - will be enabled when mapping exists
+                    audio_handler.set_enabled(False)
+                
+                param_handlers[param_id] = {
+                    'keyboard': keyboard_handler,
+                    'midi': midi_handler,
+                    'audio': audio_handler,
+                    'audio_signal': audio_signal,  # Store signal reference for updates
+                }
+            
+            # Store handlers for dynamic updates
+            self._param_handlers = param_handlers
+            self._last_audio_mappings = {}
+            self._audio_mapping_check_accumulator = 0.0
+            self._audio_mapping_check_interval = 0.5  # Check every 0.5 seconds
+            
+            # Initialize handler states based on current mappings
+            if audio_mapping_source:
+                self._update_parameter_handlers_from_mappings(audio_mapping_source)
             
             # Create iSeed handler (direct from InputManager)
             seed_handler = DirectParameterHandler(
@@ -362,6 +386,12 @@ class VisualizationRunner:
                 # Update audio mapping source (if needed)
                 if hasattr(self, '_audio_mapping_source') and self._audio_mapping_source:
                     self._audio_mapping_source.update(dt)
+                    
+                    # Periodically check for mapping changes and update handlers
+                    self._audio_mapping_check_accumulator += dt
+                    if self._audio_mapping_check_accumulator >= self._audio_mapping_check_interval:
+                        self._audio_mapping_check_accumulator = 0.0
+                        self._update_parameter_handlers_from_mappings(self._audio_mapping_source)
                 
                 # Update all parameters via handler registry
                 if hasattr(self, '_handler_registry'):
@@ -372,6 +402,20 @@ class VisualizationRunner:
                     config = self._pipeline_queue.get_nowait()
                     print("config: ", config)
                     self._deploy_pipeline_internal(config)
+                except queue.Empty:
+                    pass
+                
+                # Check save config queue
+                try:
+                    save_request = self._save_config_queue.get_nowait()
+                    self._save_dag_config_internal(save_request)
+                except queue.Empty:
+                    pass
+                
+                # Check load config queue
+                try:
+                    load_request = self._load_config_queue.get_nowait()
+                    self._load_dag_config_internal(load_request)
                 except queue.Empty:
                     pass
                 
@@ -439,6 +483,55 @@ class VisualizationRunner:
                 except Exception:
                     pass
             print("[VIZ] Visualization thread cleanup complete")
+    
+    def _update_parameter_handlers_from_mappings(self, audio_mapping_source) -> None:
+        """
+        Update parameter handlers based on current audio mappings.
+        
+        Enables/disables keyboard and audio handlers based on whether
+        each parameter has an audio mapping.
+        
+        Args:
+            audio_mapping_source: AudioUniformMappingSource instance
+        """
+        if not hasattr(self, '_param_handlers'):
+            return
+        
+        current_mappings = audio_mapping_source.get_all_mappings()
+        
+        # Check if mappings have changed
+        if current_mappings == self._last_audio_mappings:
+            return  # No changes, skip update
+        
+        self._last_audio_mappings = current_mappings.copy()
+        
+        # Update handlers for each parameter
+        for param_id in range(8):
+            param_id_str = f'iParam{param_id}'
+            if param_id_str not in self._param_handlers:
+                continue
+            
+            handlers = self._param_handlers[param_id_str]
+            keyboard_handler = handlers['keyboard']
+            midi_handler = handlers['midi']
+            audio_handler = handlers.get('audio')
+            audio_signal = handlers.get('audio_signal')
+            
+            # Check if this parameter has an audio mapping
+            audio_signal_name = current_mappings.get(param_id_str)
+            
+            if audio_signal_name and audio_handler and audio_signal:
+                # Parameter is mapped to audio - enable audio handler, disable keyboard
+                audio_signal.set_signal_name(audio_signal_name)
+                audio_handler.set_enabled(True)
+                keyboard_handler.set_enabled(False)
+                midi_handler.set_enabled(True)  # MIDI can still override
+            else:
+                # Parameter is not mapped to audio - enable keyboard, disable audio
+                if audio_handler:
+                    audio_handler.set_enabled(False)
+                keyboard_handler.set_enabled(True)
+                midi_handler.set_enabled(True)  # MIDI can still override
     
     def _register_action_handlers(self) -> None:
         """Register handlers for high-level actions during visualization."""
@@ -724,6 +817,67 @@ class VisualizationRunner:
         """
         self._pipeline_queue.put(config)
     
+    def save_dag_config(self, file_path: Path):
+        """
+        Thread-safe DAG configuration save.
+        
+        Args:
+            file_path: Path to save the configuration file
+        """
+        self._save_config_queue.put(file_path)
+    
+    def load_dag_config(self, file_path: Path):
+        """
+        Thread-safe DAG configuration load.
+        
+        Args:
+            file_path: Path to the configuration file to load
+        """
+        self._load_config_queue.put(file_path)
+    
+    def _save_dag_config_internal(self, file_path: Path):
+        """
+        Save DAG configuration (called from visualization thread).
+        
+        Args:
+            file_path: Path to save the configuration file
+        """
+        if not self._dag or not self._effect_manager:
+            print("[VIZ] Cannot save DAG config: DAG or effect manager not initialized")
+            return
+        
+        try:
+            from cube.dag.dag_config import DAGConfigEncoder
+            config = DAGConfigEncoder.encode(self._dag, self._effect_manager)
+            DAGConfigEncoder.save(config, file_path)
+            print(f"[VIZ] Saved DAG configuration to {file_path}")
+        except Exception as e:
+            print(f"[VIZ] Error saving DAG config: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _load_dag_config_internal(self, file_path: Path):
+        """
+        Load DAG configuration (called from visualization thread).
+        
+        Args:
+            file_path: Path to the configuration file to load
+        """
+        if not self._renderer or not self._effect_manager:
+            print("[VIZ] Cannot load DAG config: Renderer or effect manager not initialized")
+            return
+        
+        try:
+            from cube.dag.dag_config import DAGConfigDecoder
+            config = DAGConfigDecoder.load(file_path)
+            pipeline_config = DAGConfigDecoder.decode(config, self._renderer, self._effect_manager)
+            self._deploy_pipeline_internal(pipeline_config)
+            print(f"[VIZ] Loaded DAG configuration from {file_path}")
+        except Exception as e:
+            print(f"[VIZ] Error loading DAG config: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def get_fps(self) -> float:
         """
         Get current FPS (thread-safe, returns current value).
@@ -765,6 +919,66 @@ class VisualizationRunner:
             'shader_path': getattr(self._renderer, 'shader_path', None) if self._renderer else None,
             'is_running': self._thread is not None and self._thread.is_alive(),
         }
+    
+    @property
+    def effect_manager(self):
+        """Get effect manager."""
+        return getattr(self, '_effect_manager', None)
+    
+    def get_camera_source(self):
+        """
+        Get camera source for debug UI.
+        
+        Returns a mock object with get_uniforms() and get_camera() methods
+        that read from parameter store.
+        """
+        if not hasattr(self, '_parameter_store') or not self._parameter_store:
+            return None
+        
+        class CameraSourceProxy:
+            def __init__(self, param_store, camera_handler):
+                self._param_store = param_store
+                self._camera_handler = camera_handler
+            
+            def get_uniforms(self):
+                """Get camera uniforms from parameter store."""
+                params = self._param_store.get_all_parameters()
+                return {
+                    'iCameraPos': params.get('iCameraPos', (0.0, 0.0, 0.0)),
+                    'iCameraRight': params.get('iCameraRight', (1.0, 0.0, 0.0)),
+                    'iCameraUp': params.get('iCameraUp', (0.0, 1.0, 0.0)),
+                    'iCameraForward': params.get('iCameraForward', (0.0, 0.0, 1.0)),
+                }
+            
+            def get_camera(self):
+                """Get the camera object from camera handler."""
+                if self._camera_handler:
+                    return getattr(self._camera_handler, 'camera', None)
+                return None
+        
+        return CameraSourceProxy(self._parameter_store, getattr(self, '_camera_handler', None))
+    
+    def get_mouse_source(self):
+        """
+        Get mouse source for debug UI.
+        
+        Returns a mock object with get_uniforms() method that reads from parameter store.
+        """
+        if not hasattr(self, '_parameter_store') or not self._parameter_store:
+            return None
+        
+        class MouseSourceProxy:
+            def __init__(self, param_store):
+                self._param_store = param_store
+            
+            def get_uniforms(self):
+                """Get mouse uniforms from parameter store."""
+                params = self._param_store.get_all_parameters()
+                return {
+                    'iMouse': params.get('iMouse', (0.0, 0.0, 0.0, 0.0)),
+                }
+        
+        return MouseSourceProxy(self._parameter_store)
     
     def stop(self, timeout: float = 5.0):
         """

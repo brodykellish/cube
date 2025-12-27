@@ -56,3 +56,15 @@ class MixerAction(MenuAction):
 class PromptAction(MenuAction):
     """Enter AI prompt interface for shader generation."""
     pass
+
+
+@dataclass
+class SaveDAGConfigAction(MenuAction):
+    """Save current DAG configuration."""
+    filename: str
+
+
+@dataclass
+class LoadDAGConfigAction(MenuAction):
+    """Load a saved DAG configuration."""
+    config_path: Path

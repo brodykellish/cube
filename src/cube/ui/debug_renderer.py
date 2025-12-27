@@ -44,11 +44,20 @@ class DebugRenderer:
         """
         result = np.zeros((height, width, 3), dtype=np.uint8)
         
-        if not renderer or not hasattr(renderer, "effect_manager"):
+        if not renderer:
+            return result
+        
+        # Try to get effect_manager (works for both VisualizationRunner and objects with effect_manager attribute)
+        effect_manager = None
+        if hasattr(renderer, "effect_manager"):
+            effect_manager = renderer.effect_manager
+        elif hasattr(renderer, "_effect_manager"):
+            effect_manager = renderer._effect_manager
+        
+        if not effect_manager:
             return result
         
         try:
-            effect_manager = renderer.effect_manager
             active_actions = effect_manager.get_active_actions()
             
             if not active_actions:
@@ -212,7 +221,11 @@ class DebugRenderer:
         # Camera information (if renderer available)
         if renderer:
             try:
-                camera_source = renderer.get_camera_source()
+                # Try to get camera source (works for both VisualizationRunner and DAGRenderer)
+                camera_source = None
+                if hasattr(renderer, 'get_camera_source'):
+                    camera_source = renderer.get_camera_source()
+                
                 if camera_source:
                     camera_uniforms = camera_source.get_uniforms()
                     cam_pos = camera_uniforms.get('iCameraPos', (0.0, 0.0, 0.0))
@@ -226,19 +239,24 @@ class DebugRenderer:
                     lines.append(f'Cam Rgt: ({cam_right[0]:.2f},{cam_right[1]:.2f},{cam_right[2]:.2f})')
                     
                     # Show spherical camera parameters if available
-                    camera = camera_source.get_camera()
-                    from cube.shader.camera_modes import SphericalCamera
-                    if isinstance(camera, SphericalCamera):
-                        lines.append(f'Dist: {camera.distance:.2f} Yaw: {camera.yaw:.2f} Pitch: {camera.pitch:.2f}')
-                        if abs(camera.roll) > 0.001:
-                            lines.append(f'Roll: {camera.roll:.2f}')
+                    if hasattr(camera_source, 'get_camera'):
+                        camera = camera_source.get_camera()
+                        from cube.shader.camera_modes import SphericalCamera
+                        if isinstance(camera, SphericalCamera):
+                            lines.append(f'Dist: {camera.distance:.2f} Yaw: {camera.yaw:.2f} Pitch: {camera.pitch:.2f}')
+                            if abs(camera.roll) > 0.001:
+                                lines.append(f'Roll: {camera.roll:.2f}')
             except Exception:
                 pass
         
-        # Line 3: Mouse position (if renderer available)
+        # Mouse position (if renderer available)
         if renderer:
             try:
-                mouse_source = renderer.get_mouse_source()
+                # Try to get mouse source (works for both VisualizationRunner and DAGRenderer)
+                mouse_source = None
+                if hasattr(renderer, 'get_mouse_source'):
+                    mouse_source = renderer.get_mouse_source()
+                
                 if mouse_source:
                     mouse_uniforms = mouse_source.get_uniforms()
                     mouse = mouse_uniforms.get('iMouse', (0.0, 0.0, 0.0, 0.0))
@@ -344,13 +362,21 @@ class DebugRenderer:
         if pygame_font is None:
             return result
         
-        if not renderer or not hasattr(renderer, "effect_manager"):
+        if not renderer:
+            return result
+        
+        # Try to get effect_manager (works for both VisualizationRunner and objects with effect_manager attribute)
+        effect_manager = None
+        if hasattr(renderer, "effect_manager"):
+            effect_manager = renderer.effect_manager
+        elif hasattr(renderer, "_effect_manager"):
+            effect_manager = renderer._effect_manager
+        
+        if not effect_manager:
             return result
         
         try:
             import pygame
-            
-            effect_manager = renderer.effect_manager
             active_actions = effect_manager.get_active_actions()
             
             if not active_actions:

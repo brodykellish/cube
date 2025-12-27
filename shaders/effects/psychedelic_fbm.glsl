@@ -64,9 +64,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     
     float intensity = clamp(iParam7, 0.0, 1.0);
-    float brightness = clamp(iParam0, 0.0, 1.0) * intensity;
-    float colorDev = clamp(iParam1, 0.0, 1.0) * intensity;
-    float distortIntensity = clamp(iParam2, 0.0, 1.0) * intensity;
+    float colorDev = clamp(iParam0, 0.0, 1.0) * intensity;
+    float distortIntensity = clamp(iParam1, 0.0, 1.0) * intensity;
     
     // Apply FBM distortion to UV coordinates
     vec2 distortedUV = uv;
@@ -93,15 +92,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float satBoost = 1.0 + fbmValue * colorDev * 0.5;
     hsb.y = min(1.0, hsb.y * satBoost);
     
-    // Apply brightness/intensity
-    hsb.z *= mix(1.0, 2.0, brightness);
-    
     // Convert back to RGB
     vec3 color = hsb2rgb(hsb);
-    
-    // Add FBM-based brightness variation for psychedelic pulsing
-    float pulse = fbm(uv * 2.0 + iTime * 0.3) * 0.2;
-    color *= (1.0 + pulse * brightness);
     
     fragColor = vec4(color, 1.0);
 }

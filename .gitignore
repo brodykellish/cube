@@ -148,3 +148,6 @@ cython_debug/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
+
+# Video files
+videos/

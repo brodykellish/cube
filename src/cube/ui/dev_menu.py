@@ -1,11 +1,11 @@
 # src/cube/ui/dev_menu.py
 
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
 
 import numpy as np
 
-from cube.ui.debug_renderer import DebugRenderer
+from cube.ui.debug_ui import DebugUIRenderer, DebugUIData, collect_debug_data
 from cube.menu.navigation import MenuNavigator
 from cube.menu.menu_states import (
     MainMenu,
@@ -17,14 +17,13 @@ from cube.menu.prompt_menu import PromptMenuState
 from cube.menu.menu_renderer import MenuRenderer
 from cube.menu.actions import (
     MenuAction,
-    LaunchVisualizationAction,
-    QuitAction,
     PromptAction,
     MixerAction,
+    SaveDAGConfigAction,
+    BackAction,
 )
 from cube.menu.menu_context import MenuContext
-from cube.input.actions import Action, InputContext
-from cube.input.input_manager import InputManager
+from cube.input.actions import Action
 
 
 class DevMenuUI:
@@ -64,7 +63,8 @@ class DevMenuUI:
         self.debug_layer = np.zeros((debug_pane_render_height, self.width, 3), dtype=np.uint8)
         self.debug_pane_visible = False
         self.base_window_height = height  # Store original window height
-        self.debug_renderer = DebugRenderer()
+        self.debug_renderer = DebugUIRenderer()
+        self.debug_data = DebugUIData()  # Persistent data object (for scroll state)
 
         # Core menu objects
         self.context = MenuContext(width, height, settings)
@@ -113,17 +113,36 @@ class DevMenuUI:
             if hasattr(self.menu_window, 'backend') and hasattr(self.menu_window.backend, 'mouse_scroll'):
                 mouse_scroll = self.menu_window.backend.mouse_scroll
                 if mouse_scroll != 0:
-                    self.debug_renderer.handle_mouse_scroll(mouse_scroll)
-        
-        # Handle input forwarding toggle
-        # (handled above via 't' key detection)
-        
+                    self.debug_data.effects_scroll_offset = max(0, self.debug_data.effects_scroll_offset - mouse_scroll)
 
         # If input forwarding is enabled, don't process menu navigation
         # (input will be forwarded to visualization instead)
         if not self.input_forwarding_enabled:
+            # Check if current state is a text input state (needs raw character input)
+            is_text_input = hasattr(self.navigator.current_state, 'input_buffer')
+            
             # Map high-level actions → legacy key strings for MenuNavigator
             key_for_action: Optional[str] = None
+            
+            # For text input states, check for raw character keys first
+            if is_text_input and hasattr(self.menu_window, 'backend'):
+                # Get raw key from backend's last event processing
+                # The backend processes events in handle_events(), which is called by process_events()
+                # We need to check the keyboard state directly
+                if hasattr(self.menu_window.backend, 'keyboard'):
+                    # Get the last keyboard state (events are already processed)
+                    # We'll check for character keys that might not be mapped to actions
+                    # Note: This is a bit of a hack, but necessary for text input
+                    try:
+                        # The keyboard.poll() was already called by backend.handle_events()
+                        # We need to access the last key press differently
+                        # For now, we'll rely on action mapping for special keys and
+                        # check if there are unmapped character keys
+                        pass  # Will handle character input through action mapping below
+                    except:
+                        pass
+            
+            # Map actions to keys (this handles both special keys and some character keys)
             if self.menu_input_manager.is_action_pressed(Action.NAVIGATE_UP):
                 key_for_action = "up"
             elif self.menu_input_manager.is_action_pressed(Action.NAVIGATE_DOWN):
@@ -139,13 +158,24 @@ class DevMenuUI:
                 or self.menu_input_manager.is_action_pressed(Action.CANCEL)
             ):
                 key_for_action = "escape"
+            
+            # For text input, we also need to pass through character keys
+            # The prompt menu works because it receives keys directly
+            # Let's check the backend's last event result for raw keys
+            if is_text_input and not key_for_action:
+                # Try to get raw key from backend events
+                # The backend's handle_events returns {'key': ...} with raw character keys
+                # But this is already processed. We need a different approach.
+                # For now, character input will work through the existing key system
+                # if the keyboard source properly exposes character keys
+                pass
 
             if key_for_action:
                 action = self.navigator.handle_input(key_for_action)
                 if action:
                     return action
 
-            # Paste handling (for prompt menu)
+            # Paste handling (for prompt menu and text input)
             paste_text = self.menu_input_manager.get_paste_text()
             if paste_text and hasattr(self.navigator.current_state, "handle_paste"):
                 self.navigator.current_state.handle_paste(paste_text)
@@ -160,16 +190,34 @@ class DevMenuUI:
                 if isinstance(action, MixerAction):
                     print(f"Mixer action not yet implemented: {action}")
                     return None
+                if isinstance(action, SaveDAGConfigAction) and not action.filename:
+                    # Show text input prompt for filename
+                    from cube.menu.text_input_prompt import TextInputPrompt
+                    from cube.menu.actions import SaveDAGConfigAction as SaveAction
+                    
+                    def on_confirm(filename: str):
+                        if filename.strip():
+                            return SaveAction(filename=filename.strip())
+                        return BackAction()
+                    
+                    def on_cancel():
+                        return BackAction()
+                    
+                    prompt = TextInputPrompt(
+                        prompt_text="ENTER FILENAME",
+                        on_confirm=on_confirm,
+                        on_cancel=on_cancel
+                    )
+                    self.navigator.register_menu("save_config_prompt", prompt)
+                    self.navigator.push_state("save_config_prompt")
+                    return None
                 # Actions requiring cross-thread coordination (LaunchVisualizationAction, QuitAction)
                 # are returned to controller
                 return action
 
         return None
 
-    def render(
-        self, 
-        dt: float = 0.0,
-    ) -> None:
+    def render(self) -> None:
         """
         Render the current menu, compose framebuffer, apply corrections, and display.
         
@@ -180,7 +228,6 @@ class DevMenuUI:
         self.menu_layer[:, :, :] = 0
         # Let MenuNavigator render current state into MenuRenderer
         self.navigator.render(self.renderer)
-        
         
         # Get final framebuffer (stitches menu + debug pane if visible)
         framebuffer = self._get_framebuffer()
@@ -205,7 +252,6 @@ class DevMenuUI:
         menu_height, menu_width = self.menu_layer.shape[:2]
         
         # Get scale and render resolution from backend
-        scale = self.menu_window.backend.scale
         render_width = self.menu_window.backend.width
         
         # Render debug pane if visible
@@ -213,22 +259,48 @@ class DevMenuUI:
             # Fill debug layer with light blue background
             self.debug_layer[:, :] = (173, 216, 230)  # Light blue
             
-            # Get visualization data if available
-            renderer = None
-            fps = 0.0
-            preview_source = None
-            if self.controller and self.controller.visualization_runner:
-                try:
-                    # Pass VisualizationRunner (not DAGRenderer) so get_debug_state() works
-                    renderer = self.controller.visualization_runner
-                    fps = self.controller.visualization_runner.get_fps() if hasattr(self.controller.visualization_runner, 'get_fps') else 0.0
-                    preview_source = self.controller._latest_framebuffer
-                except Exception:
-                    pass
-            
-            # Render debug UI components in a horizontal row
-            # Debug layer is at fixed render resolution
-            
+            # Collect all debug data (with error handling to prevent UI from disappearing)
+            try:
+                visualization_runner = getattr(self.controller, 'visualization_runner', None)
+                viz_window = getattr(self.controller, 'viz_window', None)
+                viz_input_manager = getattr(viz_window, 'input_manager', None) if viz_window else None
+                preview_framebuffer = None
+                
+                # Only use preview framebuffer if visualization is actually running
+                if hasattr(self.controller, '_latest_framebuffer') and self.controller._latest_framebuffer is not None:
+                    # Check if visualization is still running before using the framebuffer
+                    viz_running = False
+                    if visualization_runner:
+                        try:
+                            if hasattr(visualization_runner, '_thread') and visualization_runner._thread:
+                                viz_running = visualization_runner._thread.is_alive()
+                            if viz_window and hasattr(viz_window, 'is_focused'):
+                                viz_running = viz_running and viz_window.is_focused()
+                        except Exception:
+                            pass
+                    
+                    if viz_running:
+                        preview_framebuffer = self.controller._latest_framebuffer
+                    # If not running, preview_framebuffer stays None (will show placeholder)
+                
+                # Collect debug data (preserve scroll offset from persistent data)
+                scroll_offset = self.debug_data.effects_scroll_offset
+                debug_data = collect_debug_data(
+                    visualization_runner=visualization_runner,
+                    viz_window=viz_window,
+                    preview_framebuffer=preview_framebuffer,
+                    viz_input_manager=viz_input_manager,
+                )
+                debug_data.effects_scroll_offset = scroll_offset
+                self.debug_data = debug_data  # Update persistent data
+            except Exception as e:
+                # If data collection fails, use empty data but keep UI visible
+                print(f"[DevMenuUI] Error collecting debug data: {e}")
+                import traceback
+                traceback.print_exc()
+                # Keep using previous debug_data to maintain UI visibility
+                debug_data = self.debug_data
+
             # Ensure debug layer matches render width (may need to resize if window was resized)
             debug_layer_height, debug_layer_width = self.debug_layer.shape[:2]
             if debug_layer_width != render_width:
@@ -248,40 +320,21 @@ class DevMenuUI:
             element_width = render_width // num_elements
             x_positions = [i * element_width for i in range(num_elements)]
             
-            # Get beat phase/pulse from renderer if available
-            beat_phase = 0.0
-            beat_pulse = 0.0
-            if renderer:
-                try:
-                    debug_state = renderer.get_debug_state()
-                    beat_phase = float(debug_state.get('beat_phase', 0.0))
-                    beat_pulse = float(debug_state.get('beat_pulse', 0.0))
-                except Exception:
-                    pass
-            
-            # Get input manager for effects list
-            viz_input_manager = None
-            if self.controller and self.controller.viz_window:
-                viz_input_manager = self.controller.viz_window.input_manager
-            
             # Element 1: Effects list (left) - using pygame font rendering
             effects_rendered = self.debug_renderer.render_effects_list_pygame(
-                element_width, debug_layer_height, renderer, viz_input_manager
+                element_width, debug_layer_height, debug_data
             )
             self.debug_layer[:, x_positions[0]:x_positions[0] + element_width] = effects_rendered[:, :element_width]
             
-            # Element 3: Preview window
+            # Element 2: Preview window
             preview_rendered = self.debug_renderer.render_preview(
-                element_width, debug_layer_height, preview_source
+                element_width, debug_layer_height, debug_data
             )
             self.debug_layer[:, x_positions[1]:x_positions[1] + element_width] = preview_rendered[:, :element_width]
             
-            # Element 4: Debug info (FPS, parameters, resolutions) (right)
-            viz_window = None
-            if self.controller and self.controller.viz_window:
-                viz_window = self.controller.viz_window
+            # Element 3: Debug info (FPS, parameters, resolutions) (right)
             debug_info_rendered = self.debug_renderer.render_debug_info(
-                element_width, debug_layer_height, fps, renderer, viz_window
+                element_width, debug_layer_height, debug_data
             )
             self.debug_layer[:, x_positions[2]:x_positions[2] + element_width] = debug_info_rendered[:, :element_width]
             
@@ -297,7 +350,6 @@ class DevMenuUI:
             
             # Place debug pane below menu (already at render resolution, no scaling needed)
             debug_start = menu_height
-            debug_end = total_render_height
             
             # Copy debug layer directly into framebuffer (both are at render resolution)
             copy_height = min(debug_layer_height, total_render_height - debug_start)
@@ -328,11 +380,19 @@ class DevMenuUI:
 
     def _register_menus(self) -> None:
         """Register all menu states with the navigator."""
+        from pathlib import Path
+        from cube.menu.dag_config_browser import DAGConfigBrowser
+        from cube.utils.app_setup import find_project_root
+        
+        project_root = find_project_root()
+        configs_dir = project_root / 'dag_configs'
+        
         self.navigator.register_menu("main", MainMenu())
         self.navigator.register_menu("visualize", VisualizationModeSelect())
         self.navigator.register_menu("surface_browser", ShaderBrowser("surface"))
         self.navigator.register_menu("cube_browser", ShaderBrowser("cube"))
         self.navigator.register_menu("settings", SettingsMenu())
+        self.navigator.register_menu("dag_config_browser", DAGConfigBrowser(configs_dir))
 
         # Prompt menu gets the shaders root for AI editing
         self.navigator.register_menu(

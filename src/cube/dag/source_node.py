@@ -61,6 +61,8 @@ class SourceNode(Node):
                     try:
                         img = Image.open(texture_path).convert('RGB')
                         img_data = np.array(img, dtype=np.uint8)
+                        img_data = np.flip(img_data, axis=0).copy()
+                        img_data = np.ascontiguousarray(img_data)
                         texture_id = glGenTextures(1)
                         glBindTexture(GL_TEXTURE_2D, texture_id)
                         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
