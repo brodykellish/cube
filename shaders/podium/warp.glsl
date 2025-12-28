@@ -108,8 +108,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec2 uv = fragCoord/iResolution.x;
     
     // Get parameters
-    float hueShift = clamp(iParam0, 0.0, 1.0);  // 0-1 -> 0-360 degrees
-    float warpIntensity = clamp(iParam1, 0.0, 1.0);  // 0-1 -> 0-2x scale
+    float intensity = clamp(iParam7, 0.0, 1.0);
+    float hueShift = clamp(iParam0, 0.0, 1.0) * intensity;  // 0-1 -> 0-360 degrees
+    float warpIntensity = clamp(iParam1, 0.0, 1.0) * intensity;  // 0-1 -> 0-2x scale
     
     // Generate pattern
     float shade = pattern(uv, warpIntensity);

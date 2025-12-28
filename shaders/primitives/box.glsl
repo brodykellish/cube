@@ -8,15 +8,16 @@ float sdBox(vec3 p, vec3 size) {
 
 // === Raymarching ===
 float sceneSDF(vec3 p) {
+    float intensity = clamp(iParam7, 0.0, 1.0);
     // Number of boxes controlled by iParam3 (1 to 100)
-    int numBoxes = int(1.0 + iParam3 * 99.0);
+    int numBoxes = int(1.0 + iParam3 * 99.0 * intensity);
     
     // Box size
     float boxScale = 0.5;
     vec3 size = vec3(0.8, 1.0, 0.8) * boxScale;
     
     // Spacing between boxes controlled by iParam2 (0 to 12 units)
-    float spacing = iParam2 * 12.0;
+    float spacing = iParam2 * 12.0 * intensity;
     
     float minDist = 1000.0;
     
@@ -135,8 +136,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         vec3 p = ro + rd * t;
         vec3 normal = calcNormal(p);
 
+        float intensity = clamp(iParam7, 0.0, 1.0);
         // Brighter base color controlled by RGB parameters 0-1
-        vec3 baseColor = vec3(iParam0, iParam1, 0.5) * 1.5;  // Increased brightness
+        vec3 baseColor = vec3(iParam0, iParam1, 0.5) * 1.5 * intensity;  // Increased brightness
 
         // Apply enhanced lighting
         color = enhancedLighting(p, rd, normal, baseColor);

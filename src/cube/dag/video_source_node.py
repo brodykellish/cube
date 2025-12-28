@@ -86,10 +86,12 @@ class VideoSourceNode(Node):
                 frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_LINEAR)
             
             # Convert RGB to RGBA if needed (texture is RGBA format)
+            # Optimize: only convert if not already RGBA
             if frame.shape[2] == 3:
-                # Add alpha channel (fully opaque)
+                # Add alpha channel (fully opaque) - more efficient than full conversion
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2RGBA)
             
+            # Upload to texture (this is the expensive OpenGL operation)
             self.output_texture.upload_pixels(frame)
     
     def cleanup(self):

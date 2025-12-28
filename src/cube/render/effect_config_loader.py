@@ -117,6 +117,8 @@ def load_effect_config(config_path: Optional[Path] = None) -> List[EffectDefinit
                 print(f"Warning: Invalid priority '{priority}' for effect {action_name}. Using default 100.")
                 priority = 100
 
+            print(f"Loading effect: {action_name} with shader: {shader_path}, node_class: {node_class}, trigger_mode: {trigger_mode}, priority: {priority}")
+
             definition = EffectDefinition(
                 action=action,
                 shader_path=shader_path,  # Keep original path string for EffectManager

@@ -5,13 +5,14 @@ vec4 blood(vec2 u) {
     float i=0.,a=0.,d=0.,s=0.,t=.4*iTime;
     vec3  p;
     vec4 o = vec4(0);
+    float intensity = clamp(iParam7, 0.0, 1.0);
 
     // iParam0 controls blood flow speed (0.1x to 2x)
-    float bloodSpeed = 0.1 + iParam0 * 1.9;
+    float bloodSpeed = 0.1 + iParam0 * 1.9 * intensity;
     t *= bloodSpeed;
 
     // iParam1 controls blood intensity/viscosity (0.2x to 2x)
-    float bloodViscosity = 0.2 + iParam1 * 1.8;
+    float bloodViscosity = 0.2 + iParam1 * 1.8 * intensity;
 
     for(o*=i; i++<64.;
         d += s = (.01 + abs(s) * .4) * bloodViscosity,
@@ -28,12 +29,13 @@ vec4 fire(vec2 u) {
     float i=0., d=0., s=0., n=0.;
     vec3 p;
     vec4 o = vec4(0);
+    float intensity = clamp(iParam7, 0.0, 1.0);
 
     // iParam2 controls fire turbulence (0.3x to 3x)
-    float fireTurbulence = 0.3 + iParam2 * 2.7;
+    float fireTurbulence = 0.3 + iParam2 * 2.7 * intensity;
     
     // iParam3 controls fire color temperature (cooler to hotter)
-    float fireTemp = 0.5 + iParam3 * 1.5;
+    float fireTemp = 0.5 + iParam3 * 1.5 * intensity;
 
     for(; i++<1e2; ) {
         p = vec3(u * d, d);
@@ -57,15 +59,16 @@ void mainImage(out vec4 o, in vec2 u) {
     vec3  p = iResolution;
     u = (u-p.xy/2.)/p.y;
 
+    float intensity = clamp(iParam7, 0.0, 1.0);
+    
     // Mix between fire and blood effects
     // When all params are 0, more fire; when high, more blood
-    float mixRatio = 0.5 + (iParam0 + iParam1) * 0.2;
+    float mixRatio = 0.5 + (iParam0 + iParam1) * 0.2 * intensity;
     mixRatio = clamp(mixRatio, 0.1, 0.95);
 
     o = mix(fire(u), blood(u), mixRatio);
     o = tanh(o / 5e5);
     
-    // Global intensity control based on average of all params
-    float globalIntensity = 0.7 + (iParam0 + iParam1 + iParam2 + iParam3) * 0.15;
-    o *= globalIntensity;
+    // Global intensity control
+    o *= intensity;
 }

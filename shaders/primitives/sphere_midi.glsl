@@ -14,8 +14,9 @@ float sdSphere(vec3 p, float radius) {
 
 // === Raymarching ===
 float sceneSDF(vec3 p) {
+    float intensity = clamp(iParam7, 0.0, 1.0);
     // Radius controlled by iParam0
-    float radius = mix(0.5, 5.0, iParam0);
+    float radius = mix(0.5, 5.0, iParam0 * intensity);
     return sdSphere(p, radius);
 }
 
@@ -43,8 +44,9 @@ vec3 calcNormal(vec3 p) {
 
 // === Lighting ===
 vec3 simpleLighting(vec3 p, vec3 rd, vec3 normal, vec3 color) {
+    float intensity = clamp(iParam7, 0.0, 1.0);
     // Light position rotation speed controlled by iParam1
-    float speed = mix(0.0, 5.0, iParam1);
+    float speed = mix(0.0, 5.0, iParam1 * intensity);
     vec3 lightPos = vec3(4.0 * sin(iTime * speed), 3.0, 4.0 * cos(iTime * speed));
     vec3 lightDir = normalize(lightPos - p);
 
@@ -123,14 +125,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
         vec3 baseColor = mix(color1, color2, checker);
 
+        float intensity = clamp(iParam7, 0.0, 1.0);
         // Apply hue shift controlled by iParam2
-        baseColor = hueShift(baseColor, iParam2);
+        baseColor = hueShift(baseColor, iParam2 * intensity);
 
         // Apply lighting
         color = simpleLighting(p, rd, normal, baseColor);
 
         // Fog density controlled by iParam3
-        float fogDensity = mix(0.0, 0.3, iParam3);
+        float fogDensity = mix(0.0, 0.3, iParam3 * intensity);
         float fog = 1.0 - exp(-t * fogDensity);
         color = mix(color, vec3(0.05, 0.05, 0.1), fog);
     }

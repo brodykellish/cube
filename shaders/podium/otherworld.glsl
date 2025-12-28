@@ -10,8 +10,9 @@ void mainImage( out vec4 c, in vec2 w )
 {
 	vec2 uv = (w - 0.5 * iResolution.xy) / iResolution.y;
     
+    float intensity = clamp(iParam7, 0.0, 1.0);
     // iParam5 controls camera motion speed (0.1x to 2.0x)
-    float speed = 0.1 + iParam5 * 1.9;
+    float speed = 0.1 + iParam5 * 1.9 * intensity;
     
     // Use feedback channel (iChannel1) to accumulate phase for smooth speed changes
     // This prevents camera position jumps when speed parameter changes

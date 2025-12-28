@@ -10,7 +10,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         fragColor = vec4(tex, 1.0);
         return;
     }
-    float t = step(clamp(iParam0, 0.0, 1.0), gray);
+    float threshold = clamp(iParam0, 0.0, 1.0);
+    float t = step(threshold, gray);
     vec3 result = mix(tex, vec3(t), intensity);
     fragColor = vec4(result, 1.0);
 }

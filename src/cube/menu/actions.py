@@ -68,3 +68,10 @@ class SaveDAGConfigAction(MenuAction):
 class LoadDAGConfigAction(MenuAction):
     """Load a saved DAG configuration."""
     config_path: Path
+
+
+@dataclass
+class PlayAllVideosAction(MenuAction):
+    """Play all videos in a directory recursively."""
+    directory_path: Path
+    pixel_mapper: Optional[Literal['surface', 'cube']] = None

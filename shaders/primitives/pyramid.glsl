@@ -25,8 +25,9 @@ float sdPyramid(vec3 p, float h) {
 }
 
 float sceneSDF(vec3 p) {
+    float intensity = clamp(iParam7, 0.0, 1.0);
     // Number of pyramids controlled by iParam3 (minimum 3, maximum ~20)
-    int numPyramids = int(3.0 + iParam3 * 17.0);
+    int numPyramids = int(3.0 + iParam3 * 17.0 * intensity);
     float ringRadius = 4.0;
     
     // Height based on base area
@@ -108,10 +109,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         vec3 p = ro + rd * t;
         vec3 normal = calcNormal(p);
 
+        float intensity = clamp(iParam7, 0.0, 1.0);
         // MIDI-controlled RGB color
         // iParam0 = red, iParam1 = green, iParam2 = blue
         // All params are already normalized to 0.0-1.0
-        vec3 baseColor = vec3(iParam0, iParam1, iParam2);
+        vec3 baseColor = vec3(iParam0, iParam1, iParam2) * intensity;
 
         // Ensure color isn't completely black
         baseColor = max(baseColor, vec3(0.1));

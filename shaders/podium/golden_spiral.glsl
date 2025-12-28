@@ -20,8 +20,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
     
     // Get parameters
-    float patternDensity = mix(2.0, 8.0, clamp(iParam1, 0.0, 1.0));  // 2x-8x density
-    float rotationSpeed = mix(0.5, 2.0, clamp(iParam0, 0.0, 1.0));  // 0.5x-2x rotation
+    float intensity = clamp(iParam7, 0.0, 1.0);
+    float patternDensity = mix(2.0, 8.0, clamp(iParam1, 0.0, 1.0) * intensity);  // 2x-8x density
+    float rotationSpeed = mix(0.5, 2.0, clamp(iParam0, 0.0, 1.0) * intensity);  // 0.5x-2x rotation
     
     float a = atan(uv.y, uv.x);
     vec2 p = cos(a + iTime * rotationSpeed) * vec2(cos(0.5 * iTime), sin(0.3 * iTime));

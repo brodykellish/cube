@@ -28,6 +28,7 @@ from cube.menu.actions import (
     LaunchVisualizationAction,
     SaveDAGConfigAction,
     LoadDAGConfigAction,
+    PlayAllVideosAction,
 )
 
 
@@ -234,6 +235,9 @@ class CubeController:
         if isinstance(action, LoadDAGConfigAction):
             self._load_dag_config(action)
             return True
+        if isinstance(action, PlayAllVideosAction):
+            self._play_all_videos(action)
+            return True
         # Other actions (PromptAction, MixerAction, etc.) are handled by DevMenuUI
         return True
     
@@ -269,6 +273,29 @@ class CubeController:
         
         self.visualization_runner.load_dag_config(action.config_path)
         print(f"[CONTROLLER] Loading DAG config from {action.config_path}")
+    
+    def _play_all_videos(self, action: PlayAllVideosAction):
+        """Play all videos in a directory recursively."""
+        if not self.visualization_runner:
+            print("[CONTROLLER] Cannot play videos: No visualization running")
+            # If no visualization is running, we need to start one first
+            # For now, just print an error - could launch a default visualization
+            return
+        
+        # Deploy pipeline with directory path (will be handled as recursive video directory)
+        source_config = {
+            'pixel_mapper': action.pixel_mapper,
+            'video_path': str(action.directory_path)  # Pass directory path
+        }
+        
+        pipeline_config = {
+            'source': source_config,
+            'effects': [],
+            'params': None
+        }
+        
+        self.visualization_runner.deploy_pipeline(pipeline_config)
+        print(f"[CONTROLLER] Playing all videos from {action.directory_path} (recursive)")
 
     def _launch_visualization(self, action: LaunchVisualizationAction):
         """Launch a visualization based on the action configuration."""

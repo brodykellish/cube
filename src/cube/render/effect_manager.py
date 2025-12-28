@@ -86,7 +86,7 @@ class EffectManager:
         return nodes
 
     def _find_insertion_point(self, dag, source_index: int, new_priority: int) -> Optional[Node]:
-        """Find where to insert a new effect node based on priority."""
+        """Find where to insert a new effect node based on priority, with tiebreak to end."""
         if source_index >= len(dag.root_nodes):
             return dag.root_nodes[0] if dag.root_nodes else None
         
@@ -99,15 +99,33 @@ class EffectManager:
             )
         )
         
+        # Find insertion point based on priority
         for action in sorted_actions:
-            if self._registry[action].priority >= new_priority:
-                break
-            nodes = self._active.get(action, [])
-            if source_index < len(nodes):
-                effect_node = nodes[source_index]
-                if effect_node.parent == current:
-                    current = effect_node
+            action_priority = self._registry[action].priority
+            # If we find an effect with strictly higher priority, insert before it
+            if action_priority > new_priority:
+                nodes = self._active.get(action, [])
+                if source_index < len(nodes):
+                    effect_node = nodes[source_index]
+                    if effect_node.parent == current:
+                        return current
+            # If priority is equal, skip (tiebreak: append to end)
+            elif action_priority == new_priority:
+                # Continue following chain but don't insert here
+                nodes = self._active.get(action, [])
+                if source_index < len(nodes):
+                    effect_node = nodes[source_index]
+                    if effect_node.parent == current:
+                        current = effect_node
+            # If priority is less, continue following chain
+            else:
+                nodes = self._active.get(action, [])
+                if source_index < len(nodes):
+                    effect_node = nodes[source_index]
+                    if effect_node.parent == current:
+                        current = effect_node
         
+        # Append to end of chain (either no higher priority found, or tiebreak)
         return current
 
     def _enable(self, action: Action, dag):
@@ -136,6 +154,8 @@ class EffectManager:
                 for child in children:
                     dag.disconnect(child)
                     dag.connect(fx_node, child)
+        
+        dag.print_dag()
 
     def _disable(self, action: Action, dag):
         if action not in self._active:
@@ -151,6 +171,7 @@ class EffectManager:
                     dag.connect(parent, child)
         
         self._cleanup_effect(action, dag)
+        dag.print_dag()
 
 
     def get_active_actions(self) -> List[Action]:

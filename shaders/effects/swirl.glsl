@@ -1,28 +1,20 @@
 // Swirl distortion effect
 // iChannel0: source frame
-// iParam0: swirl intensity/angle (0..1 -> 0..6.28 radians = 0..360 degrees)
-// iParam1: center X position (0..1, default 0.5 = center)
-// iParam2: center Y position (0..1, default 0.5 = center)
-// iParam3: swirl radius falloff (0..1 -> 0.1..1.0, controls how far the effect extends)
+// iParam3: swirl intensity/angle (0..1 -> 0..6.28 radians = 0..360 degrees)
+// iParam7: global intensity multiplier (0..1, applies to all effects)
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
-    float intensity = clamp(iParam7, 0.0, 1.0);
+    
+    // Swirl is always centered on screen
+    vec2 center = vec2(0.5, 0.5);
+    
+    // Get intensity from parameter, modulated by global intensity
+    float intensity = clamp(iParam3, 0.0, 1.0) * clamp(iParam7, 0.0, 1.0);
     
     if (intensity < 0.001) {
         fragColor = texture(iChannel0, uv);
         return;
-    }
-    
-    // Get center position from parameters (default to center)
-    vec2 center = vec2(
-        mix(0.0, 1.0, clamp(iParam1, 0.0, 1.0)),
-        mix(0.0, 1.0, clamp(iParam2, 0.0, 1.0))
-    );
-    
-    // If center not set, default to center of screen
-    if (iParam1 < 0.001 && iParam2 < 0.001) {
-        center = vec2(0.5, 0.5);
     }
     
     // Calculate distance and angle from center
@@ -31,11 +23,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float angle = atan(offset.y, offset.x);
     
     // Swirl intensity (0 to 2*PI radians = 360 degrees)
-    float swirlAngle = mix(0.0, 6.28318530718, clamp(iParam0, 0.0, 1.0)) * intensity;
+    float swirlAngle = mix(0.0, 6.28318530718, intensity);
     
-    // Radius falloff - controls how far the effect extends
-    float radiusFalloff = mix(0.1, 1.0, clamp(iParam3, 0.0, 1.0));
-    float maxDist = radiusFalloff * 0.707; // Max distance to corner (diagonal)
+    // Fixed radius falloff - effect extends to screen edges
+    float maxDist = 0.707; // Max distance to corner (diagonal)
     
     // Normalize distance (0 to 1 within effect radius)
     float normalizedDist = dist / maxDist;

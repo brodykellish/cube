@@ -66,11 +66,12 @@ float map(in vec3 c)
     
     float voxelExists = step( f, 0.5 );
     
+    float intensity = clamp(iParam7, 0.0, 1.0);
     if (iParam1 > 0.001) {
         vec3 voxelId = floor(c);
         float voxelHash = hash13(voxelId * 0.1);
-        float flickerPhase = sin(iTime * (5.0 + iParam1 * 15.0) + voxelHash * 6.28) * 0.5 + 0.5;
-        float threshold = iParam1 * 0.7;
+        float flickerPhase = sin(iTime * (5.0 + iParam1 * 15.0 * intensity) + voxelHash * 6.28) * 0.5 + 0.5;
+        float threshold = iParam1 * 0.7 * intensity;
         float shouldExist = step(threshold, flickerPhase);
         voxelExists *= shouldExist;
     }
@@ -229,14 +230,14 @@ vec3 render( in vec3 ro, in vec3 rd )
         lin += 2.0*sky*vec3(0.40,0.30,0.15)*occ;
 
         // flicker effect controlled by iParam0 - much more pronounced
-        float flickerSpeed = 15.0 + iParam0 * 30.0;
-        float flickerIntensity = iParam0;
+        float flickerSpeed = 15.0 + iParam0 * 30.0 * intensity;
+        float flickerIntensity = iParam0 * intensity;
         float flickerBase = abs(sin(iTime * flickerSpeed + pos.x * 2.0 + pos.y * 3.0 + pos.z * 1.5));
         float flicker = 1.0 + flickerIntensity * (0.0 + 2.5 * flickerBase);
-        flicker = mix(1.0, flicker, step(0.001, iParam0));
+        flicker = mix(1.0, flicker, step(0.001, iParam0 * intensity));
         
         float rapidFlicker = 1.0;
-        if (iParam0 > 0.5) {
+        if (iParam0 * intensity > 0.5) {
             rapidFlicker = step(0.3, fract(iTime * flickerSpeed * 2.0 + pos.x + pos.y + pos.z));
             rapidFlicker = mix(0.1, 1.0, rapidFlicker);
         }

@@ -47,8 +47,9 @@ void mainImage(out vec4 O, in vec2 I){
 
   float z = .1;
 
-  // iParam1 controls rotation speed (0-1 -> 0x-2x speed)
-  float rotationSpeed = mix(0.0, -2.0, clamp(iParam4, 0.0, 1.0));
+  float intensity = clamp(iParam7, 0.0, 1.0);
+  // iParam4 controls rotation speed (0-1 -> 0x-2x speed)
+  float rotationSpeed = mix(0.0, -2.0, clamp(iParam4, 0.0, 1.0) * intensity);
   mat2 mx = rotate(T * rotationSpeed);
   mat2 my = rotate(T * 0.0);
 

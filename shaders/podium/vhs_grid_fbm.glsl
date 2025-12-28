@@ -100,10 +100,11 @@ vec3 vhsColorShift(vec3 color, vec2 uv, float time, float intensity) {
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     
-    float fbmIntensity = clamp(iParam0, 0.0, 1.0);
-    float gridDensity = clamp(iParam1, 0.0, 1.0);
-    float distortionIntensity = clamp(iParam2, 0.0, 1.0);
-    float noiseIntensity = clamp(iParam3, 0.0, 1.0);
+    float intensity = clamp(iParam7, 0.0, 1.0);
+    float fbmIntensity = clamp(iParam0, 0.0, 1.0) * intensity;
+    float gridDensity = clamp(iParam1, 0.0, 1.0) * intensity;
+    float distortionIntensity = clamp(iParam2, 0.0, 1.0) * intensity;
+    float noiseIntensity = clamp(iParam3, 0.0, 1.0) * intensity;
     
     float time = iTime;
     

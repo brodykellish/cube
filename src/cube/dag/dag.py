@@ -173,6 +173,33 @@ class DAG:
         
         return result
     
+    def print_dag(self):
+        """
+        Print the entire DAG in render order from source to end.
+        
+        Shows the node hierarchy with indentation to visualize the chain.
+        """
+        try:
+            sorted_nodes = self.topological_sort()
+            if not sorted_nodes:
+                print("[DAG] Empty DAG (no nodes)")
+                return
+            
+            print("[DAG] Render order (source → end):")
+            for i, node in enumerate(sorted_nodes):
+                indent = ""
+                depth = 0
+                current = node
+                while current.parent:
+                    depth += 1
+                    current = current.parent
+                
+                indent = "  " * depth
+                node_type = type(node).__name__
+                print(f"{indent}[{i}] {node.name} ({node_type})")
+        except RuntimeError as e:
+            print(f"[DAG] Error printing DAG: {e}")
+    
     def cleanup(self):
         """Clean up all nodes."""
         for node in list(self._all_nodes):

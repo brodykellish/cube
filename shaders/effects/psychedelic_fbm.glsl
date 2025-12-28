@@ -64,8 +64,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     
     float intensity = clamp(iParam7, 0.0, 1.0);
-    float colorDev = clamp(iParam0, 0.0, 1.0) * intensity;
-    float distortIntensity = clamp(iParam1, 0.0, 1.0) * intensity;
+    float colorDev = clamp(iParam1, 0.0, 1.0) * intensity;
+    float distortIntensity = clamp(iParam2, 0.0, 1.0) * intensity;
     
     // Apply FBM distortion to UV coordinates
     vec2 distortedUV = uv;

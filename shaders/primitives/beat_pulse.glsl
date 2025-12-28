@@ -53,12 +53,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         return;
     }
 
+    float intensity = clamp(iParam7, 0.0, 1.0);
     // Pulse amplitude control
-    float pulseAmplitude = iParam0;
+    float pulseAmplitude = iParam0 * intensity;
     float radiusModulation = 1.0 + pulse * pulseAmplitude * 0.5;
 
     // Base sphere size from iParam2
-    float baseSize = mix(0.5, 2.0, iParam2);
+    float baseSize = mix(0.5, 2.0, iParam2 * intensity);
     float sphereRadius = baseSize * radiusModulation;
 
     // Ray-sphere intersection
@@ -76,7 +77,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         float ambient = 0.3;
 
         // Color that shifts with beat and iParam1
-        float hue = iParam1;
+        float hue = iParam1 * intensity;
         float saturation = 0.8;
         float value = 0.5 + pulse * pulseAmplitude * 0.3;
 

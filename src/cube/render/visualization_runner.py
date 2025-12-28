@@ -616,6 +616,7 @@ class VisualizationRunner:
                         else:
                             self._dag.add_node(new_source_nodes[i], is_root=True)
                     
+                    self._dag.print_dag()
                     print(f"[VIZ] Reloaded shader: {self._current_shader_path}")
                 except Exception as exc:
                     print(f"[VIZ] Error reloading shader: {exc}")
@@ -719,21 +720,38 @@ class VisualizationRunner:
             if video_path:
                 print(f"[VIZ] Loading video: {video_path}")
                 self._current_shader_path = Path(video_path)
-                from cube.dag.frame_loader import VideoFileFrameLoader
+                from cube.dag.frame_loader import VideoFileFrameLoader, RecursiveVideoDirectoryFrameLoader
                 
-                video_file_path = Path(video_path)
-                if not video_file_path.exists():
-                    raise FileNotFoundError(f'Video file not found: {video_path}')
+                video_path_obj = Path(video_path)
                 
-                for i, spec in enumerate(render_specs):
-                    frame_loader = VideoFileFrameLoader(video_file_path, loop=True)
-                    node = VideoSourceNode(
-                        f"video_source_{i}",
-                        frame_loader,
-                        spec.width,
-                        spec.height
-                    )
-                    new_source_nodes.append(node)
+                # Check if it's a directory (for recursive video playback)
+                if video_path_obj.is_dir():
+                    if not video_path_obj.exists():
+                        raise FileNotFoundError(f'Video directory not found: {video_path}')
+                    
+                    for i, spec in enumerate(render_specs):
+                        frame_loader = RecursiveVideoDirectoryFrameLoader(video_path_obj, loop=True)
+                        node = VideoSourceNode(
+                            f"video_source_{i}",
+                            frame_loader,
+                            spec.width,
+                            spec.height
+                        )
+                        new_source_nodes.append(node)
+                else:
+                    # Single video file
+                    if not video_path_obj.exists():
+                        raise FileNotFoundError(f'Video file not found: {video_path}')
+                    
+                    for i, spec in enumerate(render_specs):
+                        frame_loader = VideoFileFrameLoader(video_path_obj, loop=True)
+                        node = VideoSourceNode(
+                            f"video_source_{i}",
+                            frame_loader,
+                            spec.width,
+                            spec.height
+                        )
+                        new_source_nodes.append(node)
             elif shader_path:
                 print(f"[VIZ] Loading shader: {shader_path}")
                 self._current_shader_path = Path(shader_path)
@@ -763,6 +781,8 @@ class VisualizationRunner:
                 else:
                     # More new sources than old: just add
                     self._dag.add_node(new_source_nodes[i], is_root=True)
+            
+            self._dag.print_dag()
             
             # Update pixel mapper if needed
             if pixel_mapper_type == 'cube':

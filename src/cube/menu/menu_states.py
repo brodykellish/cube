@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple
 from abc import ABC, abstractmethod
 from .actions import (
     MenuAction, NavigateAction, BackAction, QuitAction,
-    LaunchVisualizationAction, PromptAction
+    LaunchVisualizationAction, PromptAction, PlayAllVideosAction
 )
 from .menu_context import MenuContext
 from .menu_renderer import MenuRenderer
@@ -217,6 +217,23 @@ class ShaderBrowser(MenuState):
                 for video_path in sorted(directory.glob(f"*{ext}")):
                     videos.append(("video", video_path.stem, video_path))
         return videos
+    
+    def _load_video_subdirectories(self, directory: Path) -> List[tuple]:
+        """Load all subdirectories in a directory that contain videos."""
+        subdirs = []
+        if directory.exists():
+            for subdir in sorted(directory.iterdir()):
+                if subdir.is_dir():
+                    # Check if directory contains videos
+                    video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.m4v']
+                    has_videos = False
+                    for ext in video_extensions:
+                        if list(subdir.rglob(f"*{ext}")):
+                            has_videos = True
+                            break
+                    if has_videos:
+                        subdirs.append(("video_dir", subdir.name, subdir))
+        return subdirs
 
     def _show_shader_selection(self, directory_name: str):
         """Show shaders from the selected directory."""
@@ -238,24 +255,45 @@ class ShaderBrowser(MenuState):
 
         self.list.set_items(self.items)
 
-    def _show_video_selection(self):
-        """Show videos from the videos directory."""
+    def _show_video_selection(self, directory_path: Optional[Path] = None):
+        """Show videos and subdirectories from the specified directory."""
         self.browsing_mode = "video"
-        self.selected_directory = "videos"
+        
+        if directory_path is None:
+            directory_path = Path("videos")
+            self.selected_directory = "videos"
+        else:
+            self.selected_directory = str(directory_path.relative_to(Path("videos"))) if directory_path.is_relative_to(Path("videos")) else str(directory_path)
+        
         self.items = []
-
-        # Load videos from videos directory
-        directory_path = Path("videos")
+        
+        # Add "PLAY ALL" option at the top if there are videos
         videos = self._load_video_directory(directory_path)
-
+        subdirs = self._load_video_subdirectories(directory_path)
+        
+        # Check if there are videos recursively (for PLAY ALL)
+        video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.m4v']
+        has_videos_recursive = any(directory_path.rglob(f"*{ext}") for ext in video_extensions)
+        
+        if has_videos_recursive:
+            self.items.append(("action", "PLAY ALL", ("play_all", directory_path)))
+        
+        # Add subdirectories
+        if subdirs:
+            self.items.extend(subdirs)
+        
+        # Add videos in current directory
         if videos:
             self.items.extend(videos)
-        else:
-            self.items.append(("info", "NO VIDEOS FOUND", None))
-
+        
+        # Show message if nothing found
+        if not self.items or (len(self.items) == 1 and self.items[0][0] == "action" and self.items[0][1] == "PLAY ALL"):
+            if not has_videos_recursive:
+                self.items.append(("info", "NO VIDEOS FOUND", None))
+        
         # Add back option
         self.items.append(("action", "BACK", None))
-
+        
         self.list.set_items(self.items)
 
     def render(self, renderer: MenuRenderer, context: MenuContext):
@@ -273,7 +311,8 @@ class ShaderBrowser(MenuState):
         elif self.browsing_mode == "video":
             title = "SELECT VIDEO"
             pm = self.selected_pixel_mapper or self.pixel_mapper
-            subtitle = f"[{pm.upper()}] VIDEOS" if pm else "VIDEOS"
+            dir_name = self.selected_directory if self.selected_directory else "videos"
+            subtitle = f"[{pm.upper()}] {dir_name.upper()}" if pm else dir_name.upper()
         else:  # shader mode
             title = "SELECT SHADER"
             pm = self.selected_pixel_mapper or self.pixel_mapper
@@ -299,6 +338,8 @@ class ShaderBrowser(MenuState):
                 return f"  {name}"
             elif item_type == "video":
                 return f"  {name}"
+            elif item_type == "video_dir":
+                return f"  {name}/"
             elif item_type == "info":
                 return f"  {name}"
             elif item_type == "action":
@@ -369,14 +410,41 @@ class ShaderBrowser(MenuState):
                             video_path=data,
                             pixel_mapper=self.selected_pixel_mapper or self.pixel_mapper
                         )
-                    elif item_type == "action" and name == "BACK":
-                        # Go back to directory selection
-                        self._show_directory_selection()
+                    elif item_type == "video_dir":
+                        # Navigate into subdirectory
+                        self._show_video_selection(data)
+                    elif item_type == "action":
+                        if isinstance(data, tuple) and data[0] == "play_all":
+                            # Play all videos recursively
+                            return PlayAllVideosAction(
+                                directory_path=data[1],
+                                pixel_mapper=self.selected_pixel_mapper or self.pixel_mapper
+                            )
+                        elif name == "BACK":
+                            # Go back - if we're in a subdirectory, go to parent
+                            current_path = Path("videos") / self.selected_directory if self.selected_directory != "videos" else Path("videos")
+                            if current_path != Path("videos"):
+                                # Go to parent directory
+                                parent_path = current_path.parent
+                                self._show_video_selection(parent_path)
+                            else:
+                                # Go back to directory selection
+                                self._show_directory_selection()
 
         elif key in ('back', 'escape'):
-            if self.browsing_mode == "shader" or self.browsing_mode == "video":
+            if self.browsing_mode == "shader":
                 # Back goes to directory selection
                 self._show_directory_selection()
+            elif self.browsing_mode == "video":
+                # Back - if we're in a subdirectory, go to parent, otherwise go to directory selection
+                current_path = Path("videos") / self.selected_directory if self.selected_directory != "videos" else Path("videos")
+                if current_path != Path("videos"):
+                    # Go to parent directory
+                    parent_path = current_path.parent
+                    self._show_video_selection(parent_path)
+                else:
+                    # Go back to directory selection
+                    self._show_directory_selection()
             elif self.browsing_mode == "directory":
                 # Back to pixel mapper selection or previous menu
                 if self.include_pixel_mapper and not self.pixel_mapper:
