@@ -1,0 +1,29 @@
+version: '1.0'
+sources:
+- type: shader
+  shader_path: shaders/realism/synth2.glsl
+effects:
+- action: TOGGLE_GLITCH
+  shader_path: shaders/effects/glitch.glsl
+  node_class: EffectNode
+  priority: 100
+- action: TOGGLE_DISPLACEMENT_MAP
+  shader_path: shaders/effects/displacement_map.glsl
+  node_class: EffectNode
+  priority: 100
+- action: TOGGLE_RGB_SPLIT
+  shader_path: shaders/effects/rgb_split.glsl
+  node_class: EffectNode
+  priority: 100
+- action: TOGGLE_PSYCHEDELIC
+  shader_path: shaders/effects/psychedelic_fbm.glsl
+  node_class: EffectNode
+  priority: 100
+- action: TRIGGER_IMAGE_FLASH
+  shader_path: shaders/effects/image_flash.glsl
+  node_class: ImageFlashEffectNode
+  priority: 100
+- action: TOGGLE_PINCH
+  shader_path: shaders/effects/pinch.glsl
+  node_class: EffectNode
+  priority: 100

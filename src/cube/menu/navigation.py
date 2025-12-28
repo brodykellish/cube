@@ -44,6 +44,7 @@ class MenuNavigator:
         """Navigate directly to a named state."""
         if state_name in self.menu_registry:
             self.current_state = self.menu_registry[state_name]
+            self.current_state.open()
         else:
             raise ValueError(f"Unknown menu state: {state_name}")
 

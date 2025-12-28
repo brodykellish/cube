@@ -630,6 +630,9 @@ class PromptMenuState(MenuState):
         if right_indicator:
             renderer.draw_text(right_indicator, current_x, input_text_y, color=(200, 200, 200), scale=1)
 
+    def open(self):
+        pass
+    
     def update(self, dt: float) -> Optional[MenuAction]:
         """
         Update prompt state (cursor blinking, loading animation, async results).

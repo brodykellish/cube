@@ -72,6 +72,9 @@ class DAGConfigBrowser(MenuState):
             selected_color=(255, 255, 100),
             normal_color=(200, 200, 200)
         )
+
+    def open(self):
+        self._refresh_configs()
     
     def handle_input(self, key: str, context: MenuContext) -> Optional[MenuAction]:
         """Handle input."""

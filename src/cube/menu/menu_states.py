@@ -28,6 +28,11 @@ class MenuState(ABC):
         pass
 
     @abstractmethod
+    def open(self):
+        """ invoked when loading the menu. """
+        pass
+
+    @abstractmethod
     def handle_input(self, key: str, context: MenuContext) -> Optional[MenuAction]:
         """Handle input and return an action if needed."""
         pass
@@ -44,9 +49,13 @@ class MainMenu(MenuState):
             ("PROMPT", "prompt"),
             ("MIXER", "mixer_setup"),
             ("SETTINGS", "settings"),
+            ("SAVED CONFIGS", "dag_config_browser"),
             ("EXIT", None),
         ]
         self.list = ScrollableList(self.options)
+
+    def open(self):
+        pass
 
     def render(self, renderer: MenuRenderer, context: MenuContext):
         """Render main menu."""
@@ -95,10 +104,12 @@ class VisualizationModeSelect(MenuState):
         self.options = [
             ("SURFACE", "surface_browser"),
             ("CUBE", "cube_browser"),
-            ("SAVED CONFIGS", "dag_config_browser"),
             ("BACK", None),
         ]
         self.list = ScrollableList(self.options)
+
+    def open(self):
+        pass
 
     def render(self, renderer, context: MenuContext):
         renderer.clear((0, 0, 0))
@@ -356,6 +367,10 @@ class ShaderBrowser(MenuState):
             normal_color=(200, 200, 200)
         )
 
+    def open(self):
+        # reload all shaders
+        pass
+
     def handle_input(self, key: str, context: MenuContext) -> Optional[MenuAction]:
         if key == 'up':
             self.list.move_up()
@@ -540,6 +555,9 @@ class SettingsMenu(MenuState):
                 total_items=len(self.options),
                 visible_items=visible_items
             )
+
+    def open(self):
+        pass
 
     def handle_input(self, key: str, context: MenuContext) -> Optional[MenuAction]:
         if key == 'up':
