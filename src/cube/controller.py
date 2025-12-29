@@ -14,13 +14,13 @@ import time
 import queue
 from pathlib import Path
 from typing import Optional
+from cube.midi import MIDIKeyboardDriver, MIDIState, USBMIDIDriver, load_midi_config
 import numpy as np
 
 from cube.display.menu_window import MenuWindow
 from cube.display.visualization_window import VisualizationWindow
 from cube.render.visualization_runner import VisualizationRunner
 from cube.ui.dev_menu import DevMenuUI
-from cube.midi.midi_manager import MIDIManager
 from cube.utils.app_setup import setup_debug_logging, restore_stdout, find_project_root
 from cube.menu.actions import (
     MenuAction,
@@ -77,10 +77,35 @@ class CubeController:
             "fps_limit": fps,
         }
 
-        # Initialize MIDI subsystem
-        self.midi_manager = MIDIManager(num_channels=7)
+        # Initialize MIDI subsystem (shared state - created in controller)
+        # Support 8 channels for param0-7
+        self.midi_state = MIDIState(num_channels=8)
+        self.midi_keyboard_driver = MIDIKeyboardDriver(self.midi_state)
+        
+        # Initialize USB MIDI (MIDI driver created in controller)
+        # Try to load config, but allow USB MIDI to work without it (direct CC 0-7 mapping)
+        self.midi_config = load_midi_config()
+        self.usb_midi: Optional[USBMIDIDriver] = None
+        # Always try to initialize USB MIDI (will use direct mapping if no config)
+        self.usb_midi = USBMIDIDriver(
+            self.midi_state, self.midi_config, tap_note=43)
+        if self.usb_midi.is_connected():
+            print(f'[CONTROLLER] USB MIDI controller connected: {self.usb_midi.connected_device}')
+            if self.midi_config:
+                print('  Using MIDI config mappings')
+            else:
+                print('  No config - using direct CC 0-7 mapping')
+            print('  Tap tempo: Pad 8 (Note 43)')
+        else:
+            if self.midi_config:
+                print('[CONTROLLER] MIDI config found but USB MIDI device not connected')
+            else:
+                print('[CONTROLLER] No MIDI config found and USB MIDI device not connected')
 
         # MenuWindow owns its own InputManager
+        # Pass MIDI state and keyboard driver to menu window
+        # MenuWindow will register MIDIInputSource in its InputManager
+        self.menu_window.setup_midi(self.midi_state, self.midi_keyboard_driver)
         self.menu_input_manager = self.menu_window.input_manager
         self.input_manager = self.menu_input_manager  # Alias for backwards compatibility
 
@@ -127,6 +152,10 @@ class CubeController:
 
             # Process menu window events (window handles its own input polling)
             menu_events = self.menu_window.process_events()
+            
+            # Poll USB MIDI driver (uses callbacks, but poll() keeps connection alive)
+            if self.usb_midi:
+                self.usb_midi.poll()
             
             # Update forwarding source cache if forwarding is enabled (must be on main thread)
             if (self.dev_menu_ui.input_forwarding_enabled and 
@@ -201,7 +230,8 @@ class CubeController:
         self._cleanup_done = True
 
         # Cleanup MIDI
-        self.midi_manager.cleanup()
+        if self.usb_midi:
+            self.usb_midi.cleanup()
 
         # Stop visualization thread if it exists
         if self.visualization_runner is not None:
@@ -326,8 +356,8 @@ class CubeController:
                     width=self.window_width,
                     height=self.window_height,
                     num_panels=self.num_panels,
-                    midi_state=self.midi_manager.midi_state,
-                    midi_uniform_source=self.midi_manager.midi_uniform_source,
+                    midi_state=self.midi_state,
+                    usb_midi=self.usb_midi,
                     settings=self.settings,
                     viz_window=self.viz_window,
                     # Callback to signal stop from viz thread
@@ -434,7 +464,7 @@ class CubeController:
             # Numeric keys are needed for effect toggles, and shift is needed for shift+1-8
             forwarding_source = ForwardingInputSource(
                 self.menu_input_manager,
-                midi_state=self.midi_manager.midi_state if self.midi_manager else None,
+                midi_state=self.midi_state,
                 filter_keys={'key:t'},  # Only filter out 't' key (toggle forwarding)
                 priority=50
             )

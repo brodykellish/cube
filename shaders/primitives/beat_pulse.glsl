@@ -38,11 +38,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     vec3 rd = normalize(forward + uv.x * right + uv.y * up);
 
-    // Get beat trigger from MIDI system
-    float pulse = iBeatTrigger;
+    // Get beat pulse from MIDI system
+    float pulse = iBeatPulse;
 
     // If no tempo detected, show dim static sphere
-    if (iBPM == 0.0) {
+    if (iBeatPulse == 0.0 && iBeatPhase == 0.0) {
         float baseSize = mix(0.5, 2.0, iParam2);
         float t = sphereIntersect(ro, rd, vec3(0.0, 0.0, 0.0), baseSize);
         if (t > 0.0) {

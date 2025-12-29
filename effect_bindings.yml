@@ -1,58 +1,74 @@
 preset_name: split
 bindings:
-- action: TOGGLE_GLITCH
-  inputs:
-  - key:1
 - action: TOGGLE_DISPLACEMENT_MAP
   inputs:
   - key:3
+  - midi:note_38
 - action: TOGGLE_MIRROR
   inputs:
   - key:5
+  - midi:note_40
 - action: TOGGLE_MOSAIC
   inputs:
   - key:6
+  - midi:note_41
 - action: TOGGLE_SINEWAVE_DISTORT
   inputs:
   - key:7
+  - midi:note_42
 - action: TOGGLE_PSYCHEDELIC
   inputs:
   - - key:shift
     - key:1
+  - midi:note_44
 - action: TOGGLE_FRAME_DIFFERENCING
   inputs:
   - - key:shift
     - key:3
+  - midi:note_46
 - action: TOGGLE_RGB_SPLIT
   inputs:
   - - key:shift
     - key:2
+  - midi:note_45
 - action: TOGGLE_VIDEO_FEEDBACK
   inputs:
   - - key:shift
     - key:6
-- action: TOGGLE_KALEIDOSCOPE
-  inputs:
-  - key:2
+  - midi:note_49
 - action: TOGGLE_ASCII
   inputs:
   - key:4
+  - midi:note_39
 - action: TOGGLE_MINIATURE_OVERLAY
   inputs:
   - - key:shift
     - key:7
+  - midi:note_50
 - action: TRIGGER_IMAGE_FLASH
   inputs:
   - - key:shift
     - key:4
+  - midi:note_47
 - action: TOGGLE_PINCH
   inputs:
   - - key:shift
     - key:5
-- action: TOGGLE_SWIRL
-  inputs:
-  - - key:shift
-    - key:8
+  - midi:note_48
 - action: TOGGLE_BULGE
   inputs:
   - key:8
+  - midi:note_43
+- action: TOGGLE_GLITCH
+  inputs:
+  - key:1
+  - midi:note_36
+- action: TOGGLE_KALEIDOSCOPE
+  inputs:
+  - key:2
+  - midi:note_37
+- action: TOGGLE_SHAKE
+  inputs:
+  - midi:note_51
+  - - key:shift
+    - key:8

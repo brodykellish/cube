@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 from .camera_modes import CameraMode, SphericalCamera
-from .uniform_sources import UniformSourceManager, KeyboardUniformSource, MouseUniformSource, UniformSource
+from .uniform_sources import UniformSourceManager, MouseUniformSource, UniformSource
 from .shader_compiler import wrap_shadertoy_shader
 
 class ShaderRendererBase(ABC):

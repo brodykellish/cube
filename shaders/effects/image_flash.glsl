@@ -7,6 +7,8 @@
     Inputs:
     - iChannel0: Current input (background)
     - iChannel1: Flash image to overlay
+    - iParam7: Intensity (0..1, controls effect strength)
+    - iParam5: also controls visibility
 */
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -26,7 +28,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float flashAlpha = smoothstep(0.0, 0.1, flashBrightness);
     
     // Modulate by iParam7 intensity
-    float intensity = clamp(iParam7, 0.0, 1.0);
+    float intensity = clamp(iParam7, 0.0, 1.0) * clamp(iParam5, 0.0, 1.0);
     
     // Additively blend: background + flashImage * intensity * alpha
     vec3 result = background + flashImage * flashAlpha * intensity;

@@ -121,7 +121,6 @@ vec4 round(vec4 x) {
         "uniform vec3 iCameraRight;\n"
         "uniform vec3 iCameraUp;\n"
         "uniform vec3 iCameraForward;\n"
-        "uniform float iBPM;\n"
         "uniform float iBeatPhase;\n"
         "uniform float iBeatPulse;\n"
         "uniform float iAudioLevel;\n"

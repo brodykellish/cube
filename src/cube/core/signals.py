@@ -14,6 +14,7 @@ class MIDISignal(Signal):
     Signal wrapper for MIDI axis values.
     
     Samples the current value of a MIDI axis from InputManager.
+    Provides continuous parameter control from MIDI CC values.
     """
 
     def __init__(self, input_manager: InputManager, axis: Axis):
@@ -32,7 +33,8 @@ class MIDISignal(Signal):
         """
         Sample MIDI axis value.
         
-        Returns cached value if axis not present, otherwise returns current value.
+        Returns current axis value if present, otherwise returns cached value.
+        This allows MIDI to provide continuous control while keyboard provides discrete steps.
         """
         value = self.input_manager.get_axis(self.axis, -1.0)
         if value >= 0.0:

@@ -87,6 +87,7 @@ class InputManager:
         self._axes = self.bindings.resolve_axes_with_overlays(
             raw_states, self.context, self.overlay_stack
         )
+        
         current_actions = set(self._actions.keys())
         self._actions_pressed = {
             action

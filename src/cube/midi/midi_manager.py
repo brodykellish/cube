@@ -5,7 +5,6 @@ from typing import Optional
 from cube.midi import (
     MIDIState,
     MIDIKeyboardDriver,
-    MIDIUniformSource,
     USBMIDIDriver,
     load_midi_config,
 )
@@ -28,7 +27,6 @@ class MIDIManager:
         self.midi_config = load_midi_config()
         self.usb_midi: Optional[USBMIDIDriver] = None
         self.last_bpm = None
-        self.midi_uniform_source: Optional[MIDIUniformSource] = None
         
         # Initialize USB MIDI if config available
         if self.midi_config:
@@ -40,11 +38,6 @@ class MIDIManager:
                 print('  Tap tempo: Pad 8 (Note 43)')
         else:
             print('No MIDI config found (midi_config.yml) - USB MIDI disabled')
-        
-        # Create MIDI uniform source
-        tap_tempo = self.usb_midi.tap_tempo if self.usb_midi else None
-        self.midi_uniform_source = MIDIUniformSource(
-            self.midi_state, tap_tempo)
     
     def cleanup(self) -> None:
         """Clean up MIDI resources."""

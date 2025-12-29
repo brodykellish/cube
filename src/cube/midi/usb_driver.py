@@ -50,9 +50,10 @@ class USBMIDIDriver:
             print("USB MIDI driver disabled (python-rtmidi not installed)")
             return
 
-        if config is None:
-            print("No MIDI config provided - USB MIDI disabled")
-            return
+        # Allow USB MIDI to work without config (will use direct CC 0-7 mapping)
+        # if config is None:
+        #     print("No MIDI config provided - USB MIDI disabled")
+        #     return
 
         self._connect()
 
@@ -68,28 +69,34 @@ class USBMIDIDriver:
             available_ports = self.midi_in.get_ports()
 
             if not available_ports:
-                print("No MIDI devices found")
+                print("[USBMIDI] No MIDI devices found")
                 return
 
             # Find device
             port_index = None
 
-            if self.config.device_name == "auto":
+            if self.config is None:
+                # No config: auto-select first device
+                port_index = 0
+                print(f"[USBMIDI] No config provided, auto-selecting first device: {available_ports[0]}")
+            elif self.config.device_name == "auto":
                 # Use first available device
                 port_index = 0
-                print(f"Auto-selecting MIDI device: {available_ports[0]}")
+                print(f"[USBMIDI] Auto-selecting MIDI device: {available_ports[0]}")
             else:
                 # Find device by name
                 for i, port_name in enumerate(available_ports):
                     if self.config.device_name.lower() in port_name.lower():
                         port_index = i
-                        print(f"Found MIDI device: {port_name}")
+                        print(f"[USBMIDI] Found MIDI device: {port_name}")
                         break
 
                 if port_index is None:
-                    print(f"MIDI device '{self.config.device_name}' not found")
-                    print(f"Available devices: {', '.join(available_ports)}")
-                    return
+                    print(f"[USBMIDI] MIDI device '{self.config.device_name}' not found")
+                    print(f"[USBMIDI] Available devices: {', '.join(available_ports)}")
+                    # Fallback: use first device
+                    port_index = 0
+                    print(f"[USBMIDI] Falling back to first device: {available_ports[0]}")
 
             # Open port
             self.midi_in.open_port(port_index)
@@ -98,11 +105,16 @@ class USBMIDIDriver:
             # Set callback for incoming messages
             self.midi_in.set_callback(self._midi_callback)
 
-            print(f"USB MIDI connected: {self.connected_device}")
-            print(f"Active mappings: {len(self.config.mappings)}")
+            print(f"[USBMIDI] USB MIDI connected: {self.connected_device}")
+            if self.config:
+                print(f"[USBMIDI] Active mappings: {len(self.config.mappings)}")
+            else:
+                print(f"[USBMIDI] No config - using direct CC 0-7 mapping")
 
         except Exception as e:
-            print(f"Failed to connect to MIDI device: {e}")
+            print(f"[USBMIDI] Failed to connect to MIDI device: {e}")
+            import traceback
+            traceback.print_exc()
             self.midi_in = None
 
     def _midi_callback(self, message, data):
@@ -124,10 +136,17 @@ class USBMIDIDriver:
         data1 = midi_message[1]  # CC number or note
         data2 = midi_message[2]  # CC value or velocity
 
-        # Check if this is a Note On message (0x90-0x9F) for tap tempo
+        # Debug: print all MIDI messages
+        status_type = status & 0xF0
+        channel = status & 0x0F
+
+        # Check if this is a Note On message (0x90-0x9F)
         if (status & 0xF0) == 0x90:
             note = data1
             velocity = data2
+
+            # Update MIDIState with note on
+            self.midi_state.note_on(note)
 
             # Check if this is the tap tempo note
             if note == self.tap_note:
@@ -138,9 +157,12 @@ class USBMIDIDriver:
                     # Note Off with velocity 0 (some devices use this)
                     self.tap_tempo.note_off()
 
-        # Check if this is a Note Off message (0x80-0x8F) for tap tempo
+        # Check if this is a Note Off message (0x80-0x8F)
         elif (status & 0xF0) == 0x80:
             note = data1
+
+            # Update MIDIState with note off
+            self.midi_state.note_off(note)
 
             # Check if this is the tap tempo note
             if note == self.tap_note:
@@ -157,9 +179,17 @@ class USBMIDIDriver:
                 if mapping:
                     # Clamp value to configured range
                     clamped_value = max(mapping.min_val, min(mapping.max_val, cc_value))
-
                     # Update MIDI state
                     self.midi_state.set_cc(mapping.target_cc, clamped_value)
+                else:
+                    # Fallback: if CC is 0-7, update MIDIState directly
+                    if 0 <= cc_number < 8:
+                        self.midi_state.set_cc(cc_number, cc_value)
+            else:
+                # No config: if CC is 0-7, update MIDIState directly (direct mapping)
+                # This allows MIDI to work even without a config file
+                if 0 <= cc_number < self.midi_state.num_channels:
+                    self.midi_state.set_cc(cc_number, cc_value)
 
     def poll(self):
         """

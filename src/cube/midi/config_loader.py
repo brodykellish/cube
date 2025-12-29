@@ -25,19 +25,23 @@ class MIDIMapping:
         self.min_val = min_val
         self.max_val = max_val
 
-        # Map target name to CC number
+        # Map target name to CC number in MIDIState
         target_map = {
             'param0': 0,
             'param1': 1,
             'param2': 2,
             'param3': 3,
-            'attack': 4,  # Beat envelope attack time
-            'hold': 5,    # Beat envelope hold time
-            'decay': 6,   # Beat envelope decay time
+            'param4': 4,
+            'param5': 5,
+            'param6': 6,
+            'param7': 7,
+            'attack': 4,  # Beat envelope attack time (same as param4)
+            'hold': 5,    # Beat envelope hold time (same as param5)
+            'decay': 6,   # Beat envelope decay time (same as param6)
         }
 
         if target not in target_map:
-            raise ValueError(f"Invalid target '{target}'. Must be param0-3, attack, hold, or decay.")
+            raise ValueError(f"Invalid target '{target}'. Must be param0-7, attack, hold, or decay.")
 
         self.target_cc = target_map[target]
 

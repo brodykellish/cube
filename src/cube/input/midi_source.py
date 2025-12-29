@@ -54,18 +54,26 @@ class MIDIInputSource(InputSource):
         Returns:
             InputState with MIDI notes and CCs
         """
-        # Current MIDIState implementation tracks only CC values (no notes),
-        # so we expose CCs as axes and leave pressed/released/held empty.
-        pressed = set()
-        released = set()
-        held = set()
+        # Get note state changes (pressed/released this frame)
+        note_changes = self.midi_state.get_note_changes()
+        pressed = {f'midi:note_{note}' for note, is_pressed in note_changes.items() if is_pressed}
+        released = {f'midi:note_{note}' for note, is_pressed in note_changes.items() if not is_pressed}
         
+        # Get currently active notes (held)
+        active_notes = self.midi_state.get_active_notes()
+        held = {f'midi:note_{note}' for note in active_notes.keys()}
+        
+        # Update last_notes for next frame
+        current_notes = set(active_notes.keys())
+        self._last_notes = current_notes
+        
+        # Get CC values as axes
         axes: Dict[str, float] = {}
         cc_values = self.midi_state.get_cc_values()
-        for cc, _ in cc_values.items():
-            value = self.midi_state.get_normalized(cc)
-            axes[f'midi:cc_{cc}'] = value
-            self._last_cc[cc] = value
+        for cc, value in cc_values.items():
+            normalized = self.midi_state.get_normalized(cc)
+            axes[f'midi:cc_{cc}'] = normalized
+            self._last_cc[cc] = normalized
         
         return InputState(
             source_name=self.name,

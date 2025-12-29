@@ -32,7 +32,7 @@ def create_shader_spec_from_program(shader_program: ShaderProgram, name: str) ->
             'iResolution', 'iTime', 'iTimeDelta', 'iFrame', 'iMouse', 'iInput',
             'iChannel0', 'iChannel1', 'iChannel2', 'iChannel3',
             'iCameraPos', 'iCameraRight', 'iCameraUp', 'iCameraForward',
-            'iBPM', 'iBeatPhase', 'iBeatPulse', 'iAudioLevel', 'iAudioSpectrum',
+            'iBeatPhase', 'iBeatPulse', 'iAudioLevel', 'iAudioSpectrum',
             'iDebugAxes', 'iParam0', 'iParam1', 'iParam2', 'iParam3',
             'iParam4', 'iParam5', 'iParam6', 'iParam7'
         }

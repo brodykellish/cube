@@ -4,18 +4,17 @@ TODO
 A summary of all the things that need doing, roughly prioritized.
 
 # Bugfixes
-- ensure effect map is loaded in the menu window and the visualization window
-- fix display sizing
-- get the MIDI controller working again
-- preserve effect chain when swapping source nodes in the DAG
+- fix display resizing thread issues.
+- get the MIDI controller working again (might be easy)
 
 # Features
 - Add new shader effects. Current set is fine, but not optimal. Need to approach this with some dedicated planning.
-- fullscreen support for the visualization window
-- improved debug ui pane
-- LFOs
+- fullscreen support for the visualization window. Fix the threading issues and segfaulting.
+- improved debug ui pane.
+- improved menu system!
+- LFOs (not essential - probably wouldn't use them)
 - video / webcam input w/ a passthrough shader
-- multiple source nodes in the dag, combined via mixer nodes
+- multiple source nodes in the dag, combined via mixer nodes. Probably have 4 independent source nodes, that get mixed by a mixing node and fed into single effect chain?
 - expose parameters from the DAG and automatically assign them to control keybindings / midi CCs
 
 # Refactoring

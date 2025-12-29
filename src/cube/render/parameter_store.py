@@ -415,60 +415,6 @@ class SignalParameterHandler(ParameterHandler):
             param.value = transformed_value
 
 
-class DirectParameterHandler(ParameterHandler):
-    """
-    Handler that directly reads from InputManager and updates a parameter.
-    
-    Used for MIDI overrides and simple axis→parameter mappings.
-    """
-    
-    def __init__(
-        self,
-        parameter_store: ParameterStore,
-        input_manager: InputManager,
-        parameter_id: str,
-        axis: Axis,
-        priority: int = 100  # High priority - overrides signal handlers
-    ):
-        """
-        Initialize direct parameter handler.
-        
-        Args:
-            parameter_store: ParameterStore to update
-            input_manager: InputManager to read from
-            parameter_id: ID of parameter to update
-            axis: Axis to read from InputManager
-            priority: Handler priority (higher = updates later, can override earlier)
-        """
-        self.parameter_store = parameter_store
-        self.input_manager = input_manager
-        self.parameter_id = parameter_id
-        self.axis = axis
-        self.priority = priority
-        self._enabled = True
-    
-    def get_name(self) -> str:
-        """Get handler name."""
-        return f"DirectParameterHandler({self.parameter_id} <- {self.axis.name})"
-    
-    def set_enabled(self, enabled: bool):
-        """Enable or disable this handler."""
-        self._enabled = enabled
-    
-    def update(self, dt: float):
-        """
-        Read from InputManager and update parameter.
-        
-        Called each frame before rendering. Only updates if axis value is >= 0.0.
-        """
-        if not self._enabled:
-            return
-        
-        value = self.input_manager.get_axis(self.axis, -1.0)
-        if value >= 0.0:
-            self.parameter_store.set_parameter_value(self.parameter_id, value)
-
-
 class SettingsParameterHandler(ParameterHandler):
     """
     Handler that updates parameters from settings dictionary.

@@ -38,6 +38,8 @@ class MIDIState:
         """
         self.num_channels = num_channels
         self.cc_values: Dict[int, int] = {}
+        self.active_notes: Dict[int, bool] = {}  # Track which notes are currently pressed
+        self._note_changes: Dict[int, bool] = {}  # Track note state changes (True = pressed, False = released)
 
         # Initialize all CC channels to default value
         for cc in range(num_channels):
@@ -107,14 +109,67 @@ class MIDIState:
         """Get friendly name for CC channel."""
         return self.CC_NAMES.get(cc_num, f"CC{cc_num}")
 
+    def note_on(self, note: int):
+        """
+        Handle MIDI note on event.
+
+        Args:
+            note: MIDI note number (0-127)
+        """
+        if note < 0 or note > 127:
+            return
+        was_pressed = self.active_notes.get(note, False)
+        if not was_pressed:
+            self.active_notes[note] = True
+            self._note_changes[note] = True
+
+    def note_off(self, note: int):
+        """
+        Handle MIDI note off event.
+
+        Args:
+            note: MIDI note number (0-127)
+        """
+        if note < 0 or note > 127:
+            return
+        was_pressed = self.active_notes.get(note, False)
+        if was_pressed:
+            self.active_notes[note] = False
+            self._note_changes[note] = False
+
+    def get_active_notes(self) -> Dict[int, bool]:
+        """
+        Get all currently active (pressed) notes.
+
+        Returns:
+            Dict mapping note number -> True if pressed
+        """
+        return {note: pressed for note, pressed in self.active_notes.items() if pressed}
+
+    def get_note_changes(self) -> Dict[int, bool]:
+        """
+        Get note state changes since last call and clear them.
+
+        Returns:
+            Dict mapping note number -> True if pressed, False if released
+        """
+        changes = dict(self._note_changes)
+        self._note_changes.clear()
+        return changes
+
     def reset(self, default_value: int = 64):
-        """Reset all CCs to default value."""
+        """Reset all CCs to default value and clear all notes."""
         for cc in self.cc_values:
             self.cc_values[cc] = default_value
+        self.active_notes.clear()
+        self._note_changes.clear()
 
     def __repr__(self) -> str:
         values_str = ", ".join(
             f"{self.get_cc_name(cc)}={val}"
             for cc, val in sorted(self.cc_values.items())
         )
+        active_notes_str = ", ".join(str(note) for note in sorted(self.get_active_notes().keys()))
+        if active_notes_str:
+            return f"MIDIState({values_str}, notes=[{active_notes_str}])"
         return f"MIDIState({values_str})"

@@ -190,9 +190,7 @@ class RemappingUI:
             return '+'.join(inp)
         elif isinstance(inp, str):
             if inp.startswith('midi:note_'):
-                note_num = int(inp.replace('midi:note_', ''))
-                pad_num = note_num - 35  # Note 36 = pad 1
-                return f"MIDI Pad {pad_num}"
+                return inp
             elif inp.startswith('key:'):
                 return inp.replace('key:', 'Key ')
         return str(inp)

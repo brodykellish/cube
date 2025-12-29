@@ -287,7 +287,7 @@ class MiniatureOverlayEffectNode(EffectNode):
         self._direction_initialized = False
 
         # Variance parameters
-        self._direction_variance = 0.15  # Maximum angle variance per frame (radians)
+        self._direction_variance = 0.05  # Maximum angle variance per frame (radians)
         self._variance_seed = random.random() * 1000.0  # Seed for variance noise
         
         # Frame skipping for accumulation rate control

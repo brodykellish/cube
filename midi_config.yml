@@ -8,39 +8,44 @@ device_name: "Minilab3"
 # Each mapping connects a MIDI CC from your controller to a shader parameter
 mappings:
   # Shader parameters (knobs 1-4)
-  - midi_cc: 74
+  - midi_cc: 20
     target: param0
     min: 0
     max: 127
 
-  - midi_cc: 71
+  - midi_cc: 21
     target: param1
     min: 0
     max: 127
 
-  - midi_cc: 76
+  - midi_cc: 22
     target: param2
     min: 0
     max: 127
 
-  - midi_cc: 77
+  - midi_cc: 23
     target: param3
     min: 0
     max: 127
 
   # Beat envelope controls (knobs 6-8)
-  - midi_cc: 18      # Knob 6 -> Attack time
-    target: attack
+  - midi_cc: 24      # Knob 6 -> Attack time
+    target: param4
     min: 0
     max: 127
 
-  - midi_cc: 19      # Knob 7 -> Hold time
-    target: hold
+  - midi_cc: 25      # Knob 7 -> Hold time
+    target: param5
     min: 0
     max: 127
 
-  - midi_cc: 16      # Knob 8 -> Decay time (assuming CC 16)
-    target: decay
+  - midi_cc: 26      # Knob 8 -> Decay time (assuming CC 16)
+    target: param6
+    min: 0
+    max: 127
+
+  - midi_cc: 27      # Knob 8 -> Decay time (assuming CC 16)
+    target: param7
     min: 0
     max: 127
 

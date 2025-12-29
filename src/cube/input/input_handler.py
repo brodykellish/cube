@@ -108,40 +108,6 @@ class InputHandler:
         """
         return self.keys_held.copy()
 
-    def apply_to_shader_keyboard(self, shader_keyboard: Any, shift_pressed_attr: str = None) -> dict:
-        """
-        Apply held keys to a shader's KeyboardInput object.
-
-        This provides a standard mapping from held keys to shader camera controls.
-
-        Args:
-            shader_keyboard: The shader's KeyboardInput instance
-            shift_pressed_attr: Optional attribute name to set shift state on parent object
-
-        Returns:
-            Dict with mapped states for external use if needed
-
-        Example:
-            # In shader mode:
-            input.apply_to_shader_keyboard(
-                shader_renderer.keyboard_input,
-                shift_pressed_attr='shift_pressed'
-            )
-        """
-        # Standard directional mapping (supports both arrow keys and WASD)
-        shader_keyboard.set_key_state('up', self.is_key_held('up', 'w'))
-        shader_keyboard.set_key_state('down', self.is_key_held('down', 's'))
-        shader_keyboard.set_key_state('left', self.is_key_held('left', 'a'))
-        shader_keyboard.set_key_state('right', self.is_key_held('right', 'd'))
-
-        # Return mapped states
-        return {
-            'up': self.is_key_held('up', 'w'),
-            'down': self.is_key_held('down', 's'),
-            'left': self.is_key_held('left', 'a'),
-            'right': self.is_key_held('right', 'd'),
-            'shift': self.is_key_held('shift'),
-        }
 
     def __repr__(self) -> str:
         return (

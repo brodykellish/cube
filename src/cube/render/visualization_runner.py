@@ -29,7 +29,7 @@ class VisualizationRunner:
     """
     
     def __init__(self, width: int, height: int, num_panels: int = 6,
-                 midi_state=None, midi_uniform_source=None,
+                 midi_state=None, usb_midi=None,
                  settings: Optional[Dict[str, Any]] = None,
                  viz_window: Optional[VisualizationWindow] = None,
                  stop_callback: Optional[Callable[[], None]] = None,
@@ -44,7 +44,7 @@ class VisualizationRunner:
             height: Window height in pixels
             num_panels: Number of cube panels (for cube pixel mapper)
             midi_state: MIDIState instance for MIDI input
-            midi_uniform_source: MIDIUniformSource for uniform mapping
+            usb_midi: USBMIDIDriver instance (for tap tempo)
             settings: Settings dictionary for renderer
             viz_window: VisualizationWindow instance (created on main thread)
             stop_callback: Optional callback to signal stop from visualization thread
@@ -54,7 +54,7 @@ class VisualizationRunner:
         self._height = height
         self._num_panels = num_panels
         self._midi_state = midi_state
-        self._midi_uniform_source = midi_uniform_source
+        self._usb_midi = usb_midi
         self._settings = settings or {}
         self._viz_window = viz_window  # Window created on main thread
         self._stop_callback = stop_callback  # Callback to signal stop
@@ -121,7 +121,11 @@ class VisualizationRunner:
             
             # Register MIDI source (always active, regardless of focus)
             if self._midi_state:
-                self._viz_input_manager.register_source(MIDIInputSource(self._midi_state))
+                midi_source = MIDIInputSource(self._midi_state)
+                self._viz_input_manager.register_source(midi_source)
+                print(f"[VIZ] Registered MIDI input source (MIDIState has {self._midi_state.num_channels} channels)")
+            else:
+                print("[VIZ] WARNING: No MIDI state provided - MIDI input disabled")
             
             # Create default pixel mapper (surface)
             camera = SphericalCamera()
@@ -141,7 +145,7 @@ class VisualizationRunner:
             from cube.render.parameter_store import (
                 ParameterStore, ParameterHandlerRegistry,
                 TimeHandler, CameraHandler, MouseHandler,
-                SignalParameterHandler, DirectParameterHandler,
+                SignalParameterHandler,
                 SettingsParameterHandler
             )
             from cube.core.signals import KeyboardParamSignal, AudioSignal
@@ -176,7 +180,8 @@ class VisualizationRunner:
                 inc_action = getattr(Action, f'INC_PARAM{i}')
                 dec_action = getattr(Action, f'DEC_PARAM{i}')
                 
-                # Keyboard signal handler (low priority - can be overridden)
+                # Keyboard signal handler (discrete actions: INC/DEC)
+                # Low priority - can be overridden by MIDI or audio
                 keyboard_signal = KeyboardParamSignal(self._viz_input_manager, param_axis, inc_action, dec_action)
                 keyboard_handler = SignalParameterHandler(
                     parameter_store,
@@ -186,12 +191,14 @@ class VisualizationRunner:
                 )
                 handler_registry.register(keyboard_handler)
                 
-                # MIDI direct handler (high priority - overrides keyboard)
-                midi_handler = DirectParameterHandler(
+                # MIDI signal handler (continuous axes: direct CC values)
+                # High priority - overrides keyboard
+                from cube.core.signals import MIDISignal
+                midi_signal = MIDISignal(self._viz_input_manager, param_axis)
+                midi_handler = SignalParameterHandler(
                     parameter_store,
-                    self._viz_input_manager,
+                    midi_signal,
                     param_id,
-                    param_axis,
                     priority=100  # High priority - overrides keyboard
                 )
                 handler_registry.register(midi_handler)
@@ -218,6 +225,7 @@ class VisualizationRunner:
                     'midi': midi_handler,
                     'audio': audio_handler,
                     'audio_signal': audio_signal,  # Store signal reference for updates
+                    'midi_signal': midi_signal,  # Store signal reference for debugging
                 }
             
             # Store handlers for dynamic updates
@@ -230,12 +238,13 @@ class VisualizationRunner:
             if audio_mapping_source:
                 self._update_parameter_handlers_from_mappings(audio_mapping_source)
             
-            # Create iSeed handler (direct from InputManager)
-            seed_handler = DirectParameterHandler(
+            # Create iSeed handler (from InputManager via signal)
+            from cube.core.signals import MIDISignal
+            seed_signal = MIDISignal(self._viz_input_manager, Axis.SEED)
+            seed_handler = SignalParameterHandler(
                 parameter_store,
-                self._viz_input_manager,
+                seed_signal,
                 'iSeed',
-                Axis.SEED,
                 priority=0
             )
             handler_registry.register(seed_handler)
@@ -353,18 +362,20 @@ class VisualizationRunner:
                 
                 # Update visualization input (keyboard + MIDI)
                 # Keyboard state is updated from main thread's event polling
-                # Poll and process input if visualization window is focused OR input forwarding is enabled
-                should_poll_input = (
+                # Always poll input manager (MIDI works regardless of focus)
+                # But only process actions if window is focused OR input forwarding is enabled
+                self._viz_input_manager.poll()
+                
+                should_process_actions = (
                     (self._viz_window and self._viz_window.is_focused()) or
                     getattr(self, '_input_forwarding_enabled', False)
                 )
                 
-                if should_poll_input:
-                    self._viz_input_manager.poll()
-                    
+                if should_process_actions:
                     # Process actions (effects, debug toggle, settings, etc.)
                     self._process_actions()
-                # else: Window not focused and forwarding disabled, skip input processing
+                # else: Window not focused and forwarding disabled, skip action processing
+                # (but MIDI axes are still polled and will update parameters)
                 
                 # Update binding map to check for effect bindings config changes
                 # (works even when window is not focused, to allow live remapping)
@@ -521,17 +532,17 @@ class VisualizationRunner:
             audio_signal_name = current_mappings.get(param_id_str)
             
             if audio_signal_name and audio_handler and audio_signal:
-                # Parameter is mapped to audio - enable audio handler, disable keyboard
+                # Parameter is mapped to audio - enable audio handler, disable keyboard and MIDI
                 audio_signal.set_signal_name(audio_signal_name)
                 audio_handler.set_enabled(True)
                 keyboard_handler.set_enabled(False)
-                midi_handler.set_enabled(True)  # MIDI can still override
+                midi_handler.set_enabled(False)  # Audio overrides MIDI
             else:
-                # Parameter is not mapped to audio - enable keyboard, disable audio
+                # Parameter is not mapped to audio - enable keyboard and MIDI
                 if audio_handler:
                     audio_handler.set_enabled(False)
                 keyboard_handler.set_enabled(True)
-                midi_handler.set_enabled(True)  # MIDI can still override
+                midi_handler.set_enabled(True)  # MIDI overrides keyboard (higher priority)
     
     def _register_action_handlers(self) -> None:
         """Register handlers for high-level actions during visualization."""
@@ -579,7 +590,7 @@ class VisualizationRunner:
         def dec_fps() -> None:
             default_fps = self._settings.get('fps', 60)
             self._settings["fps_limit"] = max(
-                10, self._settings.get("fps_limit", default_fps) - 5
+                5, self._settings.get("fps_limit", default_fps) - 5
             )
             print(f"[VIZ] FPS Limit: {self._settings['fps_limit']}")
         

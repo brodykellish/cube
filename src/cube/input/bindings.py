@@ -469,8 +469,20 @@ class BindingMap:
         # self.add_binding(InputContext.VISUALIZATION, Axis.CAMERA_ROLL, 'midi:cc_19', transform=inverted(2.0))   # Knob 7: roll
         # self.add_binding(InputContext.VISUALIZATION, Axis.CAMERA_ZOOM, 'midi:cc_16', transform=inverted(2.0))   # Knob 8: zoom
 
-        # Shader parameters loaded from midi_config.yml
-        # (No default MIDI bindings - loaded dynamically from config)
+        # MIDI CC to parameter axes (default bindings)
+        # These bind MIDIState CC numbers (0-7) to parameter axes
+        # The MIDI config maps physical controller CCs to MIDIState CCs
+        # MIDIInputSource generates axes like 'midi:cc_0', 'midi:cc_1', etc. from MIDIState
+        self.add_binding(InputContext.VISUALIZATION, Axis.PARAM0, ('midi:cc_0',))
+        self.add_binding(InputContext.VISUALIZATION, Axis.PARAM1, ('midi:cc_1',))
+        self.add_binding(InputContext.VISUALIZATION, Axis.PARAM2, ('midi:cc_2',))
+        self.add_binding(InputContext.VISUALIZATION, Axis.PARAM3, ('midi:cc_3',))
+        self.add_binding(InputContext.VISUALIZATION, Axis.PARAM4, ('midi:cc_4',))
+        self.add_binding(InputContext.VISUALIZATION, Axis.PARAM5, ('midi:cc_5',))
+        self.add_binding(InputContext.VISUALIZATION, Axis.PARAM6, ('midi:cc_6',))
+        self.add_binding(InputContext.VISUALIZATION, Axis.PARAM7, ('midi:cc_7',))
+        
+        # Additional MIDI bindings can be loaded from midi_config.yml (overrides defaults)
         self.add_binding(InputContext.VISUALIZATION, Axis.SEED, ('midi:chord_seed',))
 
         # Parameter control - keyboard increment/decrement (discrete actions)

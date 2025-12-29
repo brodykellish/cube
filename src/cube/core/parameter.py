@@ -46,38 +46,3 @@ class Parameter:
         if self.type == ParameterType.FLOAT and self.min is not None and self.max is not None:
             self.value = max(self.min, min(self.max, self.value))
 
-
-class ParameterRegistry:
-    """
-    Global registry for all parameters.
-    
-    Provides a central place to register and retrieve parameters
-    by their unique IDs.
-    """
-    _instance: Optional['ParameterRegistry'] = None
-    _parameters: Dict[str, Parameter]
-
-    def __new__(cls):
-        """Singleton pattern."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._parameters = {}
-        return cls._instance
-
-    def register(self, parameter: Parameter):
-        """Register a parameter."""
-        if parameter.id in self._parameters:
-            raise ValueError(f'Parameter {parameter.id} already registered')
-        self._parameters[parameter.id] = parameter
-
-    def get(self, id: str) -> Optional[Parameter]:
-        """Get a parameter by ID."""
-        return self._parameters.get(id)
-
-    def all(self) -> Dict[str, Parameter]:
-        """Get all registered parameters."""
-        return self._parameters.copy()
-
-    def clear(self):
-        """Clear all parameters (for testing)."""
-        self._parameters.clear()
