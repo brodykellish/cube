@@ -12,6 +12,9 @@ class PiomatterBackend(DisplayBackend):
     def __init__(self, width: int, height: int, **kwargs):
         super().__init__(width, height)
 
+        # Scale is always 1 for piomatter (no content scaling)
+        self.scale = 1
+
         import piomatter as piomatter
 
         # Extract piomatter-specific arguments
