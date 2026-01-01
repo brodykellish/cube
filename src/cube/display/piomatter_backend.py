@@ -84,9 +84,7 @@ class PiomatterBackend(DisplayBackend):
         # Display via piomatter
         # Note: matrix.show() reads from the framebuffer that was passed during initialization
         # Since we're updating self.framebuffer (which is the same reference), it should work
-        result = self.matrix.show()
-        if result != 0:
-            print(f"[PiomatterBackend] Warning: matrix.show() returned {result}")
+        self.matrix.show()
 
     def handle_events(self) -> dict:
         """Handle input events via SSH keyboard."""
