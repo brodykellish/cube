@@ -63,13 +63,30 @@ class PiomatterBackend(DisplayBackend):
         # Crop or fit framebuffer to matrix dimensions
         h = min(fb_height, self.height)
         w = min(fb_width, self.width)
-        self.framebuffer[:h, :w] = framebuffer[:h, :w]
+        
+        # Copy the entire framebuffer (not just a slice)
+        # Ensure we're copying the full area
+        if fb_height == self.height and fb_width == self.width:
+            # Exact match - copy directly
+            self.framebuffer[:, :] = framebuffer[:, :]
+        else:
+            # Size mismatch - copy what fits and clear the rest
+            self.framebuffer[:h, :w] = framebuffer[:h, :w]
+            # Clear any remaining area
+            if h < self.height:
+                self.framebuffer[h:, :] = 0
+            if w < self.width:
+                self.framebuffer[:, w:] = 0
 
         # TODO: Add orientation/slicing logic for multi-panel cube layouts
         # This would handle re-indexing framebuffer pixels based on panel orientation
 
         # Display via piomatter
-        self.matrix.show()
+        # Note: matrix.show() reads from the framebuffer that was passed during initialization
+        # Since we're updating self.framebuffer (which is the same reference), it should work
+        result = self.matrix.show()
+        if result != 0:
+            print(f"[PiomatterBackend] Warning: matrix.show() returned {result}")
 
     def handle_events(self) -> dict:
         """Handle input events via SSH keyboard."""

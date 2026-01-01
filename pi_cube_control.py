@@ -551,17 +551,20 @@ class PiCubeController:
             debug_layer[debug_start_y:, :] = debug_fb
         
         # Composite and display
-        # Debug: check if any layer has content
-        menu_has_content = np.any(menu_layer > 0)
-        viz_has_content = np.any(viz_layer > 0)
-        debug_has_content = np.any(debug_layer > 0)
-        
-        if not menu_has_content and not viz_has_content and not debug_has_content:
-            # At least render a test pattern to verify display is working
-            if not hasattr(self, '_test_pattern_shown'):
-                print("[PI] Warning: No content in any layer, rendering test pattern")
-                menu_layer[::10, ::10] = [255, 255, 255]  # White dots every 10 pixels
-                self._test_pattern_shown = True
+        # Debug: check if any layer has content (only print once)
+        if not hasattr(self, '_content_check_done'):
+            menu_has_content = np.any(menu_layer > 0)
+            viz_has_content = np.any(viz_layer > 0)
+            debug_has_content = np.any(debug_layer > 0)
+            print(f"[PI] Layer content check - Menu: {menu_has_content}, Viz: {viz_has_content}, Debug: {debug_has_content}")
+            
+            # Verify composited framebuffer will have content
+            test_composite = self.backend.compose_layers([menu_layer, viz_layer, debug_layer])
+            composite_has_content = np.any(test_composite > 0)
+            print(f"[PI] Composited framebuffer has content: {composite_has_content}")
+            print(f"[PI] Composited framebuffer shape: {test_composite.shape}, dtype: {test_composite.dtype}")
+            print(f"[PI] Composited framebuffer min/max: {test_composite.min()}/{test_composite.max()}")
+            self._content_check_done = True
         
         self.display.show(
             brightness=self.settings.get('brightness', 60.0),
