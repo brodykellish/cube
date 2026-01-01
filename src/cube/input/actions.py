@@ -78,6 +78,7 @@ class Action(Enum):
     TOGGLE_VIDEO_FEEDBACK = auto()
     TOGGLE_MONITOR = auto()
     TOGGLE_GEOMETRY_DESTRUCTION = auto()
+    TOGGLE_TEMPORAL_SHATTER = auto()
 
     # Parameter increment/decrement (keyboard control)
     INC_PARAM0 = auto()

@@ -153,3 +153,8 @@ effects:
     shader: shaders/effects/geometry_destruction.glsl
     node_class: EffectNode
     trigger_mode: toggle
+
+  - action: TOGGLE_TEMPORAL_SHATTER
+    shader: shaders/effects/temporal_shatter.glsl
+    node_class: TemporalShatterEffectNode
+    trigger_mode: toggle

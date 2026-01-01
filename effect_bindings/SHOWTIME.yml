@@ -1,4 +1,4 @@
-preset_name: SHOWTIME
+preset_name: null
 bindings:
 - action: TOGGLE_GLITCH
   inputs:
@@ -6,6 +6,9 @@ bindings:
 - action: TOGGLE_RGB_SPLIT
   inputs:
   - key:2
+- action: TOGGLE_DISPLACEMENT_MAP
+  inputs:
+  - key:3
 - action: TRIGGER_IMAGE_FLASH
   inputs:
   - key:4
@@ -15,6 +18,9 @@ bindings:
 - action: TOGGLE_SINEWAVE_DISTORT
   inputs:
   - key:6
+- action: TOGGLE_BULGE
+  inputs:
+  - key:7
 - action: TOGGLE_SHAKE
   inputs:
   - key:8
@@ -22,6 +28,10 @@ bindings:
   inputs:
   - - key:shift
     - key:1
+- action: TOGGLE_PSYCHEDELIC
+  inputs:
+  - - key:shift
+    - key:2
 - action: TOGGLE_FRAME_DIFFERENCING
   inputs:
   - - key:shift
@@ -38,30 +48,3 @@ bindings:
   inputs:
   - - key:shift
     - key:5
-- action: TOGGLE_PSYCHEDELIC
-  inputs:
-  - key:1
-- action: TOGGLE_DISPLACEMENT_MAP
-  inputs:
-  - key:2
-- action: TOGGLE_BULGE
-  inputs:
-  - key:3
-- action: TOGGLE_ASCII
-  inputs:
-  - key:7
-- action: TOGGLE_TEMPORAL_SHATTER
-  inputs:
-  - - key:shift
-    - key:7
-- action: TOGGLE_PINCH
-  inputs:
-  - key:3
-- action: TOGGLE_SWIRL
-  inputs:
-  - - key:shift
-    - key:2
-- action: TOGGLE_RGB_TO_HSB
-  inputs:
-  - - key:shift
-    - key:2

@@ -174,25 +174,31 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec3 color2 = texture(iChannel0, finalUV).rgb;
     color = mix(color, color2, 0.5);
     
-    // Add edge darkening for 3D effect
+    // Subtle edge darkening for 3D effect (reduced to preserve color)
     vec2 edgeDist = min(finalLocalUV, 1.0 - finalLocalUV);
     float edgeFactor = min(edgeDist.x, edgeDist.y);
-    float edgeDarken = 1.0 - smoothstep(0.0, 0.12, edgeFactor) * 0.4;
+    float edgeDarken = 1.0 - smoothstep(0.0, 0.12, edgeFactor) * 0.15;
     color *= edgeDarken;
     
-    // Aggressive color shift based on tile rotation and position
-    float hueShift = rotAngle * 0.2 + distFromCenter * 2.0;
-    color = mix(color, color.gbr, abs(sin(hueShift)) * 0.3);
-    color = mix(color, color.bgr, abs(cos(hueShift * 0.7)) * 0.2);
+    // Subtle color shift based on tile rotation (preserves color intensity)
+    float hueShift = rotAngle * 0.1 + distFromCenter * 0.5;
+    // Very subtle channel mixing to add interest without destroying color
+    color = mix(color, color.gbr, abs(sin(hueShift)) * 0.08);
+    color = mix(color, color.bgr, abs(cos(hueShift * 0.7)) * 0.05);
     
     // Add brightness variation based on displacement (tiles in motion are brighter)
-    float motionBrightness = 1.0 + length(totalOffset) * 0.5;
+    float motionBrightness = 1.0 + length(totalOffset) * 0.3;
     color *= motionBrightness;
     
-    // Add some tiles that are completely inverted
+    // Reduced inversion chance and make it less aggressive
     float invertChance = rand1.x;
-    if (invertChance > 0.7) {
-        color = 1.0 - color;
+    if (invertChance > 0.85) {
+        // Invert but preserve luminance to keep it colorful
+        float lum = dot(color, vec3(0.299, 0.587, 0.114));
+        color = mix(1.0 - color, color, 0.3);
+        // Restore some original color
+        vec3 originalColor = mix(color, color2, 0.5);
+        color = mix(color, originalColor, 0.4);
     }
     
     // Intensity fade
