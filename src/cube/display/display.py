@@ -44,7 +44,10 @@ class Display:
                 backend_type = self._detect_backend(**kwargs)
             
             self.backend_type = backend_type
+            print(f"Creating backend: {backend_type}")
+            print(f"Width: {width}, Height: {height}, kwargs: {kwargs}")
             self.backend = self._create_backend(backend_type, width, height, **kwargs)
+            print(f"Backend created: {self.backend}")
 
         # Use backend's actual framebuffer dimensions (may be scaled)
         self.width = self.backend.width

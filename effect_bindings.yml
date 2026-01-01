@@ -67,8 +67,7 @@ bindings:
   inputs:
   - key:2
   - midi:note_37
-- action: TOGGLE_SHAKE
+- action: TOGGLE_GEOMETRY_DESTRUCTION
   inputs:
-  - midi:note_51
   - - key:shift
     - key:8

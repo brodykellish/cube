@@ -148,3 +148,8 @@ effects:
     shader: shaders/effects/vhs_distortion.glsl
     node_class: EffectNode
     trigger_mode: toggle
+
+  - action: TOGGLE_GEOMETRY_DESTRUCTION
+    shader: shaders/effects/geometry_destruction.glsl
+    node_class: EffectNode
+    trigger_mode: toggle
