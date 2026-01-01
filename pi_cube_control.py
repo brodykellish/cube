@@ -469,7 +469,19 @@ class PiCubeController:
             # We need to render it ourselves since we're not using MenuWindow
             self.dev_menu_ui.menu_layer[:, :, :] = 0
             self.dev_menu_ui.navigator.render(self.dev_menu_ui.renderer)
-            menu_layer[:, :, :] = self.dev_menu_ui.menu_layer[:, :, :]
+            # Copy menu layer to display layer (handle size mismatch if needed)
+            menu_h, menu_w = self.dev_menu_ui.menu_layer.shape[:2]
+            layer_h, layer_w = menu_layer.shape[:2]
+            copy_h = min(menu_h, layer_h)
+            copy_w = min(menu_w, layer_w)
+            menu_layer[:copy_h, :copy_w] = self.dev_menu_ui.menu_layer[:copy_h, :copy_w]
+            
+            # Debug: verify menu has content
+            if not hasattr(self, '_menu_debug_shown'):
+                menu_content = np.any(self.dev_menu_ui.menu_layer > 0)
+                print(f"[PI] Menu layer size: {menu_h}×{menu_w}, Display layer size: {layer_h}×{layer_w}")
+                print(f"[PI] Menu has content: {menu_content}")
+                self._menu_debug_shown = True
         
         # Render visualization (layer 1) - if running
         if self.visualization_running and self._renderer and self._dag:
@@ -539,6 +551,18 @@ class PiCubeController:
             debug_layer[debug_start_y:, :] = debug_fb
         
         # Composite and display
+        # Debug: check if any layer has content
+        menu_has_content = np.any(menu_layer > 0)
+        viz_has_content = np.any(viz_layer > 0)
+        debug_has_content = np.any(debug_layer > 0)
+        
+        if not menu_has_content and not viz_has_content and not debug_has_content:
+            # At least render a test pattern to verify display is working
+            if not hasattr(self, '_test_pattern_shown'):
+                print("[PI] Warning: No content in any layer, rendering test pattern")
+                menu_layer[::10, ::10] = [255, 255, 255]  # White dots every 10 pixels
+                self._test_pattern_shown = True
+        
         self.display.show(
             brightness=self.settings.get('brightness', 60.0),
             gamma=self.settings.get('gamma', 2.2)
