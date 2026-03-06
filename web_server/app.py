@@ -31,17 +31,18 @@ from cube.services import ConfigurationService, EffectRegistry, ParameterSourceM
 
 # Import streaming worker (will be initialized when streaming starts)
 from streaming_worker import StreamingWorker
+from visualization_manager import VisualizationManager
 
 
-def create_app(api: Optional[VisualizationAPI] = None):
+def create_app(viz_manager: Optional[VisualizationManager] = None):
     """
     Create and configure Flask application with SocketIO.
 
     Args:
-        api: Optional VisualizationAPI instance (created if not provided)
+        viz_manager: Optional VisualizationManager instance (created if not provided)
 
     Returns:
-        Tuple of (Flask app, SocketIO instance)
+        Tuple of (Flask app, SocketIO instance, VisualizationManager instance)
     """
     app = Flask(__name__)
     CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for frontend and WebSocket
@@ -55,32 +56,19 @@ def create_app(api: Optional[VisualizationAPI] = None):
         ping_interval=25
     )
     
-    # Initialize API if not provided
-    if api is None:
-        # Find project root
-        project_root = Path(__file__).parent.parent
-        
-        # Initialize MIDI
-        midi_state = MIDIState(num_channels=8)
-        midi_config = load_midi_config()
-        usb_midi = None
-        try:
-            usb_midi = USBMIDIDriver(midi_state, midi_config)
-        except Exception:
-            pass  # USB MIDI optional
-        
-        # Create API
-        api = VisualizationAPI(
-            width=64,
+    # Initialize visualization manager if not provided
+    if viz_manager is None:
+        print("[WebServer] Creating visualization manager...")
+        viz_manager = VisualizationManager(
+            width=384,
             height=64,
             num_panels=6,
-            scale=1,
-            midi_state=midi_state,
-            usb_midi=usb_midi,
+            fps=60,
+            headless=False  # Set to True to hide window
         )
-    
-    # Store API and SocketIO in app context
-    app.config['viz_api'] = api
+
+    # Store visualization manager and SocketIO in app context
+    app.config['viz_manager'] = viz_manager
     app.config['socketio'] = socketio
     app.config['project_root'] = Path(__file__).parent.parent
 
@@ -105,7 +93,7 @@ def create_app(api: Optional[VisualizationAPI] = None):
     register_routes(app)
     register_socketio_handlers(socketio, app)
 
-    return app, socketio
+    return app, socketio, viz_manager
 
 
 def register_routes(app: Flask):
@@ -639,7 +627,7 @@ def register_routes(app: Flask):
     @app.route('/api/streaming/start', methods=['POST'])
     def start_streaming():
         """Start video streaming to web clients."""
-        api = app.config['viz_api']
+        viz_manager = app.config['viz_manager']
         socketio = app.config['socketio']
         data = request.get_json() or {}
 
@@ -657,14 +645,20 @@ def register_routes(app: Flask):
                     'stats': streaming_worker.get_stats()
                 })
 
-            # Get framebuffer queue from API
-            framebuffer_queue = api._framebuffer_queue
+            # Get framebuffer queue from visualization manager
+            if not viz_manager.is_running():
+                return jsonify({
+                    'success': False,
+                    'error': 'Visualization not running'
+                }), 400
+
+            framebuffer_queue = viz_manager.framebuffer_queue
 
             if framebuffer_queue is None:
                 return jsonify({
                     'success': False,
-                    'error': 'Visualization not running - start visualization first'
-                }), 400
+                    'error': 'Framebuffer queue not available'
+                }), 500
 
             # Create and start streaming worker
             streaming_worker = StreamingWorker(
@@ -777,7 +771,22 @@ def register_socketio_handlers(socketio, app):
 
 
 if __name__ == '__main__':
-    app, socketio = create_app()
+    print("[WebServer] Starting LED Cube Web Server...")
+
+    # Create app and visualization manager
+    app, socketio, viz_manager = create_app()
+
+    # Initialize visualization (must be on main thread for macOS OpenGL)
+    print("[WebServer] Initializing visualization...")
+    viz_manager.initialize()
+
+    # Start visualization in background thread
+    print("[WebServer] Starting visualization thread...")
+    viz_manager.start()
+
+    print("[WebServer] Visualization running, starting web server...")
+    print(f"[WebServer] Test page: http://localhost:5001/static/test_api.html")
+
     # Use socketio.run() instead of app.run() for WebSocket support
     socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
 
