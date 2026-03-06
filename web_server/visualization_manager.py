@@ -133,21 +133,11 @@ class VisualizationManager:
             framebuffer_queue=self.framebuffer_queue
         )
 
-        # Initialize effect system
-        project_root = Path(__file__).parent.parent
-        effects_config_path = project_root / 'effects_config.yml'
-
-        if effects_config_path.exists():
-            effect_config = load_effect_config(str(effects_config_path))
-            self.effect_manager = EffectManager.from_config(effect_config)
-            print(f"[VizManager] Loaded {len(self.effect_manager.effects)} effects")
-        else:
-            print("[VizManager] Warning: effects_config.yml not found")
-            self.effect_manager = EffectManager()
-
-        # Create DAG and parameter store
-        self.dag = DAG()
-        self.parameter_store = ParameterStore()
+        # DAG and effects will be created by the visualization runner
+        # We don't create them here because EffectManager needs the renderer
+        self.dag = None
+        self.effect_manager = None
+        self.parameter_store = None
 
         self._initialized = True
         print("[VizManager] Initialization complete")
