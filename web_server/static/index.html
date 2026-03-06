@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED Cube Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #fff;
+            font-size: 32px;
+        }
+
+        .status-bar {
+            text-align: center;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #888;
+        }
+
+        .status-bar.connected {
+            background: #1a3a1a;
+            color: #4caf50;
+        }
+
+        .section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            color: #fff;
+            margin-bottom: 15px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badge {
+            background: #333;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: normal;
+            color: #888;
+        }
+
+        /* Video Section */
+        #videoCanvas {
+            width: 100%;
+            max-width: 1200px;
+            height: auto;
+            background: #000;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto 10px auto;
+            cursor: pointer;
+        }
+
+        #videoCanvas:hover {
+            box-shadow: 0 0 20px rgba(100, 100, 255, 0.3);
+        }
+
+        .video-stats {
+            text-align: center;
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .card {
+            background: #252525;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .card:hover {
+            border-color: #4a90e2;
+            background: #2a2a2a;
+            transform: translateY(-2px);
+        }
+
+        .card.active {
+            border-color: #4caf50;
+            background: #1a2e1a;
+        }
+
+        .card.loading {
+            border-color: #ff9800;
+            opacity: 0.7;
+        }
+
+        .card-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .card-subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .card-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #4caf50;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        /* Filter Buttons */
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .filter-btn {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #aaa;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            border-color: #4a90e2;
+            color: #fff;
+        }
+
+        .filter-btn.active {
+            background: #4a90e2;
+            border-color: #4a90e2;
+            color: #fff;
+        }
+
+        /* Parameters */
+        .param-control {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: #252525;
+            border-radius: 6px;
+        }
+
+        .param-label {
+            min-width: 70px;
+            font-weight: 600;
+            color: #fff;
+            font-size: 13px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #3a3a3a;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #4a90e2;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #4a90e2;
+            cursor: pointer;
+            border: none;
+        }
+
+        .param-value {
+            min-width: 50px;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            color: #4a90e2;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        /* Search */
+        .search-box {
+            width: 100%;
+            padding: 12px;
+            background: #252525;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #4a90e2;
+        }
+
+        /* Loading indicator */
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #444;
+            border-top-color: #4a90e2;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 LED Cube Control</h1>
+        <div class="status-bar" id="statusBar">Connecting...</div>
+
+        <!-- Video Section -->
+        <div class="section">
+            <h2>📹 Live Preview</h2>
+            <canvas id="videoCanvas" width="768" height="128"></canvas>
+            <div class="video-stats" id="videoStats">No visualization loaded</div>
+        </div>
+
+        <!-- Shader Browser -->
+        <div class="section">
+            <h2>🎨 Shaders <span class="badge" id="shaderCount">0</span></h2>
+            <input type="text" class="search-box" id="shaderSearch" placeholder="Search shaders...">
+            <div class="filter-group" id="shaderFilters"></div>
+            <div class="grid" id="shaderGrid"></div>
+        </div>
+
+        <!-- Parameters -->
+        <div class="section">
+            <h2>🎛️ Parameters</h2>
+            <div id="parameterControls"></div>
+        </div>
+
+        <!-- Effects -->
+        <div class="section">
+            <h2>✨ Effects <span class="badge" id="effectCount">0</span></h2>
+            <div class="grid" id="effectsGrid"></div>
+        </div>
+
+        <!-- Configurations -->
+        <div class="section">
+            <h2>⚙️ Presets <span class="badge" id="configCount">0</span></h2>
+            <div class="grid" id="configsGrid"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.0/socket.io.min.js"></script>
+    <script>
+        const API_BASE = 'http://localhost:5001';
+        let socket = null;
+        let fpsCounter = { frames: 0, lastTime: Date.now(), fps: 0 };
+        let allShaders = [];
+        let currentFilter = 'all';
+        let currentShader = null;
+
+        // Connect WebSocket
+        function connectWebSocket() {
+            socket = io(API_BASE);
+
+            socket.on('connect', () => {
+                console.log('[WebSocket] Connected');
+                updateStatusBar('connected', '✓ Connected');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('[WebSocket] Disconnected');
+                updateStatusBar('disconnected', '✗ Disconnected');
+            });
+
+            socket.on('video_frame', (data) => {
+                renderFrame(data);
+                updateFPS();
+            });
+
+            socket.on('visualization_loaded', (data) => {
+                console.log('[WebSocket] Visualization loaded:', data);
+                currentShader = data.path;
+                updateStatusBar('connected', `✓ ${data.type}: ${data.path.split('/').pop()}`);
+            });
+
+            socket.on('effects_changed', (data) => {
+                console.log('[WebSocket] Effects changed:', data.active_effects);
+            });
+        }
+
+        function updateStatusBar(status, text) {
+            const bar = document.getElementById('statusBar');
+            bar.textContent = text;
+            bar.className = 'status-bar ' + status;
+        }
+
+        function renderFrame(data) {
+            const canvas = document.getElementById('videoCanvas');
+            const ctx = canvas.getContext('2d');
+
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const latency = Math.round((Date.now() / 1000 - data.timestamp) * 1000);
+                document.getElementById('videoStats').textContent =
+                    `${fpsCounter.fps.toFixed(1)} FPS | ${latency}ms latency`;
+            };
+            img.src = 'data:image/jpeg;base64,' + data.data;
+        }
+
+        function updateFPS() {
+            fpsCounter.frames++;
+            const now = Date.now();
+            const elapsed = (now - fpsCounter.lastTime) / 1000;
+            if (elapsed >= 1.0) {
+                fpsCounter.fps = fpsCounter.frames / elapsed;
+                fpsCounter.frames = 0;
+                fpsCounter.lastTime = now;
+            }
+        }
+
+        // Load and display shaders
+        async function loadShaders() {
+            try {
+                const response = await fetch(`${API_BASE}/api/resources/shaders`);
+                const data = await response.json();
+
+                if (data.success && data.shaders) {
+                    allShaders = data.shaders;
+                    document.getElementById('shaderCount').textContent = allShaders.length;
+
+                    // Get unique categories
+                    const categories = [...new Set(allShaders.map(s => s.category))].sort();
+                    renderCategoryFilters(categories);
+
+                    // Render shaders
+                    filterShaders();
+                }
+            } catch (error) {
+                console.error('[Shaders] Error loading:', error);
+            }
+        }
+
+        function renderCategoryFilters(categories) {
+            const container = document.getElementById('shaderFilters');
+            container.innerHTML = '';
+
+            // All button
+            const allBtn = document.createElement('button');
+            allBtn.className = 'filter-btn active';
+            allBtn.textContent = 'All';
+            allBtn.onclick = () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                allBtn.classList.add('active');
+                currentFilter = 'all';
+                filterShaders();
+            };
+            container.appendChild(allBtn);
+
+            // Category buttons
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = 'filter-btn';
+                btn.textContent = cat;
+                btn.onclick = () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilter = cat;
+                    filterShaders();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function filterShaders() {
+            const search = document.getElementById('shaderSearch').value.toLowerCase();
+            const filtered = allShaders.filter(shader => {
+                const matchesCategory = currentFilter === 'all' || shader.category === currentFilter;
+                const matchesSearch = shader.name.toLowerCase().includes(search) ||
+                                     shader.path.toLowerCase().includes(search);
+                return matchesCategory && matchesSearch;
+            });
+
+            renderShaderGrid(filtered);
+        }
+
+        function renderShaderGrid(shaders) {
+            const grid = document.getElementById('shaderGrid');
+            grid.innerHTML = '';
+
+            shaders.forEach(shader => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                if (currentShader === shader.path) {
+                    card.classList.add('active');
+                    card.innerHTML += '<div class="card-badge">ACTIVE</div>';
+                }
+
+                card.innerHTML += `
+                    <div class="card-title">${shader.name}</div>
+                    <div class="card-subtitle">${shader.category}</div>
+                    <div class="card-subtitle">${(shader.size_bytes / 1024).toFixed(1)} KB</div>
+                `;
+
+                card.onclick = () => loadShader(shader.path, card);
+                grid.appendChild(card);
+            });
+        }
+
+        async function loadShader(shaderPath, cardElement) {
+            console.log('[Shader] Loading:', shaderPath);
+
+            // Visual feedback
+            cardElement.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/visualization/shader`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shader_path: shaderPath })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    console.log('[Shader] Loaded successfully');
+                    currentShader = shaderPath;
+
+                    // Update all cards
+                    document.querySelectorAll('#shaderGrid .card').forEach(c => {
+                        c.classList.remove('active', 'loading');
+                        c.querySelector('.card-badge')?.remove();
+                    });
+
+                    cardElement.classList.add('active');
+                    cardElement.innerHTML += '<div class="card-badge">ACTIVE</div>';
+                } else {
+                    console.error('[Shader] Failed:', data.error);
+                    cardElement.classList.remove('loading');
+                }
+            } catch (error) {
+                console.error('[Shader] Error:', error);
+                cardElement.classList.remove('loading');
+            }
+        }
+
+        // Parameters
+        function initParameterControls() {
+            const container = document.getElementById('parameterControls');
+
+            for (let i = 0; i < 8; i++) {
+                const div = document.createElement('div');
+                div.className = 'param-control';
+                div.innerHTML = `
+                    <span class="param-label">iParam${i}</span>
+                    <input type="range" id="param${i}" min="0" max="100" value="50">
+                    <span class="param-value" id="paramValue${i}">0.50</span>
+                `;
+                container.appendChild(div);
+
+                // Add event listener
+                const slider = div.querySelector('input');
+                slider.addEventListener('input', (e) => {
+                    const value = parseFloat(e.target.value) / 100;
+                    document.getElementById(`paramValue${i}`).textContent = value.toFixed(2);
+
+                    if (socket && socket.connected) {
+                        socket.emit('set_parameter', {
+                            param_id: `iParam${i}`,
+                            value: value
+                        });
+                    }
+                });
+            }
+        }
+
+        // Effects
+        async function loadEffects() {
+            try {
+                const response = await fetch(`${API_BASE}/api/effects`);
+                const data = await response.json();
+
+                if (data.success && data.effects) {
+                    document.getElementById('effectCount').textContent = data.effects.length;
+                    renderEffectsGrid(data.effects);
+                }
+            } catch (error) {
+                console.error('[Effects] Error loading:', error);
+            }
+        }
+
+        function renderEffectsGrid(effects) {
+            const grid = document.getElementById('effectsGrid');
+            grid.innerHTML = '';
+
+            effects.forEach(effect => {
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                if (effect.is_active) {
+                    card.classList.add('active');
+                    card.innerHTML += '<div class="card-badge">ON</div>';
+                }
+
+                card.innerHTML += `
+                    <div class="card-title">${effect.display_name || effect.action}</div>
+                    <div class="card-subtitle">${effect.category || 'effect'}</div>
+                    <div class="card-subtitle">Key: ${effect.keybinding || 'none'}</div>
+                `;
+
+                card.onclick = () => toggleEffect(effect.action, card);
+                grid.appendChild(card);
+            });
+        }
+
+        function toggleEffect(action, cardElement) {
+            console.log('[Effect] Toggling:', action);
+
+            if (socket && socket.connected) {
+                socket.emit('toggle_effect', { effect_action: action });
+
+                // Toggle visual state
+                cardElement.classList.toggle('active');
+                const badge = cardElement.querySelector('.card-badge');
+                if (badge) {
+                    badge.remove();
+                } else {
+                    cardElement.innerHTML += '<div class="card-badge">ON</div>';
+                }
+            }
+        }
+
+        // Configurations
+        async function loadConfigs() {
+            try {
+                const response = await fetch(`${API_BASE}/api/configs`);
+                const data = await response.json();
+
+                if (data.success && data.configs) {
+                    document.getElementById('configCount').textContent = data.configs.length;
+                    renderConfigsGrid(data.configs);
+                }
+            } catch (error) {
+                console.error('[Configs] Error loading:', error);
+            }
+        }
+
+        function renderConfigsGrid(configs) {
+            const grid = document.getElementById('configsGrid');
+            grid.innerHTML = '';
+
+            configs.forEach(config => {
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                card.innerHTML = `
+                    <div class="card-title">${config.metadata?.name || config.filename}</div>
+                    <div class="card-subtitle">${config.metadata?.description || 'No description'}</div>
+                    <div class="card-subtitle">Tags: ${config.metadata?.tags?.join(', ') || 'none'}</div>
+                `;
+
+                card.onclick = () => loadConfig(config.filename, card);
+                grid.appendChild(card);
+            });
+        }
+
+        async function loadConfig(configPath, cardElement) {
+            console.log('[Config] Loading:', configPath);
+            cardElement.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/visualization/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config_path: configPath })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    console.log('[Config] Loaded successfully');
+                } else {
+                    console.error('[Config] Failed:', data.error);
+                }
+
+                cardElement.classList.remove('loading');
+            } catch (error) {
+                console.error('[Config] Error:', error);
+                cardElement.classList.remove('loading');
+            }
+        }
+
+        // Search handler
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('shaderSearch').addEventListener('input', filterShaders);
+        });
+
+        // Initialize
+        window.onload = () => {
+            connectWebSocket();
+            initParameterControls();
+            loadShaders();
+            loadEffects();
+            loadConfigs();
+
+            console.log('[UI] LED Cube Control Ready');
+        };
+    </script>
+</body>
+</html>

@@ -96,6 +96,11 @@ def create_app(controller: Optional[UnifiedController] = None):
 def register_routes(app: Flask):
     """Register all API routes."""
     
+    @app.route('/')
+    def index():
+        """Serve main UI."""
+        return app.send_static_file('index.html')
+
     @app.route('/api/health', methods=['GET'])
     def health():
         """Health check endpoint."""
@@ -864,10 +869,15 @@ if __name__ == '__main__':
     controller.start()
 
     print("[WebServer] System running!")
-    print(f"[WebServer] Test page: http://localhost:5001/static/test_api.html")
-    print(f"[WebServer] 1. Open test page in browser")
-    print(f"[WebServer] 2. Click 'List All Shaders' and click a shader")
-    print(f"[WebServer] 3. Video will auto-stream and you can control via WebSocket")
+    print(f"[WebServer] ")
+    print(f"[WebServer] 🎨 Open in browser: http://localhost:5001")
+    print(f"[WebServer] ")
+    print(f"[WebServer] Quick Start:")
+    print(f"[WebServer] 1. Click any shader to load it")
+    print(f"[WebServer] 2. Video will auto-stream")
+    print(f"[WebServer] 3. Adjust parameters with sliders")
+    print(f"[WebServer] 4. Click effects to toggle them")
+    print(f"[WebServer] ")
 
     # Use socketio.run() instead of app.run() for WebSocket support
     socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
