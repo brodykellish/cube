@@ -27,7 +27,7 @@ from cube.midi.midi_state import MIDIState
 from cube.midi.usb_driver import USBMIDIDriver
 from cube.midi.config_loader import load_midi_config
 from cube.render.effect_config_loader import load_effect_config
-from cube.services import ConfigurationService, EffectRegistry, ParameterSourceManager
+from cube.services import ConfigurationService, EffectRegistry, ParameterSourceManager, ResourceCatalog
 
 # Import streaming worker (will be initialized when streaming starts)
 from web_server.streaming_worker import StreamingWorker
@@ -92,6 +92,11 @@ def create_app(api: Optional[VisualizationAPI] = None):
         project_root / 'effect_bindings.yml'
     )
     app.config['param_source_manager'] = ParameterSourceManager()
+    app.config['resource_catalog'] = ResourceCatalog(
+        shaders_dir=project_root / 'shaders',
+        videos_dir=project_root / 'videos',
+        cache_ttl=60  # 60 second cache
+    )
 
     # Streaming worker (initialized when streaming starts)
     app.config['streaming_worker'] = None
@@ -244,49 +249,98 @@ def register_routes(app: Flask):
     
     @app.route('/api/resources/shaders', methods=['GET'])
     def get_shaders():
-        """Get list of available shader files organized by directory."""
-        project_root = app.config['project_root']
-        shaders_dir = project_root / 'shaders'
-        
-        shaders = {}
-        if shaders_dir.exists():
-            for subdir in shaders_dir.iterdir():
-                if subdir.is_dir():
-                    shader_files = []
-                    for glsl_file in sorted(subdir.glob('*.glsl')):
-                        shader_files.append({
-                            'name': glsl_file.stem,
-                            'path': str(glsl_file.relative_to(project_root)),
-                            'full_path': str(glsl_file),
-                        })
-                    if shader_files:
-                        shaders[subdir.name] = shader_files
-        
-        return jsonify(shaders)
-    
+        """Get list of available shader files (cached)."""
+        resource_catalog = app.config['resource_catalog']
+        category = request.args.get('category')
+        refresh = request.args.get('refresh', 'false').lower() == 'true'
+
+        try:
+            if category:
+                # Get specific category
+                shaders = resource_catalog.get_shaders(category=category, force_refresh=refresh)
+                return jsonify({
+                    'success': True,
+                    'shaders': [s.to_dict() for s in shaders]
+                })
+            else:
+                # Get all shaders organized by category
+                categories = resource_catalog.get_shader_categories(force_refresh=refresh)
+                result = {
+                    cat: [s.to_dict() for s in shaders]
+                    for cat, shaders in categories.items()
+                }
+                return jsonify(result)
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/resources/videos', methods=['GET'])
     def get_videos():
-        """Get list of available video files organized by directory."""
-        project_root = app.config['project_root']
-        videos_dir = project_root / 'videos'
-        
-        videos = {}
-        if videos_dir.exists():
-            for subdir in videos_dir.iterdir():
-                if subdir.is_dir():
-                    video_files = []
-                    video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.m4v']
-                    for ext in video_extensions:
-                        for video_file in sorted(subdir.glob(f'*{ext}')):
-                            video_files.append({
-                                'name': video_file.stem,
-                                'path': str(video_file.relative_to(project_root)),
-                                'full_path': str(video_file),
-                            })
-                    if video_files:
-                        videos[subdir.name] = video_files
-        
-        return jsonify(videos)
+        """Get list of available video files (cached)."""
+        resource_catalog = app.config['resource_catalog']
+        category = request.args.get('category')
+        refresh = request.args.get('refresh', 'false').lower() == 'true'
+
+        try:
+            if category:
+                # Get specific category
+                videos = resource_catalog.get_videos(category=category, force_refresh=refresh)
+                return jsonify({
+                    'success': True,
+                    'videos': [v.to_dict() for v in videos]
+                })
+            else:
+                # Get all videos organized by category
+                categories = resource_catalog.get_video_categories(force_refresh=refresh)
+                result = {
+                    cat: [v.to_dict() for v in videos]
+                    for cat, videos in categories.items()
+                }
+                return jsonify(result)
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/resources/search', methods=['GET'])
+    def search_resources():
+        """Search both shaders and videos."""
+        resource_catalog = app.config['resource_catalog']
+        query = request.args.get('q', '')
+        resource_type = request.args.get('type', 'all')  # 'shaders', 'videos', or 'all'
+
+        if not query:
+            return jsonify({'success': False, 'error': 'Missing query parameter'}), 400
+
+        try:
+            results = {}
+
+            if resource_type in ['shaders', 'all']:
+                shaders = resource_catalog.search_shaders(query)
+                results['shaders'] = [s.to_dict() for s in shaders]
+
+            if resource_type in ['videos', 'all']:
+                videos = resource_catalog.search_videos(query)
+                results['videos'] = [v.to_dict() for v in videos]
+
+            return jsonify({
+                'success': True,
+                'query': query,
+                'results': results
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/resources/stats', methods=['GET'])
+    def get_resource_stats():
+        """Get resource catalog statistics."""
+        resource_catalog = app.config['resource_catalog']
+
+        try:
+            stats = resource_catalog.get_stats()
+            return jsonify({
+                'success': True,
+                'stats': stats
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/api/audio/stats', methods=['GET'])
     def get_audio_stats():
