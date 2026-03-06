@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED Cube API Test Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .output {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin-left: 10px;
+            font-size: 12px;
+        }
+
+        .status.success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .status.error {
+            background: #f44336;
+            color: white;
+        }
+
+        .status.loading {
+            background: #ff9800;
+            color: white;
+        }
+
+        input[type="range"] {
+            width: 200px;
+            margin: 0 10px;
+        }
+
+        .param-control {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+
+        .param-label {
+            min-width: 80px;
+            font-weight: bold;
+        }
+
+        .param-value {
+            min-width: 50px;
+            text-align: center;
+            font-family: monospace;
+        }
+
+        #videoCanvas {
+            width: 100%;
+            max-width: 768px;
+            height: auto;
+            background: black;
+            border-radius: 5px;
+            display: block;
+            margin: 10px auto;
+        }
+
+        .stream-stats {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .card {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            border: 2px solid #e0e0e0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .card.active {
+            border-color: #4caf50;
+            background: #e8f5e9;
+        }
+
+        .card-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .card-subtitle {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 LED Cube Web API Test Console</h1>
+
+        <!-- Video Streaming Section -->
+        <div class="section">
+            <h2>📹 Video Streaming</h2>
+            <div class="button-group">
+                <button onclick="startStreaming()">Start Stream</button>
+                <button onclick="stopStreaming()">Stop Stream</button>
+                <button onclick="getStreamStatus()">Get Status</button>
+            </div>
+            <canvas id="videoCanvas" width="768" height="128"></canvas>
+            <div class="stream-stats" id="streamStats">Stream not active</div>
+            <div class="output" id="streamOutput"></div>
+        </div>
+
+        <!-- Parameter Control Section -->
+        <div class="section">
+            <h2>🎛️ Parameter Control</h2>
+            <div id="parameterControls"></div>
+            <div class="button-group">
+                <button onclick="getParameterSources()">Get All Sources</button>
+                <button onclick="lockParam0()">Lock iParam0 to Web</button>
+                <button onclick="unlockParam0()">Unlock iParam0</button>
+            </div>
+            <div class="output" id="paramOutput"></div>
+        </div>
+
+        <!-- Effects Section -->
+        <div class="section">
+            <h2>✨ Effect Registry</h2>
+            <div class="button-group">
+                <button onclick="getAllEffects()">Get All Effects</button>
+                <button onclick="getActiveEffects()">Get Active Effects</button>
+                <button onclick="searchEffects('spiral')">Search "spiral"</button>
+                <button onclick="getEffectsByCategory('shaders')">Category: Shaders</button>
+            </div>
+            <div id="effectsGrid" class="grid"></div>
+            <div class="output" id="effectsOutput"></div>
+        </div>
+
+        <!-- Configuration Section -->
+        <div class="section">
+            <h2>⚙️ Configuration Service</h2>
+            <div class="button-group">
+                <button onclick="getAllConfigs()">Get All Configs</button>
+                <button onclick="searchConfigs('performance')">Search "performance"</button>
+                <button onclick="getConfigsByTag('live')">Tag: live</button>
+            </div>
+            <div id="configsGrid" class="grid"></div>
+            <div class="output" id="configsOutput"></div>
+        </div>
+
+        <!-- Resources Section -->
+        <div class="section">
+            <h2>🎨 Resource Catalog</h2>
+            <div class="button-group">
+                <button onclick="getAllShaders()">Get All Shaders</button>
+                <button onclick="getShadersByCategory('graphics')">Category: Graphics</button>
+                <button onclick="searchShaders('spiral')">Search Shaders "spiral"</button>
+                <button onclick="getResourceStats()">Get Stats</button>
+            </div>
+            <div class="output" id="resourcesOutput"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.0/socket.io.min.js"></script>
+    <script>
+        const API_BASE = 'http://localhost:5001';
+        let socket = null;
+        let streamActive = false;
+        let fpsCounter = { frames: 0, lastTime: Date.now(), fps: 0 };
+
+        // Initialize parameter controls
+        function initParameterControls() {
+            const container = document.getElementById('parameterControls');
+            for (let i = 0; i < 8; i++) {
+                const div = document.createElement('div');
+                div.className = 'param-control';
+                div.innerHTML = `
+                    <span class="param-label">iParam${i}:</span>
+                    <input type="range"
+                           id="param${i}"
+                           min="0"
+                           max="100"
+                           value="50"
+                           onchange="setParameter(${i}, this.value / 100)">
+                    <span class="param-value" id="paramValue${i}">0.50</span>
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        // API Helper Functions
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const options = {
+                method: method,
+                headers: { 'Content-Type': 'application/json' }
+            };
+            if (body) options.body = JSON.stringify(body);
+
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, options);
+                const data = await response.json();
+                return { success: response.ok, data };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        function displayOutput(elementId, data, status = 'success') {
+            const output = document.getElementById(elementId);
+            output.innerHTML = JSON.stringify(data, null, 2);
+            output.scrollTop = 0;
+        }
+
+        // Video Streaming Functions
+        function startStreaming() {
+            displayOutput('streamOutput', { status: 'Starting stream...' }, 'loading');
+
+            apiCall('/api/streaming/start', 'POST', { target_fps: 60, jpeg_quality: 80 })
+                .then(result => {
+                    displayOutput('streamOutput', result.data);
+                    if (result.success) {
+                        connectSocket();
+                    }
+                });
+        }
+
+        function stopStreaming() {
+            apiCall('/api/streaming/stop', 'POST')
+                .then(result => {
+                    displayOutput('streamOutput', result.data);
+                    if (socket) {
+                        socket.disconnect();
+                        socket = null;
+                    }
+                    streamActive = false;
+                    document.getElementById('streamStats').textContent = 'Stream stopped';
+                });
+        }
+
+        function getStreamStatus() {
+            apiCall('/api/streaming/status')
+                .then(result => {
+                    displayOutput('streamOutput', result.data);
+                });
+        }
+
+        function connectSocket() {
+            if (socket) return;
+
+            socket = io(API_BASE);
+
+            socket.on('connect', () => {
+                console.log('Socket connected');
+                streamActive = true;
+            });
+
+            socket.on('video_frame', (data) => {
+                renderFrame(data);
+                updateFPS();
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Socket disconnected');
+                streamActive = false;
+            });
+        }
+
+        function renderFrame(data) {
+            const canvas = document.getElementById('videoCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Decode base64 JPEG
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Calculate latency
+                const latency = Math.round((Date.now() / 1000 - data.timestamp) * 1000);
+                document.getElementById('streamStats').textContent =
+                    `FPS: ${fpsCounter.fps.toFixed(1)} | Latency: ${latency}ms | Format: ${data.format}`;
+            };
+            img.src = 'data:image/jpeg;base64,' + data.data;
+        }
+
+        function updateFPS() {
+            fpsCounter.frames++;
+            const now = Date.now();
+            const elapsed = (now - fpsCounter.lastTime) / 1000;
+
+            if (elapsed >= 1.0) {
+                fpsCounter.fps = fpsCounter.frames / elapsed;
+                fpsCounter.frames = 0;
+                fpsCounter.lastTime = now;
+            }
+        }
+
+        // Parameter Functions
+        function setParameter(index, value) {
+            const paramId = `iParam${index}`;
+            apiCall(`/api/parameters/${paramId}`, 'POST', { value: parseFloat(value) })
+                .then(result => {
+                    document.getElementById(`paramValue${index}`).textContent = value.toFixed(2);
+                    displayOutput('paramOutput', result.data);
+                });
+        }
+
+        function getParameterSources() {
+            apiCall('/api/parameters/sources')
+                .then(result => {
+                    displayOutput('paramOutput', result.data);
+                });
+        }
+
+        function lockParam0() {
+            apiCall('/api/parameters/iParam0/lock', 'POST', { source: 'web' })
+                .then(result => {
+                    displayOutput('paramOutput', result.data);
+                });
+        }
+
+        function unlockParam0() {
+            apiCall('/api/parameters/iParam0/unlock', 'POST')
+                .then(result => {
+                    displayOutput('paramOutput', result.data);
+                });
+        }
+
+        // Effects Functions
+        function getAllEffects() {
+            apiCall('/api/effects')
+                .then(result => {
+                    displayOutput('effectsOutput', result.data);
+                    if (result.success && result.data.effects) {
+                        renderEffectsGrid(result.data.effects);
+                    }
+                });
+        }
+
+        function getActiveEffects() {
+            apiCall('/api/effects/active')
+                .then(result => {
+                    displayOutput('effectsOutput', result.data);
+                });
+        }
+
+        function searchEffects(query) {
+            apiCall(`/api/effects/search?q=${query}`)
+                .then(result => {
+                    displayOutput('effectsOutput', result.data);
+                    if (result.success && result.data.effects) {
+                        renderEffectsGrid(result.data.effects);
+                    }
+                });
+        }
+
+        function getEffectsByCategory(category) {
+            apiCall(`/api/effects/category/${category}`)
+                .then(result => {
+                    displayOutput('effectsOutput', result.data);
+                    if (result.success && result.data.effects) {
+                        renderEffectsGrid(result.data.effects);
+                    }
+                });
+        }
+
+        function renderEffectsGrid(effects) {
+            const grid = document.getElementById('effectsGrid');
+            grid.innerHTML = '';
+
+            effects.slice(0, 20).forEach(effect => {
+                const card = document.createElement('div');
+                card.className = 'card' + (effect.is_active ? ' active' : '');
+                card.innerHTML = `
+                    <div class="card-title">${effect.display_name || effect.action}</div>
+                    <div class="card-subtitle">${effect.category || 'unknown'}</div>
+                    <div class="card-subtitle">Key: ${effect.keybinding || 'none'}</div>
+                `;
+                card.onclick = () => toggleEffect(effect.action);
+                grid.appendChild(card);
+            });
+        }
+
+        function toggleEffect(action) {
+            // Toggle effect - you'll need to check if it's active first
+            apiCall(`/api/effects/${action}/enable`, 'POST')
+                .then(result => {
+                    displayOutput('effectsOutput', result.data);
+                    getAllEffects(); // Refresh
+                });
+        }
+
+        // Configuration Functions
+        function getAllConfigs() {
+            apiCall('/api/configs')
+                .then(result => {
+                    displayOutput('configsOutput', result.data);
+                    if (result.success && result.data.configs) {
+                        renderConfigsGrid(result.data.configs);
+                    }
+                });
+        }
+
+        function searchConfigs(query) {
+            apiCall(`/api/configs/search?q=${query}`)
+                .then(result => {
+                    displayOutput('configsOutput', result.data);
+                    if (result.success && result.data.configs) {
+                        renderConfigsGrid(result.data.configs);
+                    }
+                });
+        }
+
+        function getConfigsByTag(tag) {
+            apiCall(`/api/configs/search?tags=${tag}`)
+                .then(result => {
+                    displayOutput('configsOutput', result.data);
+                    if (result.success && result.data.configs) {
+                        renderConfigsGrid(result.data.configs);
+                    }
+                });
+        }
+
+        function renderConfigsGrid(configs) {
+            const grid = document.getElementById('configsGrid');
+            grid.innerHTML = '';
+
+            configs.slice(0, 20).forEach(config => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="card-title">${config.metadata?.name || config.filename}</div>
+                    <div class="card-subtitle">${config.metadata?.description || 'No description'}</div>
+                    <div class="card-subtitle">Tags: ${config.metadata?.tags?.join(', ') || 'none'}</div>
+                `;
+                card.onclick = () => deployConfig(config.filename);
+                grid.appendChild(card);
+            });
+        }
+
+        function deployConfig(filename) {
+            if (confirm(`Deploy configuration: ${filename}?`)) {
+                apiCall(`/api/configs/${filename}/deploy`, 'POST')
+                    .then(result => {
+                        displayOutput('configsOutput', result.data);
+                    });
+            }
+        }
+
+        // Resource Functions
+        function getAllShaders() {
+            apiCall('/api/resources/shaders')
+                .then(result => {
+                    displayOutput('resourcesOutput', result.data);
+                });
+        }
+
+        function getShadersByCategory(category) {
+            apiCall(`/api/resources/shaders?category=${category}`)
+                .then(result => {
+                    displayOutput('resourcesOutput', result.data);
+                });
+        }
+
+        function searchShaders(query) {
+            apiCall(`/api/resources/shaders/search?q=${query}`)
+                .then(result => {
+                    displayOutput('resourcesOutput', result.data);
+                });
+        }
+
+        function getResourceStats() {
+            apiCall('/api/resources/stats')
+                .then(result => {
+                    displayOutput('resourcesOutput', result.data);
+                });
+        }
+
+        // Initialize on load
+        window.onload = () => {
+            initParameterControls();
+            console.log('LED Cube API Test Console Ready');
+            console.log('API Base URL:', API_BASE);
+        };
+    </script>
+</body>
+</html>

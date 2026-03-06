@@ -30,7 +30,7 @@ from cube.render.effect_config_loader import load_effect_config
 from cube.services import ConfigurationService, EffectRegistry, ParameterSourceManager, ResourceCatalog
 
 # Import streaming worker (will be initialized when streaming starts)
-from web_server.streaming_worker import StreamingWorker
+from streaming_worker import StreamingWorker
 
 
 def create_app(api: Optional[VisualizationAPI] = None):
