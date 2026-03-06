@@ -433,7 +433,15 @@
         }
 
         function filterShaders() {
-            const search = document.getElementById('shaderSearch').value.toLowerCase();
+            const searchBox = document.getElementById('shaderSearch');
+            if (!searchBox) {
+                console.error('[Search] Search box not found');
+                return;
+            }
+
+            const search = searchBox.value.toLowerCase();
+            console.log('[Search] Filtering with:', search, 'Category:', currentFilter);
+
             const filtered = allShaders.filter(shader => {
                 const matchesCategory = currentFilter === 'all' || shader.category === currentFilter;
                 const matchesSearch = shader.name.toLowerCase().includes(search) ||
@@ -441,6 +449,7 @@
                 return matchesCategory && matchesSearch;
             });
 
+            console.log('[Search] Found', filtered.length, 'shaders');
             renderShaderGrid(filtered);
         }
 
@@ -537,12 +546,17 @@
         // Effects
         async function loadEffects() {
             try {
+                console.log('[Effects] Loading...');
                 const response = await fetch(`${API_BASE}/api/effects`);
                 const data = await response.json();
+                console.log('[Effects] Received:', data);
 
                 if (data.success && data.effects) {
                     document.getElementById('effectCount').textContent = data.effects.length;
                     renderEffectsGrid(data.effects);
+                    console.log('[Effects] Rendered', data.effects.length, 'effects');
+                } else {
+                    console.error('[Effects] No effects in response:', data);
                 }
             } catch (error) {
                 console.error('[Effects] Error loading:', error);
@@ -650,11 +664,6 @@
             }
         }
 
-        // Search handler
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('shaderSearch').addEventListener('input', filterShaders);
-        });
-
         // Initialize
         window.onload = () => {
             connectWebSocket();
@@ -662,6 +671,13 @@
             loadShaders();
             loadEffects();
             loadConfigs();
+
+            // Setup search handler
+            const searchBox = document.getElementById('shaderSearch');
+            if (searchBox) {
+                searchBox.addEventListener('input', filterShaders);
+                console.log('[UI] Search handler attached');
+            }
 
             console.log('[UI] LED Cube Control Ready');
         };

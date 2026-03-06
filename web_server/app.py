@@ -228,21 +228,24 @@ def register_routes(app: Flask):
     @app.route('/api/effects', methods=['GET'])
     def get_effects():
         """Get list of available effects."""
-        project_root = app.config['project_root']
-        config_path = project_root / 'effects_config.yml'
-        effects = load_effect_config(config_path)
-        
-        effect_list = []
-        for effect in effects:
-            effect_list.append({
-                'action': effect.action.name,
-                'shader': str(effect.shader_path),
-                'node_class': effect.node_class,
-                'trigger_mode': effect.trigger_mode.value,
-                'priority': effect.priority,
-            })
-        
-        return jsonify(effect_list)
+        try:
+            effect_registry = app.config['effect_registry']
+            effects = effect_registry.get_all_effects()
+
+            effect_list = []
+            for effect in effects:
+                effect_list.append({
+                    'action': effect.action,
+                    'display_name': effect.display_name or effect.action,
+                    'category': effect.category or 'effect',
+                    'keybinding': effect.keybinding or None,
+                    'is_active': effect.is_active,
+                    'shader': effect.shader_path,
+                })
+
+            return jsonify({'success': True, 'effects': effect_list})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/api/effects/<action_name>/enable', methods=['POST'])
     def enable_effect(action_name: str):
