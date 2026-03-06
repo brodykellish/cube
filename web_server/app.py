@@ -8,12 +8,14 @@ Provides REST API endpoints for:
 - Pipeline deployment
 - Settings management
 - Resource discovery (shaders, videos, effects)
+- Video streaming (WebSocket + MJPEG)
 """
 import os
 import sys
 from pathlib import Path
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from typing import Dict, Any, Optional
 import yaml
 
@@ -27,19 +29,31 @@ from cube.midi.config_loader import load_midi_config
 from cube.render.effect_config_loader import load_effect_config
 from cube.services import ConfigurationService, EffectRegistry, ParameterSourceManager
 
+# Import streaming worker (will be initialized when streaming starts)
+from web_server.streaming_worker import StreamingWorker
 
-def create_app(api: Optional[VisualizationAPI] = None) -> Flask:
+
+def create_app(api: Optional[VisualizationAPI] = None):
     """
-    Create and configure Flask application.
-    
+    Create and configure Flask application with SocketIO.
+
     Args:
         api: Optional VisualizationAPI instance (created if not provided)
-    
+
     Returns:
-        Configured Flask app
+        Tuple of (Flask app, SocketIO instance)
     """
     app = Flask(__name__)
-    CORS(app)  # Enable CORS for frontend
+    CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for frontend and WebSocket
+
+    # Initialize SocketIO for WebSocket streaming
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",
+        async_mode='threading',  # Use threading for compatibility
+        ping_timeout=60,
+        ping_interval=25
+    )
     
     # Initialize API if not provided
     if api is None:
@@ -65,8 +79,9 @@ def create_app(api: Optional[VisualizationAPI] = None) -> Flask:
             usb_midi=usb_midi,
         )
     
-    # Store API in app context
+    # Store API and SocketIO in app context
     app.config['viz_api'] = api
+    app.config['socketio'] = socketio
     app.config['project_root'] = Path(__file__).parent.parent
 
     # Initialize services
@@ -78,10 +93,14 @@ def create_app(api: Optional[VisualizationAPI] = None) -> Flask:
     )
     app.config['param_source_manager'] = ParameterSourceManager()
 
-    # Register routes
-    register_routes(app)
+    # Streaming worker (initialized when streaming starts)
+    app.config['streaming_worker'] = None
 
-    return app
+    # Register routes and WebSocket handlers
+    register_routes(app)
+    register_socketio_handlers(socketio, app)
+
+    return app, socketio
 
 
 def register_routes(app: Flask):
@@ -559,8 +578,152 @@ def register_routes(app: Flask):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    # ========================================================================
+    # Streaming Endpoints
+    # ========================================================================
+
+    @app.route('/api/streaming/start', methods=['POST'])
+    def start_streaming():
+        """Start video streaming to web clients."""
+        api = app.config['viz_api']
+        socketio = app.config['socketio']
+        data = request.get_json() or {}
+
+        # Get optional parameters
+        target_fps = data.get('target_fps', 60)
+        jpeg_quality = data.get('jpeg_quality', 80)
+
+        try:
+            # Check if already streaming
+            streaming_worker = app.config.get('streaming_worker')
+            if streaming_worker and streaming_worker.is_running():
+                return jsonify({
+                    'success': True,
+                    'message': 'Already streaming',
+                    'stats': streaming_worker.get_stats()
+                })
+
+            # Get framebuffer queue from API
+            framebuffer_queue = api._framebuffer_queue
+
+            if framebuffer_queue is None:
+                return jsonify({
+                    'success': False,
+                    'error': 'Visualization not running - start visualization first'
+                }), 400
+
+            # Create and start streaming worker
+            streaming_worker = StreamingWorker(
+                framebuffer_queue=framebuffer_queue,
+                socketio=socketio,
+                target_fps=target_fps,
+                jpeg_quality=jpeg_quality
+            )
+            streaming_worker.start()
+
+            app.config['streaming_worker'] = streaming_worker
+
+            return jsonify({
+                'success': True,
+                'message': 'Streaming started',
+                'target_fps': target_fps,
+                'jpeg_quality': jpeg_quality
+            })
+
+        except ImportError as e:
+            return jsonify({
+                'success': False,
+                'error': 'Pillow not installed. Install with: pip install Pillow'
+            }), 500
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/streaming/stop', methods=['POST'])
+    def stop_streaming():
+        """Stop video streaming."""
+        streaming_worker = app.config.get('streaming_worker')
+
+        if not streaming_worker or not streaming_worker.is_running():
+            return jsonify({
+                'success': True,
+                'message': 'Not streaming'
+            })
+
+        try:
+            streaming_worker.stop()
+            app.config['streaming_worker'] = None
+
+            return jsonify({
+                'success': True,
+                'message': 'Streaming stopped'
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/streaming/status', methods=['GET'])
+    def get_streaming_status():
+        """Get streaming status and statistics."""
+        streaming_worker = app.config.get('streaming_worker')
+
+        if not streaming_worker or not streaming_worker.is_running():
+            return jsonify({
+                'success': True,
+                'streaming': False
+            })
+
+        try:
+            stats = streaming_worker.get_stats()
+            return jsonify({
+                'success': True,
+                'streaming': True,
+                'stats': stats
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/streaming/settings', methods=['POST'])
+    def update_streaming_settings():
+        """Update streaming quality and FPS settings."""
+        streaming_worker = app.config.get('streaming_worker')
+        data = request.get_json()
+
+        if not streaming_worker or not streaming_worker.is_running():
+            return jsonify({
+                'success': False,
+                'error': 'Not streaming'
+            }), 400
+
+        try:
+            if 'jpeg_quality' in data:
+                streaming_worker.set_quality(data['jpeg_quality'])
+
+            if 'target_fps' in data:
+                streaming_worker.set_target_fps(data['target_fps'])
+
+            return jsonify({
+                'success': True,
+                'stats': streaming_worker.get_stats()
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def register_socketio_handlers(socketio, app):
+    """Register WebSocket event handlers."""
+
+    @socketio.on('connect', namespace='/stream')
+    def handle_connect():
+        """Handle client connection to streaming namespace."""
+        print(f"[SocketIO] Client connected to /stream")
+
+    @socketio.on('disconnect', namespace='/stream')
+    def handle_disconnect():
+        """Handle client disconnection from streaming namespace."""
+        print(f"[SocketIO] Client disconnected from /stream")
+
 
 if __name__ == '__main__':
-    app = create_app()
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app, socketio = create_app()
+    # Use socketio.run() instead of app.run() for WebSocket support
+    socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
 
