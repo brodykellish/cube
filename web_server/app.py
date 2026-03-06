@@ -103,12 +103,52 @@ def register_routes(app: Flask):
     def health():
         """Health check endpoint."""
         return jsonify({'status': 'ok'})
-    
+
     @app.route('/api/status', methods=['GET'])
     def get_status():
         """Get visualization status."""
-        api = app.config['viz_api']
-        return jsonify(api.get_status_info())
+        viz_manager = app.config['viz_manager']
+        return jsonify(viz_manager.get_stats())
+
+    # ========================================================================
+    # Visualization Control Endpoints
+    # ========================================================================
+
+    @app.route('/api/visualization/shader', methods=['POST'])
+    def load_shader():
+        """Load a shader as the visualization."""
+        viz_manager = app.config['viz_manager']
+        data = request.get_json()
+
+        shader_path = data.get('shader_path')
+        if not shader_path:
+            return jsonify({'success': False, 'error': 'shader_path required'}), 400
+
+        try:
+            success = viz_manager.load_shader(shader_path)
+            if success:
+                return jsonify({'success': True, 'shader_path': shader_path})
+            return jsonify({'success': False, 'error': 'Failed to load shader'}), 500
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/visualization/config', methods=['POST'])
+    def load_config():
+        """Load a DAG configuration."""
+        viz_manager = app.config['viz_manager']
+        data = request.get_json()
+
+        config_path = data.get('config_path')
+        if not config_path:
+            return jsonify({'success': False, 'error': 'config_path required'}), 400
+
+        try:
+            success = viz_manager.load_config(config_path)
+            if success:
+                return jsonify({'success': True, 'config_path': config_path})
+            return jsonify({'success': False, 'error': 'Failed to load config'}), 500
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/api/visualization/start', methods=['POST'])
     def start_visualization():

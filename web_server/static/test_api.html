@@ -192,6 +192,18 @@
     <div class="container">
         <h1>🎨 LED Cube Web API Test Console</h1>
 
+        <!-- Visualization Control Section -->
+        <div class="section">
+            <h2>🎬 Visualization Control</h2>
+            <div class="button-group">
+                <button onclick="getAllShaders()">List All Shaders</button>
+                <button onclick="getAllConfigs()">List All Configs</button>
+                <button onclick="getVisualizationStatus()">Get Status</button>
+            </div>
+            <div id="visualizationGrid" class="grid"></div>
+            <div class="output" id="vizOutput"></div>
+        </div>
+
         <!-- Video Streaming Section -->
         <div class="section">
             <h2>📹 Video Streaming</h2>
@@ -303,6 +315,66 @@
             const output = document.getElementById(elementId);
             output.innerHTML = JSON.stringify(data, null, 2);
             output.scrollTop = 0;
+        }
+
+        // Visualization Control Functions
+        function getVisualizationStatus() {
+            apiCall('/api/status')
+                .then(result => {
+                    displayOutput('vizOutput', result.data);
+                });
+        }
+
+        function loadShader(shaderPath) {
+            displayOutput('vizOutput', { status: `Loading shader: ${shaderPath}...` });
+
+            apiCall('/api/visualization/shader', 'POST', { shader_path: shaderPath })
+                .then(result => {
+                    displayOutput('vizOutput', result.data);
+                    if (result.success) {
+                        alert(`Shader loaded: ${shaderPath}`);
+                    }
+                });
+        }
+
+        function loadConfiguration(configPath) {
+            displayOutput('vizOutput', { status: `Loading config: ${configPath}...` });
+
+            apiCall('/api/visualization/config', 'POST', { config_path: configPath })
+                .then(result => {
+                    displayOutput('vizOutput', result.data);
+                    if (result.success) {
+                        alert(`Config loaded: ${configPath}`);
+                    }
+                });
+        }
+
+        function renderVisualizationGrid(items, type) {
+            const grid = document.getElementById('visualizationGrid');
+            grid.innerHTML = '';
+
+            items.slice(0, 30).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                if (type === 'shader') {
+                    card.innerHTML = `
+                        <div class="card-title">${item.name}</div>
+                        <div class="card-subtitle">${item.category}</div>
+                        <div class="card-subtitle">${(item.size_bytes / 1024).toFixed(1)} KB</div>
+                    `;
+                    card.onclick = () => loadShader(item.path);
+                } else if (type === 'config') {
+                    card.innerHTML = `
+                        <div class="card-title">${item.metadata?.name || item.filename}</div>
+                        <div class="card-subtitle">${item.metadata?.description || 'No description'}</div>
+                        <div class="card-subtitle">Tags: ${item.metadata?.tags?.join(', ') || 'none'}</div>
+                    `;
+                    card.onclick = () => loadConfiguration(item.filename);
+                }
+
+                grid.appendChild(card);
+            });
         }
 
         // Video Streaming Functions
@@ -487,9 +559,9 @@
         function getAllConfigs() {
             apiCall('/api/configs')
                 .then(result => {
-                    displayOutput('configsOutput', result.data);
+                    displayOutput('vizOutput', result.data);
                     if (result.success && result.data.configs) {
-                        renderConfigsGrid(result.data.configs);
+                        renderVisualizationGrid(result.data.configs, 'config');
                     }
                 });
         }
@@ -544,7 +616,10 @@
         function getAllShaders() {
             apiCall('/api/resources/shaders')
                 .then(result => {
-                    displayOutput('resourcesOutput', result.data);
+                    displayOutput('vizOutput', result.data);
+                    if (result.success && result.data.shaders) {
+                        renderVisualizationGrid(result.data.shaders, 'shader');
+                    }
                 });
         }
 

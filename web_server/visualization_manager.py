@@ -167,21 +167,162 @@ class VisualizationManager:
         self._running = False
         print("[VizManager] Visualization stopped")
 
-    def deploy_pipeline(self, dag: DAG, effect_manager: EffectManager):
+    def load_shader(self, shader_path: str):
+        """
+        Load a single shader as the visualization.
+
+        Args:
+            shader_path: Path to shader file (relative to project root)
+
+        Returns:
+            bool: True if successful
+        """
+        if not self._running:
+            raise RuntimeError("Visualization not running")
+
+        try:
+            from cube.dag.dag import DAG
+            from cube.dag.source_node import SourceNode
+            from pathlib import Path
+
+            # Create simple DAG with single shader
+            dag = DAG()
+
+            # Get absolute path
+            project_root = Path(__file__).parent.parent
+            abs_shader_path = project_root / shader_path
+
+            if not abs_shader_path.exists():
+                print(f"[VizManager] Shader not found: {abs_shader_path}")
+                return False
+
+            # Access renderer from visualization runner
+            if not hasattr(self.viz_runner, '_renderer') or self.viz_runner._renderer is None:
+                print("[VizManager] Renderer not available yet")
+                return False
+
+            renderer = self.viz_runner._renderer
+
+            # Create source node
+            source_node = SourceNode(
+                name="main_shader",
+                shader_path=str(abs_shader_path),
+                width=self.width // self.num_panels,
+                height=self.height,
+                vao=renderer.vao,
+                glsl_version=renderer.get_glsl_version()
+            )
+
+            dag.add_root(source_node)
+
+            # Get or create effect manager
+            if not hasattr(self.viz_runner, '_effect_manager') or self.viz_runner._effect_manager is None:
+                from cube.render.effect_manager import EffectManager
+                effect_manager = EffectManager(renderer)
+                # Load effects from config
+                project_root = Path(__file__).parent.parent
+                effects_config_path = project_root / 'effects_config.yml'
+                if effects_config_path.exists():
+                    from cube.render.effect_config_loader import load_effect_config
+                    effect_config = load_effect_config(effects_config_path)
+                    for effect_def in effect_config.get('effects', []):
+                        effect_manager.add_effect(
+                            action=effect_def['action'],
+                            shader_path=effect_def['shader_path'],
+                            trigger_mode=effect_def['trigger_mode'],
+                            node_class=effect_def.get('node_class', 'EffectNode'),
+                            priority=effect_def.get('priority', 100)
+                        )
+            else:
+                effect_manager = self.viz_runner._effect_manager
+
+            # Deploy pipeline
+            self.dag = dag
+            self.effect_manager = effect_manager
+            self.viz_runner.deploy_pipeline(dag, effect_manager)
+
+            print(f"[VizManager] Loaded shader: {shader_path}")
+            return True
+
+        except Exception as e:
+            print(f"[VizManager] Error loading shader: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def load_config(self, config_path: str):
+        """
+        Load a DAG configuration file.
+
+        Args:
+            config_path: Path to config YAML file (relative to dag_configs/)
+
+        Returns:
+            bool: True if successful
+        """
+        if not self._running:
+            raise RuntimeError("Visualization not running")
+
+        try:
+            from pathlib import Path
+            from cube.dag.dag_decoder import DAGConfigDecoder
+
+            # Get absolute path
+            project_root = Path(__file__).parent.parent
+            abs_config_path = project_root / 'dag_configs' / config_path
+
+            if not abs_config_path.exists():
+                print(f"[VizManager] Config not found: {abs_config_path}")
+                return False
+
+            # Access renderer from visualization runner
+            if not hasattr(self.viz_runner, '_renderer') or self.viz_runner._renderer is None:
+                print("[VizManager] Renderer not available yet")
+                return False
+
+            renderer = self.viz_runner._renderer
+
+            # Load config
+            config = DAGConfigDecoder.load(abs_config_path)
+            dag = DAGConfigDecoder.decode(config, renderer)
+
+            # Get or create effect manager
+            if not hasattr(self.viz_runner, '_effect_manager') or self.viz_runner._effect_manager is None:
+                from cube.render.effect_manager import EffectManager
+                effect_manager = EffectManager(renderer)
+            else:
+                effect_manager = self.viz_runner._effect_manager
+
+            # Deploy pipeline
+            self.dag = dag
+            self.effect_manager = effect_manager
+            self.viz_runner.deploy_pipeline(dag, effect_manager)
+
+            print(f"[VizManager] Loaded config: {config_path}")
+            return True
+
+        except Exception as e:
+            print(f"[VizManager] Error loading config: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def deploy_pipeline(self, dag: DAG, effect_manager=None):
         """
         Deploy new visualization pipeline.
 
         Args:
             dag: DAG to deploy
-            effect_manager: EffectManager with active effects
+            effect_manager: Optional EffectManager with active effects
         """
         if not self._running:
             raise RuntimeError("Visualization not running")
 
         self.dag = dag
-        self.effect_manager = effect_manager
+        if effect_manager:
+            self.effect_manager = effect_manager
 
-        self.viz_runner.deploy_pipeline(dag, effect_manager)
+        self.viz_runner.deploy_pipeline(dag, effect_manager or self.effect_manager)
         print("[VizManager] Pipeline deployed")
 
     def set_parameter(self, param_id: str, value: float, source: str = 'web'):
