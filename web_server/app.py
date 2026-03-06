@@ -25,6 +25,7 @@ from cube.midi.midi_state import MIDIState
 from cube.midi.usb_driver import USBMIDIDriver
 from cube.midi.config_loader import load_midi_config
 from cube.render.effect_config_loader import load_effect_config
+from cube.services import ConfigurationService, EffectRegistry, ParameterSourceManager
 
 
 def create_app(api: Optional[VisualizationAPI] = None) -> Flask:
@@ -67,10 +68,19 @@ def create_app(api: Optional[VisualizationAPI] = None) -> Flask:
     # Store API in app context
     app.config['viz_api'] = api
     app.config['project_root'] = Path(__file__).parent.parent
-    
+
+    # Initialize services
+    project_root = Path(__file__).parent.parent
+    app.config['config_service'] = ConfigurationService(project_root / 'dag_configs')
+    app.config['effect_registry'] = EffectRegistry(
+        project_root / 'effects_config.yml',
+        project_root / 'effect_bindings.yml'
+    )
+    app.config['param_source_manager'] = ParameterSourceManager()
+
     # Register routes
     register_routes(app)
-    
+
     return app
 
 
@@ -268,6 +278,286 @@ def register_routes(app: Flask):
             'available': False,
             'message': 'Audio stats not yet implemented'
         })
+
+    # ========================================================================
+    # Configuration Management Endpoints
+    # ========================================================================
+
+    @app.route('/api/configs', methods=['GET'])
+    def list_configs():
+        """List all available configuration presets."""
+        config_service = app.config['config_service']
+        tag_filter = request.args.get('tag')
+
+        try:
+            configs = config_service.list_configs(tag_filter=tag_filter)
+            return jsonify({
+                'success': True,
+                'configs': [c.to_dict() for c in configs]
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/configs/<filename>', methods=['GET'])
+    def get_config(filename):
+        """Get a specific configuration."""
+        config_service = app.config['config_service']
+
+        try:
+            config = config_service.load_config(filename)
+            return jsonify({
+                'success': True,
+                'config': config
+            })
+        except FileNotFoundError:
+            return jsonify({'success': False, 'error': 'Config not found'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/configs', methods=['POST'])
+    def save_config():
+        """Save current DAG configuration as a preset."""
+        config_service = app.config['config_service']
+        api = app.config['viz_api']
+        data = request.get_json()
+
+        filename = data.get('filename')
+        metadata = data.get('metadata', {})
+
+        if not filename:
+            return jsonify({'success': False, 'error': 'Missing filename'}), 400
+
+        try:
+            # Get current DAG and effect manager from API
+            # This requires accessing internal viz runner state
+            # For now, return not implemented
+            return jsonify({
+                'success': False,
+                'error': 'Saving from API not yet implemented - use menu to save'
+            }), 501
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/configs/<filename>/deploy', methods=['POST'])
+    def deploy_config(filename):
+        """Load and deploy a configuration preset."""
+        config_service = app.config['config_service']
+        api = app.config['viz_api']
+
+        try:
+            # Load config
+            config = config_service.load_config(filename)
+
+            # Deploy via API (already has this functionality)
+            # Extract pipeline config from DAG config
+            pipeline_config = {
+                'sources': config.get('sources', []),
+                'effects': config.get('effects', [])
+            }
+
+            success = api.deploy_pipeline(pipeline_config)
+
+            if success:
+                return jsonify({'success': True})
+            return jsonify({'success': False, 'error': 'Failed to deploy pipeline'}), 500
+
+        except FileNotFoundError:
+            return jsonify({'success': False, 'error': 'Config not found'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/configs/<filename>', methods=['DELETE'])
+    def delete_config(filename):
+        """Delete a configuration preset."""
+        config_service = app.config['config_service']
+
+        try:
+            success = config_service.delete_config(filename)
+            if success:
+                return jsonify({'success': True})
+            return jsonify({'success': False, 'error': 'Config not found'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/configs/<filename>/validate', methods=['GET'])
+    def validate_config(filename):
+        """Validate a configuration file."""
+        config_service = app.config['config_service']
+
+        try:
+            result = config_service.validate_config(filename)
+            return jsonify({
+                'success': True,
+                'validation': result
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ========================================================================
+    # Effect Registry Endpoints
+    # ========================================================================
+
+    @app.route('/api/effects/registry', methods=['GET'])
+    def get_effects_registry():
+        """Get all effects from registry with current state."""
+        effect_registry = app.config['effect_registry']
+
+        try:
+            effects = effect_registry.get_all_effects()
+            return jsonify({
+                'success': True,
+                'effects': [e.to_dict() for e in effects]
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/effects/registry/<action_name>', methods=['GET'])
+    def get_effect_by_action(action_name):
+        """Get a specific effect by action name."""
+        effect_registry = app.config['effect_registry']
+
+        try:
+            effect = effect_registry.get_effect_by_name(action_name)
+            if effect:
+                return jsonify({
+                    'success': True,
+                    'effect': effect.to_dict()
+                })
+            return jsonify({'success': False, 'error': 'Effect not found'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/effects/registry/active', methods=['GET'])
+    def get_active_effects_registry():
+        """Get currently active effects."""
+        effect_registry = app.config['effect_registry']
+
+        try:
+            effects = effect_registry.get_active_effects()
+            return jsonify({
+                'success': True,
+                'effects': [e.to_dict() for e in effects]
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/effects/registry/search', methods=['GET'])
+    def search_effects():
+        """Search effects by name or shader path."""
+        effect_registry = app.config['effect_registry']
+        query = request.args.get('q', '')
+
+        if not query:
+            return jsonify({'success': False, 'error': 'Missing search query'}), 400
+
+        try:
+            effects = effect_registry.search_effects(query)
+            return jsonify({
+                'success': True,
+                'effects': [e.to_dict() for e in effects]
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/effects/registry/categories', methods=['GET'])
+    def get_effect_categories():
+        """Get effects grouped by category."""
+        effect_registry = app.config['effect_registry']
+
+        try:
+            categories = effect_registry.get_effect_categories()
+            result = {}
+            for category, effects in categories.items():
+                result[category] = [e.to_dict() for e in effects]
+
+            return jsonify({
+                'success': True,
+                'categories': result
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ========================================================================
+    # Parameter Source Manager Endpoints
+    # ========================================================================
+
+    @app.route('/api/parameters/sources', methods=['GET'])
+    def get_parameter_sources():
+        """Get source information for all parameters."""
+        param_source_manager = app.config['param_source_manager']
+
+        try:
+            sources = param_source_manager.get_all_sources()
+            result = {param_id: info.to_dict() for param_id, info in sources.items()}
+
+            return jsonify({
+                'success': True,
+                'sources': result
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/parameters/<param_id>/source', methods=['GET'])
+    def get_parameter_source(param_id):
+        """Get source information for a specific parameter."""
+        param_source_manager = app.config['param_source_manager']
+
+        try:
+            info = param_source_manager.get_parameter_info(param_id)
+            if info:
+                return jsonify({
+                    'success': True,
+                    'source': info.to_dict()
+                })
+            return jsonify({'success': False, 'error': 'Parameter not found'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/parameters/<param_id>/lock', methods=['POST'])
+    def lock_parameter(param_id):
+        """Lock a parameter to a specific source."""
+        param_source_manager = app.config['param_source_manager']
+        data = request.get_json()
+
+        source_str = data.get('source')
+        if not source_str:
+            return jsonify({'success': False, 'error': 'Missing source'}), 400
+
+        try:
+            from cube.services import ParameterSource
+            source = ParameterSource[source_str.upper()]
+            param_source_manager.lock_parameter(param_id, source)
+
+            return jsonify({'success': True})
+        except KeyError:
+            return jsonify({'success': False, 'error': f'Invalid source: {source_str}'}), 400
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/parameters/<param_id>/unlock', methods=['POST'])
+    def unlock_parameter(param_id):
+        """Unlock a parameter."""
+        param_source_manager = app.config['param_source_manager']
+
+        try:
+            param_source_manager.unlock_parameter(param_id)
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/parameters/conflicts', methods=['GET'])
+    def get_parameter_conflicts():
+        """Detect parameter control conflicts."""
+        param_source_manager = app.config['param_source_manager']
+
+        try:
+            conflicts = param_source_manager.detect_conflicts()
+            return jsonify({
+                'success': True,
+                'conflicts': conflicts
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':
