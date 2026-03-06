@@ -20,20 +20,27 @@ class MIDIState:
     MIN_VALUE = 0
     MAX_VALUE = 127
 
+    # System supports 8 shader parameters (iParam0-7)
+    NUM_SHADER_PARAMETERS = 8
+
     # CC channel metadata (friendly names for debugging)
     CC_NAMES = {
         0: "param0",
         1: "param1",
         2: "param2",
         3: "param3",
+        4: "param4",
+        5: "param5",
+        6: "param6",
+        7: "param7 (master intensity)",
     }
 
-    def __init__(self, num_channels: int = 4, default_value: int = 64):
+    def __init__(self, num_channels: int = 8, default_value: int = 64):
         """
         Initialize MIDI state.
 
         Args:
-            num_channels: Number of CC channels to support (default: 4)
+            num_channels: Number of CC channels to support (default: 8 for param0-7)
             default_value: Initial value for all CCs (default: 64, middle of 0-127)
         """
         self.num_channels = num_channels
@@ -53,8 +60,14 @@ class MIDIState:
             cc_num: CC number (0-127)
             value: CC value (will be clamped to 0-127)
         """
-        if cc_num < 0 or cc_num >= self.num_channels:
-            return  # Ignore unknown CCs
+        if cc_num < 0:
+            print(f"[MIDIState] WARNING: Ignoring negative CC number: {cc_num}")
+            return
+
+        if cc_num >= self.num_channels:
+            print(f"[MIDIState] ERROR: CC{cc_num} out of range! num_channels={self.num_channels}. "
+                  f"This parameter will not work. Increase num_channels to support CC{cc_num}.")
+            return
 
         # Clamp to valid MIDI range
         clamped_value = max(self.MIN_VALUE, min(self.MAX_VALUE, value))

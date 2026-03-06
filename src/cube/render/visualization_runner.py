@@ -282,7 +282,16 @@ class VisualizationRunner:
             handler_registry.register(debug_axes_handler)
             
             print("[VIZ] Parameter handlers registered")
-            
+
+            # Validate parameter configuration
+            issues = parameter_store.validate_parameters()
+            if issues:
+                print("[VIZ] Parameter validation warnings:")
+                for issue in issues:
+                    print(f"  - {issue}")
+            else:
+                print("[VIZ] All parameters validated successfully")
+
             # Create renderer (uses OpenGL context from pyglet window)
             print("[VIZ] Creating DAG renderer...")
             

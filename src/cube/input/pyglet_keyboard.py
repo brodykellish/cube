@@ -67,13 +67,27 @@ class PygletKeyboard:
                 self.paste_text = text
 
     def _map_key(self, symbol) -> Optional[str]:
-        """Map pyglet key symbol to key name."""
+        """
+        Map pyglet key symbol to logical key name.
+
+        IMPORTANT: Both shifted and unshifted variants of the same physical key
+        must map to the SAME logical name to ensure symmetric press/release events.
+
+        For example:
+        - key._1 (unshifted 1) → '1'
+        - key.EXCLAMATION (Shift+1) → '1'  (same logical key!)
+
+        This ensures that pressing and releasing a key with shift held doesn't
+        create mismatched key_held tracking.
+
+        For text input (where you want actual characters like '!'), use the
+        on_text event handler instead, which provides the typed character.
+        """
         import pyglet.window.key as key
 
         # Special keys and punctuation (normalized to a stable logical name).
         # This keeps press/release symmetric and makes shift-compounding robust
-        # across different keyboard layouts. Use the pyglet.window.key enum
-        # directly for clarity.
+        # across different keyboard layouts.
         key_map = {
             # Control / navigation
             key.ESCAPE: 'escape',
@@ -92,45 +106,47 @@ class PygletKeyboard:
             key.RSHIFT: 'shift',
         }
 
+        # Punctuation keys: BOTH shifted and unshifted map to same base key
+        # This ensures symmetric press/release behavior regardless of shift state
         unshifted_punctuation_map = {
-            # Primary punctuation row (base logical names)
-            key.BACKSLASH: '\\',
-            key.MINUS: '-',
-            key.EQUAL: '=',
-            key.BRACKETLEFT: '[',
-            key.BRACKETRIGHT: ']',
-            key.SEMICOLON: ';',
-            key.APOSTROPHE: "'",
-            key.COMMA: ',',
-            key.PERIOD: '.',
-            key.SLASH: '/',
+            key.BACKSLASH: '\\',       # \  (unshifted)
+            key.MINUS: '-',            # -  (unshifted)
+            key.EQUAL: '=',            # =  (unshifted)
+            key.BRACKETLEFT: '[',      # [  (unshifted)
+            key.BRACKETRIGHT: ']',     # ]  (unshifted)
+            key.SEMICOLON: ';',        # ;  (unshifted)
+            key.APOSTROPHE: "'",       # '  (unshifted)
+            key.COMMA: ',',            # ,  (unshifted)
+            key.PERIOD: '.',           # .  (unshifted)
+            key.SLASH: '/',            # /  (unshifted)
         }
 
         shifted_punctuation_map = {
-            # Primary punctuation row (base logical names)
-            key.BAR: '\\',
-            key.UNDERSCORE: '-',
-            key.PLUS: '=',
-            key.BRACELEFT: '[',
-            key.BRACERIGHT: ']',
-            key.COLON: ';',
-            key.DOUBLEQUOTE: "'",
-            key.LESS: ',',
-            key.GREATER: '.',
-            key.QUESTION: '/',
+            # Shift+key → SAME base logical name as unshifted
+            key.BAR: '\\',             # |  (Shift+\) → '\\'
+            key.UNDERSCORE: '-',       # _  (Shift+-) → '-'
+            key.PLUS: '=',             # +  (Shift+=) → '='
+            key.BRACELEFT: '[',        # {  (Shift+[) → '['
+            key.BRACERIGHT: ']',       # }  (Shift+]) → ']'
+            key.COLON: ';',            # :  (Shift+;) → ';'
+            key.DOUBLEQUOTE: "'",      # "  (Shift+') → "'"
+            key.LESS: ',',             # <  (Shift+,) → ','
+            key.GREATER: '.',          # >  (Shift+.) → '.'
+            key.QUESTION: '/',         # ?  (Shift+/) → '/'
         }
 
+        # Number keys: Shift+number → SAME base logical name
         shifted_number_map = {
-            key.PARENRIGHT: '0',
-            key.EXCLAMATION: '1',
-            key.AT: '2',
-            key.HASH: '3',
-            key.DOLLAR: '4',
-            key.PERCENT: '5',
-            key.ASCIICIRCUM: '6',
-            key.AMPERSAND: '7',
-            key.ASTERISK: '8',
-            key.PARENLEFT: '9',
+            key.PARENRIGHT: '0',       # )  (Shift+0) → '0'
+            key.EXCLAMATION: '1',      # !  (Shift+1) → '1'
+            key.AT: '2',               # @  (Shift+2) → '2'
+            key.HASH: '3',             # #  (Shift+3) → '3'
+            key.DOLLAR: '4',           # $  (Shift+4) → '4'
+            key.PERCENT: '5',          # %  (Shift+5) → '5'
+            key.ASCIICIRCUM: '6',      # ^  (Shift+6) → '6'
+            key.AMPERSAND: '7',        # &  (Shift+7) → '7'
+            key.ASTERISK: '8',         # *  (Shift+8) → '8'
+            key.PARENLEFT: '9',        # (  (Shift+9) → '9'
         }
 
         key_map = {**key_map, **unshifted_punctuation_map,

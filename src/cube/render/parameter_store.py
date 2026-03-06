@@ -60,6 +60,41 @@ class ParameterStore:
     def add_parameter(self, parameter: Parameter):
         """Add a parameter to the store."""
         self._parameters[parameter.id] = parameter
+
+    def validate_parameters(self) -> list[str]:
+        """
+        Validate parameter configuration and return list of issues.
+
+        This helps catch configuration errors early, especially after
+        fixing the MIDIState bug where params 4-7 were silently failing.
+
+        Returns:
+            List of warning/error messages (empty if all valid)
+        """
+        issues = []
+
+        # Check that all iParam0-7 exist
+        from ..midi.midi_state import MIDIState
+        for i in range(MIDIState.NUM_SHADER_PARAMETERS):
+            param_id = f'iParam{i}'
+            if param_id not in self._parameters:
+                issues.append(f"Missing parameter: {param_id}")
+
+        # Check parameter ranges
+        for i in range(MIDIState.NUM_SHADER_PARAMETERS):
+            param_id = f'iParam{i}'
+            param = self.get_parameter(param_id)
+            if param:
+                if param.min != 0.0 or param.max != 1.0:
+                    issues.append(f"{param_id} has non-standard range: [{param.min}, {param.max}]")
+
+        # Check that special parameters exist
+        special_params = ['iTime', 'iFrame', 'iTimeDelta', 'iSeed', 'iBeatPulse', 'iBeatPhase']
+        for param_id in special_params:
+            if param_id not in self._parameters:
+                issues.append(f"Missing special parameter: {param_id}")
+
+        return issues
     
     def get_parameter(self, id: str) -> Optional[Parameter]:
         """Get a parameter by ID."""

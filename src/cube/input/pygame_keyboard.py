@@ -30,6 +30,13 @@ class PygameKeyboard(Keyboard):
         """
         Build mapping from pygame key constants to standard key names.
 
+        NOTE: Unlike pyglet, pygame always sends the same key code regardless of
+        shift state (e.g., K_1 for both '1' and '!'). This means pygame doesn't
+        have the shifted/unshifted symmetry issue that pyglet has.
+
+        For text input where actual characters matter (like '!' vs '1'), use
+        pygame's TEXTINPUT event or the clipboard paste handling already implemented.
+
         Includes both special keys and common letter keys that need held-key detection
         (like WASD for camera controls).
         """
