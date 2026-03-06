@@ -206,15 +206,10 @@
 
         <!-- Video Streaming Section -->
         <div class="section">
-            <h2>📹 Video Streaming</h2>
-            <div class="button-group">
-                <button onclick="startStreaming()">Start Stream</button>
-                <button onclick="stopStreaming()">Stop Stream</button>
-                <button onclick="getStreamStatus()">Get Status</button>
-            </div>
+            <h2>📹 Live Video (Auto-streams when shader loads)</h2>
             <canvas id="videoCanvas" width="768" height="128"></canvas>
-            <div class="stream-stats" id="streamStats">Stream not active</div>
-            <div class="output" id="streamOutput"></div>
+            <div class="stream-stats" id="streamStats">No visualization loaded</div>
+            <div class="output" id="streamOutput">Load a shader or config above to start streaming</div>
         </div>
 
         <!-- Parameter Control Section -->
@@ -271,8 +266,39 @@
     <script>
         const API_BASE = 'http://localhost:5001';
         let socket = null;
-        let streamActive = false;
         let fpsCounter = { frames: 0, lastTime: Date.now(), fps: 0 };
+
+        // Auto-connect WebSocket on page load
+        function connectWebSocket() {
+            if (socket) return;
+
+            console.log('[WebSocket] Connecting...');
+            socket = io(API_BASE);
+
+            socket.on('connect', () => {
+                console.log('[WebSocket] Connected');
+                document.getElementById('streamStats').textContent = 'Connected - Load a visualization to see video';
+            });
+
+            socket.on('disconnect', () => {
+                console.log('[WebSocket] Disconnected');
+                document.getElementById('streamStats').textContent = 'Disconnected';
+            });
+
+            socket.on('video_frame', (data) => {
+                renderFrame(data);
+                updateFPS();
+            });
+
+            socket.on('visualization_loaded', (data) => {
+                console.log('[WebSocket] Visualization loaded:', data);
+                document.getElementById('streamStats').textContent = `Streaming: ${data.type} - ${data.path}`;
+            });
+
+            socket.on('effects_changed', (data) => {
+                console.log('[WebSocket] Effects changed:', data.active_effects);
+            });
+        }
 
         // Initialize parameter controls
         function initParameterControls() {
@@ -463,11 +489,14 @@
         // Parameter Functions
         function setParameter(index, value) {
             const paramId = `iParam${index}`;
-            apiCall(`/api/parameters/${paramId}`, 'POST', { value: parseFloat(value) })
-                .then(result => {
-                    document.getElementById(`paramValue${index}`).textContent = value.toFixed(2);
-                    displayOutput('paramOutput', result.data);
-                });
+            document.getElementById(`paramValue${index}`).textContent = value.toFixed(2);
+
+            // Send via WebSocket
+            if (socket && socket.connected) {
+                socket.emit('set_parameter', { param_id: paramId, value: parseFloat(value) });
+            } else {
+                console.warn('[Parameter] WebSocket not connected');
+            }
         }
 
         function getParameterSources() {
@@ -647,8 +676,10 @@
         // Initialize on load
         window.onload = () => {
             initParameterControls();
+            connectWebSocket();
             console.log('LED Cube API Test Console Ready');
             console.log('API Base URL:', API_BASE);
+            console.log('WebSocket will auto-connect');
         };
     </script>
 </body>

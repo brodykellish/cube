@@ -29,20 +29,19 @@ from cube.midi.config_loader import load_midi_config
 from cube.render.effect_config_loader import load_effect_config
 from cube.services import ConfigurationService, EffectRegistry, ParameterSourceManager, ResourceCatalog
 
-# Import streaming worker (will be initialized when streaming starts)
-from streaming_worker import StreamingWorker
-from visualization_manager import VisualizationManager
+# Import unified controller
+from unified_controller import UnifiedController
 
 
-def create_app(viz_manager: Optional[VisualizationManager] = None):
+def create_app(controller: Optional[UnifiedController] = None):
     """
     Create and configure Flask application with SocketIO.
 
     Args:
-        viz_manager: Optional VisualizationManager instance (created if not provided)
+        controller: Optional UnifiedController instance (created if not provided)
 
     Returns:
-        Tuple of (Flask app, SocketIO instance, VisualizationManager instance)
+        Tuple of (Flask app, SocketIO instance, UnifiedController instance)
     """
     app = Flask(__name__)
     CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for frontend and WebSocket
@@ -56,10 +55,11 @@ def create_app(viz_manager: Optional[VisualizationManager] = None):
         ping_interval=25
     )
     
-    # Initialize visualization manager if not provided
-    if viz_manager is None:
-        print("[WebServer] Creating visualization manager...")
-        viz_manager = VisualizationManager(
+    # Initialize unified controller if not provided
+    if controller is None:
+        print("[WebServer] Creating unified controller...")
+        controller = UnifiedController(
+            socketio=socketio,
             width=384,
             height=64,
             num_panels=6,
@@ -67,8 +67,8 @@ def create_app(viz_manager: Optional[VisualizationManager] = None):
             headless=False  # Set to True to hide window
         )
 
-    # Store visualization manager and SocketIO in app context
-    app.config['viz_manager'] = viz_manager
+    # Store controller and SocketIO in app context
+    app.config['controller'] = controller
     app.config['socketio'] = socketio
     app.config['project_root'] = Path(__file__).parent.parent
 
@@ -86,14 +86,11 @@ def create_app(viz_manager: Optional[VisualizationManager] = None):
         cache_ttl=60  # 60 second cache
     )
 
-    # Streaming worker (initialized when streaming starts)
-    app.config['streaming_worker'] = None
-
     # Register routes and WebSocket handlers
     register_routes(app)
     register_socketio_handlers(socketio, app)
 
-    return app, socketio, viz_manager
+    return app, socketio, controller
 
 
 def register_routes(app: Flask):
@@ -106,9 +103,9 @@ def register_routes(app: Flask):
 
     @app.route('/api/status', methods=['GET'])
     def get_status():
-        """Get visualization status."""
-        viz_manager = app.config['viz_manager']
-        return jsonify(viz_manager.get_stats())
+        """Get system status."""
+        controller = app.config['controller']
+        return jsonify(controller.get_status())
 
     # ========================================================================
     # Visualization Control Endpoints
@@ -116,8 +113,8 @@ def register_routes(app: Flask):
 
     @app.route('/api/visualization/shader', methods=['POST'])
     def load_shader():
-        """Load a shader as the visualization."""
-        viz_manager = app.config['viz_manager']
+        """Load a shader (auto-starts streaming)."""
+        controller = app.config['controller']
         data = request.get_json()
 
         shader_path = data.get('shader_path')
@@ -125,17 +122,21 @@ def register_routes(app: Flask):
             return jsonify({'success': False, 'error': 'shader_path required'}), 400
 
         try:
-            success = viz_manager.load_shader(shader_path)
+            success = controller.load_shader(shader_path)
             if success:
-                return jsonify({'success': True, 'shader_path': shader_path})
+                return jsonify({
+                    'success': True,
+                    'shader_path': shader_path,
+                    'message': 'Shader loaded and streaming started'
+                })
             return jsonify({'success': False, 'error': 'Failed to load shader'}), 500
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/visualization/config', methods=['POST'])
     def load_config():
-        """Load a DAG configuration."""
-        viz_manager = app.config['viz_manager']
+        """Load a DAG configuration (auto-starts streaming)."""
+        controller = app.config['controller']
         data = request.get_json()
 
         config_path = data.get('config_path')
@@ -143,9 +144,13 @@ def register_routes(app: Flask):
             return jsonify({'success': False, 'error': 'config_path required'}), 400
 
         try:
-            success = viz_manager.load_config(config_path)
+            success = controller.load_config(config_path)
             if success:
-                return jsonify({'success': True, 'config_path': config_path})
+                return jsonify({
+                    'success': True,
+                    'config_path': config_path,
+                    'message': 'Config loaded and streaming started'
+                })
             return jsonify({'success': False, 'error': 'Failed to load config'}), 500
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
@@ -797,35 +802,72 @@ def register_routes(app: Flask):
 
 
 def register_socketio_handlers(socketio, app):
-    """Register WebSocket event handlers."""
+    """Register WebSocket event handlers for video + controls."""
 
-    @socketio.on('connect', namespace='/stream')
+    @socketio.on('connect')
     def handle_connect():
-        """Handle client connection to streaming namespace."""
-        print(f"[SocketIO] Client connected to /stream")
+        """Handle client connection."""
+        print(f"[SocketIO] Client connected")
 
-    @socketio.on('disconnect', namespace='/stream')
+    @socketio.on('disconnect')
     def handle_disconnect():
-        """Handle client disconnection from streaming namespace."""
-        print(f"[SocketIO] Client disconnected from /stream")
+        """Handle client disconnection."""
+        print(f"[SocketIO] Client disconnected")
+
+    @socketio.on('set_parameter')
+    def handle_set_parameter(data):
+        """Handle parameter update from client."""
+        controller = app.config['controller']
+        param_id = data.get('param_id')
+        value = data.get('value')
+
+        if param_id and value is not None:
+            success = controller.set_parameter(param_id, float(value))
+            return {'success': success}
+        return {'success': False, 'error': 'Invalid parameters'}
+
+    @socketio.on('toggle_effect')
+    def handle_toggle_effect(data):
+        """Handle effect toggle from client."""
+        controller = app.config['controller']
+        effect_action = data.get('effect_action')
+
+        if effect_action:
+            success = controller.toggle_effect(effect_action)
+            return {'success': success}
+        return {'success': False, 'error': 'Invalid effect_action'}
+
+    @socketio.on('key_press')
+    def handle_key_press(data):
+        """Handle keyboard emulation from client."""
+        controller = app.config['controller']
+        key = data.get('key')
+
+        if key:
+            success = controller.emulate_key_press(key)
+            return {'success': success}
+        return {'success': False, 'error': 'Invalid key'}
 
 
 if __name__ == '__main__':
     print("[WebServer] Starting LED Cube Web Server...")
 
-    # Create app and visualization manager
-    app, socketio, viz_manager = create_app()
+    # Create app and unified controller
+    app, socketio, controller = create_app()
 
     # Initialize visualization (must be on main thread for macOS OpenGL)
-    print("[WebServer] Initializing visualization...")
-    viz_manager.initialize()
+    print("[WebServer] Initializing unified controller...")
+    controller.initialize()
 
-    # Start visualization in background thread
-    print("[WebServer] Starting visualization thread...")
-    viz_manager.start()
+    # Start visualization and streaming
+    print("[WebServer] Starting visualization and streaming...")
+    controller.start()
 
-    print("[WebServer] Visualization running, starting web server...")
+    print("[WebServer] System running!")
     print(f"[WebServer] Test page: http://localhost:5001/static/test_api.html")
+    print(f"[WebServer] 1. Open test page in browser")
+    print(f"[WebServer] 2. Click 'List All Shaders' and click a shader")
+    print(f"[WebServer] 3. Video will auto-stream and you can control via WebSocket")
 
     # Use socketio.run() instead of app.run() for WebSocket support
     socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
