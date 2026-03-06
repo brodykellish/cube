@@ -84,6 +84,15 @@ class PiomatterBackend(DisplayBackend):
         # Display via piomatter
         # Note: matrix.show() reads from the framebuffer that was passed during initialization
         # Since we're updating self.framebuffer (which is the same reference), it should work
+        
+        # Debug: verify framebuffer has content (only print once)
+        if not hasattr(self, '_fb_debug_shown'):
+            has_content = np.any(self.framebuffer > 0)
+            max_val = self.framebuffer.max()
+            print(f"[PiomatterBackend] Framebuffer check - has content: {has_content}, max value: {max_val}, shape: {self.framebuffer.shape}")
+            print(f"[PiomatterBackend] Input framebuffer - has content: {np.any(framebuffer > 0)}, max value: {framebuffer.max()}, shape: {framebuffer.shape}")
+            self._fb_debug_shown = True
+        
         self.matrix.show()
 
     def handle_events(self) -> dict:

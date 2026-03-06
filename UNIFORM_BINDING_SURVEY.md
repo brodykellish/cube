@@ -111,3 +111,4 @@ Uniforms come from these sources (via `get_uniforms()`):
 - Nodes iterate through uniforms dict and call `shader.set_uniform()` for each
 - Actual OpenGL binding happens in `ShaderProgram.set_uniform()`
 
+

@@ -48,6 +48,7 @@ class VisualizationRunner:
             settings: Settings dictionary for renderer
             viz_window: VisualizationWindow instance (created on main thread)
             stop_callback: Optional callback to signal stop from visualization thread
+            framebuffer_queue: Optional queue to receive rendered framebuffers
         """
         # Store config for thread to use
         self._width = width
@@ -407,6 +408,9 @@ class VisualizationRunner:
                 # Update all parameters via handler registry
                 if hasattr(self, '_handler_registry'):
                     self._handler_registry.update_all(dt)
+                
+                # Note: Parameter updates from API are applied directly to ParameterStore
+                # The visualization thread samples the current values each frame
                 
                 # Check pipeline deployment queue
                 try:

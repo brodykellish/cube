@@ -199,12 +199,6 @@ class BindingMap:
             all_held.update(state.held)
             all_released.update(state.released)
 
-        # Build expanded key sets with modifiers applied
-        # When shift is held, we can match bindings like ('key:shift', 'key:w')
-        # by checking if both 'key:shift' and 'key:w' are in the held set
-        expanded_pressed = all_pressed.copy()
-        expanded_held = all_held.copy()
-
         # No need to add tuples to sets - we'll check subset membership directly
 
         result = {}
@@ -225,22 +219,19 @@ class BindingMap:
                 else:
                     binding_keys = raw_input
 
-                # Check if binding is a subset of current keys
-                binding_set = set(binding_keys)
-                if binding_set.issubset(expanded_held):
-                    # Check if it's pressed (last key in tuple was pressed)
-                    if binding_keys:
-                        last_key = binding_keys[-1]
-                        is_pressed = last_key in all_pressed
-                    else:
-                        is_pressed = False
+            # Check if binding is a subset of current keys
+            binding_set = set(binding_keys)
+            if binding_set.issubset(all_held):
+                # Check if it's pressed: any key in the binding was pressed this frame
+                # This handles cases where modifier is pressed first, then key, or vice versa
+                is_pressed = any(k in all_pressed for k in binding_keys)
 
-                    if is_pressed:
-                        result[target] = ActionState.PRESSED
-                    else:
-                        result[target] = ActionState.HELD
+                if is_pressed:
+                    result[target] = ActionState.PRESSED
+                else:
+                    result[target] = ActionState.HELD
 
-                    consumed.update(binding_keys)
+                consumed.update(binding_keys)
 
         # Check base bindings (for unconsumed inputs)
         # Sort bindings by length (longer = more specific = check first)
@@ -248,21 +239,31 @@ class BindingMap:
         base_bindings = list(self.base.get(context, {}).items())
         base_bindings.sort(key=lambda x: len(x[0]), reverse=True)
 
+        # Track which bindings have matched to prevent less specific bindings from also matching
+        # Use frozenset since it's hashable and can be stored in a set
+        matched_bindings = set()
+
         for binding_keys, bindings in base_bindings:
             # Skip if any key in binding is already consumed
             if any(k in consumed for k in binding_keys):
                 continue
 
-            binding_set = set(binding_keys)
+            binding_set = frozenset(binding_keys)
 
             # Check if binding is a subset of current keys
-            if binding_set.issubset(expanded_held):
-                # Check if it's pressed (last key in tuple was pressed)
-                if binding_keys:
-                    last_key = binding_keys[-1]
-                    is_pressed = last_key in all_pressed
-                else:
-                    is_pressed = False
+            if binding_set.issubset(all_held):
+                # Check if a more specific binding (longer) has already matched
+                # If so, skip this less specific binding to avoid conflicts
+                is_superset_of_matched = any(
+                    matched_set.issuperset(binding_set) and matched_set != binding_set
+                    for matched_set in matched_bindings
+                )
+                if is_superset_of_matched:
+                    continue
+
+                # Check if it's pressed: any key in the binding was pressed this frame
+                # This handles cases where modifier is pressed first, then key, or vice versa
+                is_pressed = any(k in all_pressed for k in binding_keys)
 
                 for binding in bindings:
                     if isinstance(binding.target, Action):
@@ -271,7 +272,8 @@ class BindingMap:
                         else:
                             result[binding.target] = ActionState.HELD
 
-                        # Mark all keys in binding as consumed
+                        # Mark this binding as matched and consume its keys
+                        matched_bindings.add(binding_set)
                         consumed.update(binding_keys)
 
         return result
