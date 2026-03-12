@@ -82,7 +82,7 @@ class UnifiedController:
             framebuffer_queue=self.viz_manager.framebuffer_queue,
             socketio=self.socketio,
             target_fps=60,
-            jpeg_quality=80
+            jpeg_quality=95
         )
         self.streaming_worker.start()
 

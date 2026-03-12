@@ -181,14 +181,9 @@ class VisualizationManager:
             raise RuntimeError("Visualization not running")
 
         try:
-            from cube.dag.dag import DAG
-            from cube.dag.source_node import SourceNode
             from pathlib import Path
 
-            # Create simple DAG with single shader
-            dag = DAG()
-
-            # Get absolute path
+            # Get absolute path to verify shader exists
             project_root = Path(__file__).parent.parent
             abs_shader_path = project_root / shader_path
 
@@ -196,50 +191,19 @@ class VisualizationManager:
                 print(f"[VizManager] Shader not found: {abs_shader_path}")
                 return False
 
-            # Access renderer from visualization runner
-            if not hasattr(self.viz_runner, '_renderer') or self.viz_runner._renderer is None:
-                print("[VizManager] Renderer not available yet")
-                return False
+            # Create config dict for deploy_pipeline (thread-safe)
+            # Note: VisualizationRunner expects 'source' (singular), not 'sources'
+            # Must use absolute path because shader_loader resolves paths relative to its working directory
+            config = {
+                'source': {
+                    'shader_path': str(abs_shader_path)  # Use absolute path
+                },
+                'effects': [],  # Effects are managed by EffectManager
+                'params': {}  # Parameters will use defaults
+            }
 
-            renderer = self.viz_runner._renderer
-
-            # Create source node
-            source_node = SourceNode(
-                name="main_shader",
-                shader_path=str(abs_shader_path),
-                width=self.width // self.num_panels,
-                height=self.height,
-                vao=renderer.vao,
-                glsl_version=renderer.get_glsl_version()
-            )
-
-            dag.add_root(source_node)
-
-            # Get or create effect manager
-            if not hasattr(self.viz_runner, '_effect_manager') or self.viz_runner._effect_manager is None:
-                from cube.render.effect_manager import EffectManager
-                effect_manager = EffectManager(renderer)
-                # Load effects from config
-                project_root = Path(__file__).parent.parent
-                effects_config_path = project_root / 'effects_config.yml'
-                if effects_config_path.exists():
-                    from cube.render.effect_config_loader import load_effect_config
-                    effect_config = load_effect_config(effects_config_path)
-                    for effect_def in effect_config.get('effects', []):
-                        effect_manager.add_effect(
-                            action=effect_def['action'],
-                            shader_path=effect_def['shader_path'],
-                            trigger_mode=effect_def['trigger_mode'],
-                            node_class=effect_def.get('node_class', 'EffectNode'),
-                            priority=effect_def.get('priority', 100)
-                        )
-            else:
-                effect_manager = self.viz_runner._effect_manager
-
-            # Deploy pipeline
-            self.dag = dag
-            self.effect_manager = effect_manager
-            self.viz_runner.deploy_pipeline(dag, effect_manager)
+            # Deploy pipeline via queue (thread-safe)
+            self.viz_runner.deploy_pipeline(config)
 
             print(f"[VizManager] Loaded shader: {shader_path}")
             return True

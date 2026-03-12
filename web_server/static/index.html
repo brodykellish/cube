@@ -71,6 +71,10 @@
         }
 
         /* Video Section */
+        .video-container {
+            position: relative;
+        }
+
         #videoCanvas {
             width: 100%;
             max-width: 1200px;
@@ -79,11 +83,68 @@
             border-radius: 8px;
             display: block;
             margin: 0 auto 10px auto;
-            cursor: pointer;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            object-fit: contain;
         }
 
         #videoCanvas:hover {
             box-shadow: 0 0 20px rgba(100, 100, 255, 0.3);
+        }
+
+        .video-controls {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .fullscreen-btn {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .fullscreen-btn:hover {
+            background: #444;
+            transform: scale(1.05);
+        }
+
+        .fullscreen-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Fullscreen Mode */
+        .video-container:fullscreen {
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-container:fullscreen #videoCanvas {
+            max-width: 95vw;
+            max-height: 85vh;
+            width: auto;
+            height: auto;
+            border-radius: 0;
+        }
+
+        .video-container:fullscreen .video-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+
+        .video-container:fullscreen .fullscreen-btn {
+            background: rgba(51, 51, 51, 0.8);
         }
 
         .video-stats {
@@ -278,7 +339,14 @@
         <!-- Video Section -->
         <div class="section">
             <h2>📹 Live Preview</h2>
-            <canvas id="videoCanvas" width="768" height="128"></canvas>
+            <div class="video-container" id="videoContainer">
+                <canvas id="videoCanvas" width="768" height="128"></canvas>
+                <div class="video-controls">
+                    <button class="fullscreen-btn" id="fullscreenBtn" title="Press F or click to toggle fullscreen">
+                        ⛶ Fullscreen
+                    </button>
+                </div>
+            </div>
             <div class="video-stats" id="videoStats">No visualization loaded</div>
         </div>
 
@@ -358,9 +426,20 @@
             const canvas = document.getElementById('videoCanvas');
             const ctx = canvas.getContext('2d');
 
+            // Disable image smoothing for crisp pixel rendering
+            ctx.imageSmoothingEnabled = false;
+            ctx.mozImageSmoothingEnabled = false;
+            ctx.webkitImageSmoothingEnabled = false;
+            ctx.msImageSmoothingEnabled = false;
+
             const img = new Image();
             img.onload = () => {
+                // Clear canvas before drawing
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw image at native resolution
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
                 const latency = Math.round((Date.now() / 1000 - data.timestamp) * 1000);
                 document.getElementById('videoStats').textContent =
                     `${fpsCounter.fps.toFixed(1)} FPS | ${latency}ms latency`;
@@ -384,18 +463,25 @@
             try {
                 const response = await fetch(`${API_BASE}/api/resources/shaders`);
                 const data = await response.json();
+                console.log('[Shaders] Loaded:', data);
 
-                if (data.success && data.shaders) {
-                    allShaders = data.shaders;
-                    document.getElementById('shaderCount').textContent = allShaders.length;
-
-                    // Get unique categories
-                    const categories = [...new Set(allShaders.map(s => s.category))].sort();
-                    renderCategoryFilters(categories);
-
-                    // Render shaders
-                    filterShaders();
+                // Flatten category-organized data into single array
+                allShaders = [];
+                for (const category in data) {
+                    if (Array.isArray(data[category])) {
+                        allShaders.push(...data[category]);
+                    }
                 }
+                console.log('[Shaders] Flattened shaders count:', allShaders.length);
+
+                document.getElementById('shaderCount').textContent = allShaders.length;
+
+                // Get unique categories from the flattened array
+                const categories = [...new Set(allShaders.map(s => s.category))].sort();
+                renderCategoryFilters(categories);
+
+                // Render shaders
+                filterShaders();
             } catch (error) {
                 console.error('[Shaders] Error loading:', error);
             }
@@ -441,7 +527,7 @@
 
             const search = searchBox.value.toLowerCase();
             console.log('[Search] Filtering with:', search, 'Category:', currentFilter);
-
+            console.log('[Search] All shaders:', allShaders);
             const filtered = allShaders.filter(shader => {
                 const matchesCategory = currentFilter === 'all' || shader.category === currentFilter;
                 const matchesSearch = shader.name.toLowerCase().includes(search) ||
@@ -665,6 +751,48 @@
         }
 
         // Initialize
+        // Fullscreen functionality
+        function toggleFullscreen() {
+            const container = document.getElementById('videoContainer');
+            const btn = document.getElementById('fullscreenBtn');
+
+            if (!document.fullscreenElement) {
+                // Enter fullscreen
+                if (container.requestFullscreen) {
+                    container.requestFullscreen();
+                } else if (container.webkitRequestFullscreen) {
+                    container.webkitRequestFullscreen();
+                } else if (container.mozRequestFullScreen) {
+                    container.mozRequestFullScreen();
+                } else if (container.msRequestFullscreen) {
+                    container.msRequestFullscreen();
+                }
+            } else {
+                // Exit fullscreen
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        }
+
+        // Update fullscreen button text
+        function updateFullscreenButton() {
+            const btn = document.getElementById('fullscreenBtn');
+            if (btn) {
+                if (document.fullscreenElement) {
+                    btn.textContent = '⛶ Exit Fullscreen';
+                } else {
+                    btn.textContent = '⛶ Fullscreen';
+                }
+            }
+        }
+
         window.onload = () => {
             connectWebSocket();
             initParameterControls();
@@ -679,7 +807,28 @@
                 console.log('[UI] Search handler attached');
             }
 
+            // Setup fullscreen handlers
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            if (fullscreenBtn) {
+                fullscreenBtn.addEventListener('click', toggleFullscreen);
+            }
+
+            // Listen for fullscreen changes
+            document.addEventListener('fullscreenchange', updateFullscreenButton);
+            document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+            document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+            document.addEventListener('MSFullscreenChange', updateFullscreenButton);
+
+            // Keyboard shortcut: F key for fullscreen
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'f' || e.key === 'F') {
+                    e.preventDefault();
+                    toggleFullscreen();
+                }
+            });
+
             console.log('[UI] LED Cube Control Ready');
+            console.log('[UI] Press F or click Fullscreen button to enter fullscreen mode');
         };
     </script>
 </body>

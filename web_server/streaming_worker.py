@@ -45,7 +45,7 @@ class StreamingWorker:
         framebuffer_queue: queue.Queue,
         socketio,
         target_fps: int = 60,
-        jpeg_quality: int = 80
+        jpeg_quality: int = 95
     ):
         """
         Initialize streaming worker.
@@ -54,7 +54,7 @@ class StreamingWorker:
             framebuffer_queue: Queue providing framebuffers from renderer
             socketio: Flask-SocketIO instance for WebSocket broadcasting
             target_fps: Target streaming frame rate (default: 60)
-            jpeg_quality: JPEG encoding quality 0-100 (default: 80)
+            jpeg_quality: JPEG encoding quality 0-100 (default: 95)
         """
         if not PILLOW_AVAILABLE:
             raise ImportError("Pillow required for streaming. Install with: pip install Pillow")
@@ -192,15 +192,14 @@ class StreamingWorker:
         # Encode as base64 for JSON transport
         jpeg_base64 = base64.b64encode(jpeg_data).decode('ascii')
 
-        # Emit to all clients on /stream namespace
+        # Emit to all clients on default namespace
         self.socketio.emit(
             'video_frame',
             {
                 'data': jpeg_base64,
                 'timestamp': time.time(),
                 'format': 'jpeg'
-            },
-            namespace='/stream'
+            }
         )
 
     def get_stats(self) -> dict:

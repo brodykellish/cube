@@ -1,105 +1,58 @@
 preset_name: split
 bindings:
-# Effect 1: GLITCH
 - action: TOGGLE_GLITCH
   inputs:
   - key:1
-  - midi:note_36
-
-# Effect 2: BLUR
 - action: TOGGLE_BLUR
   inputs:
   - key:2
-  - midi:note_37
-
-# Effect 3: DISPLACEMENT_MAP
 - action: TOGGLE_DISPLACEMENT_MAP
   inputs:
   - key:3
-  - midi:note_38
-
-# Effect 4: PIXELATE
 - action: TOGGLE_PIXELATE
   inputs:
   - key:4
-  - midi:note_39
-
-# Effect 5: MIRROR
 - action: TOGGLE_MIRROR
   inputs:
   - key:5
-  - midi:note_32
-
-# Effect 6: MOSAIC
 - action: TOGGLE_MOSAIC
   inputs:
   - key:6
-  - midi:note_33
-
-# Effect 7: SINEWAVE_DISTORT
 - action: TOGGLE_SINEWAVE_DISTORT
   inputs:
   - key:7
-  - midi:note_34
-
-# Effect 8: SLITSCAN
 - action: TOGGLE_SLITSCAN
   inputs:
   - key:8
-  - midi:note_35
-
-# Effect 9: PSYCHEDELIC (Shift+1)
 - action: TOGGLE_PSYCHEDELIC
   inputs:
   - - key:shift
     - key:1
-  - midi:note_48
-
-# Effect 10: RGB_SPLIT (Shift+2)
-- action: TOGGLE_RGB_SPLIT
-  inputs:
-  - - key:shift
-    - key:2
-  - midi:note_49
-
-# Effect 11: FRAME_DIFFERENCING (Shift+3)
 - action: TOGGLE_FRAME_DIFFERENCING
   inputs:
   - - key:shift
     - key:3
-  - midi:note_50
-
-# Effect 12: RGB_TO_HSB (Shift+4)
+- action: TOGGLE_RGB_SPLIT
+  inputs:
+  - - key:shift
+    - key:2
 - action: TOGGLE_RGB_TO_HSB
   inputs:
   - - key:shift
     - key:4
-  - midi:note_51
-
-# Effect 13: INVERT (Shift+5)
 - action: TOGGLE_INVERT
   inputs:
   - - key:shift
     - key:5
-  - midi:note_44
-
-# Effect 14: VIDEO_FEEDBACK (Shift+6)
 - action: TOGGLE_VIDEO_FEEDBACK
   inputs:
   - - key:shift
     - key:6
-  - midi:note_45
-
-# Effect 15: THRESHOLD (Shift+7)
 - action: TOGGLE_THRESHOLD
   inputs:
   - - key:shift
     - key:7
-  - midi:note_46
-
-# Effect 16: IMAGE_FLASH (Shift+8)
 - action: TRIGGER_IMAGE_FLASH
   inputs:
   - - key:shift
     - key:8
-  - midi:note_47
